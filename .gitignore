@@ -25,3 +25,5 @@ dist-ssr
 
 # Large media files
 Esboço SisLoVe.mp4
+.vercel
+.env*.local
