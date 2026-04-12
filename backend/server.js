@@ -42,6 +42,11 @@ app.use((err, req, res, _next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-    console.log(`SisLoVe API rodando na porta ${PORT}`);
-});
+
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`SisLoVe API rodando na porta ${PORT}`);
+    });
+}
+
+module.exports = app;

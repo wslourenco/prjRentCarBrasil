@@ -20,7 +20,7 @@ pool.getConnection()
     })
     .catch(err => {
         console.error('❌ Erro ao conectar no MySQL:', err.message);
-        process.exit(1);
+        // Em produção serverless, não finalizar o processo para permitir respostas de diagnóstico.
     });
 
 module.exports = pool;
