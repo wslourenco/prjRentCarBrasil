@@ -27,10 +27,15 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ erro: 'Credenciais inválidas.' });
         }
 
+        const jwtSecret = (process.env.JWT_SECRET || '').trim();
+        if (!jwtSecret) {
+            return res.status(500).json({ erro: 'Configuração de autenticação ausente.' });
+        }
+
         const token = jwt.sign(
             { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil },
-            process.env.JWT_SECRET,
-            { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+            jwtSecret,
+            { expiresIn: (process.env.JWT_EXPIRES_IN || '8h').trim() || '8h' }
         );
 
         res.json({
