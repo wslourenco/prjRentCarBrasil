@@ -5,8 +5,14 @@ function authMiddleware(req, res, next) {
     if (!header) return res.status(401).json({ erro: 'Token não fornecido.' });
 
     const token = header.startsWith('Bearer ') ? header.slice(7) : header;
+    const jwtSecret = String(process.env.JWT_SECRET || '').trim().replace(/^['"]|['"]$/g, '');
+
+    if (!jwtSecret) {
+        return res.status(500).json({ erro: 'Configuração de autenticação ausente.' });
+    }
+
     try {
-        const payload = jwt.verify(token, process.env.JWT_SECRET);
+        const payload = jwt.verify(token, jwtSecret);
         req.usuario = payload;
         next();
     } catch {
