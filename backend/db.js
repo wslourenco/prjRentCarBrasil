@@ -7,7 +7,10 @@ dotenv.config({ path: path.join(__dirname, '.env.local') });
 
 function env(name, fallback = '') {
     const value = process.env[name];
-    return typeof value === 'string' ? value.trim() || fallback : fallback;
+    if (typeof value !== 'string') return fallback;
+
+    const cleaned = value.trim().replace(/^['"]|['"]$/g, '');
+    return cleaned || fallback;
 }
 
 const pool = mysql.createPool({
