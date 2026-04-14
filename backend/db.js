@@ -103,17 +103,23 @@ function getFallbackRows(sql, params = []) {
 }
 
 const originalQuery = pool.query.bind(pool);
+const allowDemoMode = env('DB_ALLOW_DEMO_MODE', 'true').toLowerCase() !== 'false';
 let demoModeLogged = false;
+
+function formatDbError(err) {
+    return err?.code || err?.message || 'sem detalhes';
+}
+
 pool.query = async (sql, params) => {
     try {
         return await originalQuery(sql, params);
     } catch (err) {
-        if (!isDbConnectionError(err)) throw err;
+        if (!isDbConnectionError(err) || !allowDemoMode) throw err;
 
         const fallback = getFallbackRows(sql, params);
         if (fallback) {
             if (!demoModeLogged) {
-                console.warn('⚠️ MySQL indisponível; usando modo demonstração para login e consultas.');
+                console.warn(`⚠️ MySQL indisponível (${formatDbError(err)}); usando modo demonstração.`);
                 demoModeLogged = true;
             }
             return fallback;
@@ -130,8 +136,13 @@ pool.getConnection()
         conn.release();
     })
     .catch(err => {
-        console.error('❌ Erro ao conectar no MySQL:', err.message);
-        // Em produção serverless, não finalizar o processo para permitir respostas de diagnóstico.
+        const message = `⚠️ MySQL indisponível (${formatDbError(err)}).`;
+        if (allowDemoMode) {
+            console.warn(`${message} Sistema seguirá em modo demonstração.`);
+            return;
+        }
+
+        console.error(message);
     });
 
 module.exports = pool;
