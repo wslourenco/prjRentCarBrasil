@@ -44,6 +44,12 @@ router.post('/login', async (req, res) => {
         });
     } catch (err) {
         console.error(err);
+        if (req.query?.debug === '1') {
+            return res.status(500).json({
+                erro: err.message || 'Erro interno no servidor.',
+                code: err.code || null
+            });
+        }
         res.status(500).json({ erro: 'Erro interno no servidor.' });
     }
 });
