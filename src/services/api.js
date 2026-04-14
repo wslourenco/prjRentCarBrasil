@@ -1,4 +1,8 @@
-const BASE = (import.meta.env.VITE_API_URL ?? '') + '/api';
+const envBase = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/$/, '');
+const defaultBase = window.location.hostname === 'localhost'
+    ? 'http://localhost:3001'
+    : window.location.origin;
+const BASE = `${envBase || defaultBase}/api`;
 
 function getToken() {
     return localStorage.getItem('sislove_token');

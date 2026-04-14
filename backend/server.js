@@ -9,7 +9,7 @@ const cors = require('cors');
 
 const app = express();
 
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,https://prjsislove-web.vercel.app')
     .split(',')
     .map(v => v.trim())
     .filter(Boolean);
@@ -20,6 +20,7 @@ app.use(cors({
         // Permite chamadas sem Origin (ex: health checks/server-to-server)
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes(origin)) return callback(null, true);
+        if (/^https:\/\/.*\.vercel\.app$/i.test(origin)) return callback(null, true);
         return callback(new Error('Origem não permitida pelo CORS'));
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
