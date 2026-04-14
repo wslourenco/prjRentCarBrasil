@@ -1,8 +1,14 @@
-const envBase = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/$/, '');
-const defaultBase = window.location.hostname === 'localhost'
-    ? 'http://localhost:3001'
+const envBase = String(import.meta.env.VITE_API_URL ?? '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\/$/, '');
+
+const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const resolvedBase = isLocalhost
+    ? (envBase || 'http://localhost:3001')
     : window.location.origin;
-const BASE = `${envBase || defaultBase}/api`;
+
+const BASE = `${resolvedBase}/api`;
 
 function getToken() {
     return localStorage.getItem('sislove_token');
