@@ -1,7 +1,11 @@
-require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+const dotenv = require('dotenv');
+const path = require('path');
+
+dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config({ path: path.join(__dirname, '.env.local') });
+
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 
 const app = express();
 
