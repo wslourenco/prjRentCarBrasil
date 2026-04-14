@@ -64,6 +64,45 @@ const demoLocadores = [
     { id: 10, tipo: 'fisica', nome: 'Juliana Nascimento Alves', cpf: '680.791.802-10', rg: '01.234.567-8', data_nascimento: '1993-02-28', razao_social: null, cnpj: null, insc_estadual: null, email: 'juliana.alves@email.com', telefone: '(81)4345-6789', celular: '(81)99901-2345', cep: '50010-010', endereco: 'Rua do Sol', numero: '300', complemento: '', bairro: 'Santo Antônio', cidade: 'Recife', estado: 'PE', banco: 'C6 Bank', agencia: '', conta: '11223344-5', tipo_conta: 'corrente', pix_chave: '(81)99901-2345', observacoes: 'Cadastro demo' }
 ];
 
+const demoLocatarios = [
+    { id: 1, tipo: 'fisica', nome: 'Diego Henrique Barbosa', cpf: '111.222.333-44', rg: '11.222.333-4', data_nascimento: '1992-05-10', razao_social: null, cnpj: null, insc_estadual: null, email: 'diego.barbosa@email.com', telefone: '(11)3111-2222', celular: '(11)91111-2222', whatsapp: '(11)91111-2222', cep: '02010-010', endereco: 'Rua Voluntários da Pátria', numero: '400', complemento: '', bairro: 'Santana', cidade: 'São Paulo', estado: 'SP', cnh: '12345678900', categoria_cnh: 'AB', validade_cnh: '2027-05-10', orgao_emissor_cnh: 'DETRAN', estado_cnh: 'SP', motorist_app: 0, plataformas_app: '', avaliacao_app: '', profissao: 'Motorista de Aplicativo', renda_mensal: 3800.00, ref_nome1: '', ref_telefone1: '', ref_nome2: '', ref_telefone2: '', observacoes: 'Cadastro demo' },
+    { id: 2, tipo: 'fisica', nome: 'Fernanda Cristina Moura', cpf: '222.333.444-55', rg: '22.333.444-5', data_nascimento: '1989-09-20', razao_social: null, cnpj: null, insc_estadual: null, email: 'fernanda.moura@email.com', telefone: '(21)3222-3333', celular: '(21)92222-3333', whatsapp: '(21)92222-3333', cep: '22030-010', endereco: 'Rua Siqueira Campos', numero: '200', complemento: '', bairro: 'Copacabana', cidade: 'Rio de Janeiro', estado: 'RJ', cnh: '23456789011', categoria_cnh: 'B', validade_cnh: '2026-09-20', orgao_emissor_cnh: 'DETRAN', estado_cnh: 'RJ', motorist_app: 0, plataformas_app: '', avaliacao_app: '', profissao: 'Entregadora', renda_mensal: 2900.00, ref_nome1: '', ref_telefone1: '', ref_nome2: '', ref_telefone2: '', observacoes: 'Cadastro demo' },
+    { id: 3, tipo: 'fisica', nome: 'Gabriel Augusto Pereira', cpf: '333.444.555-66', rg: '33.444.555-6', data_nascimento: '1995-12-01', razao_social: null, cnpj: null, insc_estadual: null, email: 'gabriel.pereira@email.com', telefone: '(31)3333-4444', celular: '(31)93333-4444', whatsapp: '(31)93333-4444', cep: '30110-010', endereco: 'Av. do Contorno', numero: '600', complemento: '', bairro: 'Savassi', cidade: 'Belo Horizonte', estado: 'MG', cnh: '34567890122', categoria_cnh: 'B', validade_cnh: '2028-12-01', orgao_emissor_cnh: 'DETRAN', estado_cnh: 'MG', motorist_app: 0, plataformas_app: '', avaliacao_app: '', profissao: 'Técnico de TI', renda_mensal: 4500.00, ref_nome1: '', ref_telefone1: '', ref_nome2: '', ref_telefone2: '', observacoes: 'Cadastro demo' },
+    { id: 4, tipo: 'fisica', nome: 'Helena Beatriz Cardoso', cpf: '444.555.666-77', rg: '44.555.666-7', data_nascimento: '1987-03-15', razao_social: null, cnpj: null, insc_estadual: null, email: 'helena.cardoso@email.com', telefone: '(41)3444-5555', celular: '(41)94444-5555', whatsapp: '(41)94444-5555', cep: '80210-080', endereco: 'Rua Marechal Hermes', numero: '150', complemento: '', bairro: 'Água Verde', cidade: 'Curitiba', estado: 'PR', cnh: '45678901233', categoria_cnh: 'B', validade_cnh: '2025-03-15', orgao_emissor_cnh: 'DETRAN', estado_cnh: 'PR', motorist_app: 0, plataformas_app: '', avaliacao_app: '', profissao: 'Professora', renda_mensal: 3200.00, ref_nome1: '', ref_telefone1: '', ref_nome2: '', ref_telefone2: '', observacoes: 'Cadastro demo' },
+    { id: 5, tipo: 'fisica', nome: 'Igor Luís Teixeira', cpf: '555.666.777-88', rg: '55.666.777-8', data_nascimento: '1998-07-07', razao_social: null, cnpj: null, insc_estadual: null, email: 'igor.teixeira@email.com', telefone: '(51)3555-6666', celular: '(51)95555-6666', whatsapp: '(51)95555-6666', cep: '91010-010', endereco: 'Av. Farrapos', numero: '900', complemento: '', bairro: 'Floresta', cidade: 'Porto Alegre', estado: 'RS', cnh: '56789012344', categoria_cnh: 'AB', validade_cnh: '2029-07-07', orgao_emissor_cnh: 'DETRAN', estado_cnh: 'RS', motorist_app: 0, plataformas_app: '', avaliacao_app: '', profissao: 'Motorista de Aplicativo', renda_mensal: 4100.00, ref_nome1: '', ref_telefone1: '', ref_nome2: '', ref_telefone2: '', observacoes: 'Cadastro demo' },
+    { id: 6, tipo: 'fisica', nome: 'Joana Maria Ribeiro', cpf: '666.777.888-99', rg: '66.777.888-9', data_nascimento: '1991-10-25', razao_social: null, cnpj: null, insc_estadual: null, email: 'joana.ribeiro@email.com', telefone: '(85)3666-7777', celular: '(85)96666-7777', whatsapp: '(85)96666-7777', cep: '60175-047', endereco: 'Rua Tibúrcio Cavalcante', numero: '350', complemento: '', bairro: 'Aldeota', cidade: 'Fortaleza', estado: 'CE', cnh: '67890123455', categoria_cnh: 'B', validade_cnh: '2026-10-25', orgao_emissor_cnh: 'DETRAN', estado_cnh: 'CE', motorist_app: 0, plataformas_app: '', avaliacao_app: '', profissao: 'Enfermeira', renda_mensal: 4800.00, ref_nome1: '', ref_telefone1: '', ref_nome2: '', ref_telefone2: '', observacoes: 'Cadastro demo' },
+    { id: 7, tipo: 'fisica', nome: 'Lucas André Vasconcelos', cpf: '777.888.999-00', rg: '77.888.999-0', data_nascimento: '1994-02-14', razao_social: null, cnpj: null, insc_estadual: null, email: 'lucas.vasconcelos@email.com', telefone: '(71)3777-8888', celular: '(71)97777-8888', whatsapp: '(71)97777-8888', cep: '40060-330', endereco: 'Av. Oceânica', numero: '1500', complemento: '', bairro: 'Ondina', cidade: 'Salvador', estado: 'BA', cnh: '78901234566', categoria_cnh: 'AB', validade_cnh: '2028-02-14', orgao_emissor_cnh: 'DETRAN', estado_cnh: 'BA', motorist_app: 0, plataformas_app: '', avaliacao_app: '', profissao: 'Motorista de Aplicativo', renda_mensal: 3600.00, ref_nome1: '', ref_telefone1: '', ref_nome2: '', ref_telefone2: '', observacoes: 'Cadastro demo' },
+    { id: 8, tipo: 'fisica', nome: 'Natália Priscila Campos', cpf: '888.999.000-11', rg: '88.999.000-1', data_nascimento: '1986-06-30', razao_social: null, cnpj: null, insc_estadual: null, email: 'natalia.campos@email.com', telefone: '(62)3888-9999', celular: '(62)98888-9999', whatsapp: '(62)98888-9999', cep: '74823-010', endereco: 'Rua 9', numero: '780', complemento: '', bairro: 'Setor Marista', cidade: 'Goiânia', estado: 'GO', cnh: '89012345677', categoria_cnh: 'B', validade_cnh: '2025-06-30', orgao_emissor_cnh: 'DETRAN', estado_cnh: 'GO', motorist_app: 0, plataformas_app: '', avaliacao_app: '', profissao: 'Advogada', renda_mensal: 7500.00, ref_nome1: '', ref_telefone1: '', ref_nome2: '', ref_telefone2: '', observacoes: 'Cadastro demo' },
+    { id: 9, tipo: 'fisica', nome: 'Otávio Renan Castro', cpf: '999.000.111-22', rg: '99.000.111-2', data_nascimento: '1997-11-11', razao_social: null, cnpj: null, insc_estadual: null, email: 'otavio.castro@email.com', telefone: '(92)3999-0000', celular: '(92)99999-0000', whatsapp: '(92)99999-0000', cep: '69040-010', endereco: 'Rua Monsenhor Coutinho', numero: '680', complemento: '', bairro: 'Centro', cidade: 'Manaus', estado: 'AM', cnh: '90123456788', categoria_cnh: 'AB', validade_cnh: '2030-11-11', orgao_emissor_cnh: 'DETRAN', estado_cnh: 'AM', motorist_app: 0, plataformas_app: '', avaliacao_app: '', profissao: 'Motorista de Aplicativo', renda_mensal: 3300.00, ref_nome1: '', ref_telefone1: '', ref_nome2: '', ref_telefone2: '', observacoes: 'Cadastro demo' },
+    { id: 10, tipo: 'fisica', nome: 'Paula Renata Figueiredo', cpf: '000.111.222-33', rg: '00.111.222-3', data_nascimento: '1990-04-04', razao_social: null, cnpj: null, insc_estadual: null, email: 'paula.figueiredo@email.com', telefone: '(81)3000-1111', celular: '(81)90000-1111', whatsapp: '(81)90000-1111', cep: '52050-010', endereco: 'Av. Norte Miguel Arraes de Alencar', numero: '2200', complemento: '', bairro: 'Casa Amarela', cidade: 'Recife', estado: 'PE', cnh: '01234567899', categoria_cnh: 'B', validade_cnh: '2027-04-04', orgao_emissor_cnh: 'DETRAN', estado_cnh: 'PE', motorist_app: 0, plataformas_app: '', avaliacao_app: '', profissao: 'Contadora', renda_mensal: 5200.00, ref_nome1: '', ref_telefone1: '', ref_nome2: '', ref_telefone2: '', observacoes: 'Cadastro demo' }
+];
+
+const demoVeiculos = [
+    { id: 1, placa: 'ABC1D23', renavam: '00123456789', chassi: '9BWZZZ377VT004251', marca: 'Hyundai', modelo: 'HB20 Sense', ano_fabricacao: 2022, ano_modelo: 2023, cor: 'Branco', combustivel: 'Flex', transmissao: 'Manual', nr_portas: 4, capacidade: 5, km_atual: 32500, km_compra: 15000, km_troca_oleo: 40000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2022-03-10', valor_compra: 62000.00, valor_fipe: 65000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 1, foto: '', observacoes: 'Cadastro demo' },
+    { id: 2, placa: 'DEF2E34', renavam: '00234567891', chassi: '9BGKS48U0HG123456', marca: 'Chevrolet', modelo: 'Onix Plus LT', ano_fabricacao: 2021, ano_modelo: 2022, cor: 'Prata', combustivel: 'Flex', transmissao: 'Automático', nr_portas: 4, capacidade: 5, km_atual: 58000, km_compra: 42000, km_troca_oleo: 65000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2021-06-15', valor_compra: 72000.00, valor_fipe: 75000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 2, foto: '', observacoes: 'Cadastro demo' },
+    { id: 3, placa: 'GHI3F45', renavam: '00345678902', chassi: '9C2JC4110ER123789', marca: 'Fiat', modelo: 'Cronos Drive', ano_fabricacao: 2023, ano_modelo: 2023, cor: 'Preto', combustivel: 'Flex', transmissao: 'Manual', nr_portas: 4, capacidade: 5, km_atual: 18200, km_compra: 8000, km_troca_oleo: 30000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2023-01-20', valor_compra: 82000.00, valor_fipe: 85000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 3, foto: '', observacoes: 'Cadastro demo' },
+    { id: 4, placa: 'JKL4G56', renavam: '00456789013', chassi: '9BD17145P26543210', marca: 'Fiat', modelo: 'Mobi Like', ano_fabricacao: 2022, ano_modelo: 2022, cor: 'Vermelho', combustivel: 'Flex', transmissao: 'Manual', nr_portas: 4, capacidade: 5, km_atual: 44000, km_compra: 30000, km_troca_oleo: 50000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2022-09-05', valor_compra: 48000.00, valor_fipe: 50000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 4, foto: '', observacoes: 'Cadastro demo' },
+    { id: 5, placa: 'MNO5H67', renavam: '00567890124', chassi: '9BFZZZ335JB123987', marca: 'Volkswagen', modelo: 'Polo MPI', ano_fabricacao: 2020, ano_modelo: 2021, cor: 'Cinza', combustivel: 'Flex', transmissao: 'Manual', nr_portas: 4, capacidade: 5, km_atual: 71000, km_compra: 55000, km_troca_oleo: 80000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2020-11-12', valor_compra: 58000.00, valor_fipe: 60000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 5, foto: '', observacoes: 'Cadastro demo' },
+    { id: 6, placa: 'PQR6I78', renavam: '00678901235', chassi: '8A1FB3AF0NU123654', marca: 'Renault', modelo: 'Sandero Zen', ano_fabricacao: 2021, ano_modelo: 2022, cor: 'Azul', combustivel: 'Flex', transmissao: 'Manual', nr_portas: 4, capacidade: 5, km_atual: 52000, km_compra: 38000, km_troca_oleo: 60000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2021-04-30', valor_compra: 52000.00, valor_fipe: 54000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 6, foto: '', observacoes: 'Cadastro demo' },
+    { id: 7, placa: 'STU7J89', renavam: '00789012346', chassi: '9BWZZZ377GT123321', marca: 'Volkswagen', modelo: 'T-Cross 200 TSI', ano_fabricacao: 2023, ano_modelo: 2024, cor: 'Branco', combustivel: 'Flex', transmissao: 'Automático', nr_portas: 4, capacidade: 5, km_atual: 12000, km_compra: 0, km_troca_oleo: 20000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2023-07-18', valor_compra: 128000.00, valor_fipe: 132000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 7, foto: '', observacoes: 'Cadastro demo' },
+    { id: 8, placa: 'VWX8K90', renavam: '00890123457', chassi: '9BFZZZ335TB123159', marca: 'Chevrolet', modelo: 'Tracker Premier', ano_fabricacao: 2022, ano_modelo: 2023, cor: 'Preto', combustivel: 'Flex', transmissao: 'Automático', nr_portas: 4, capacidade: 5, km_atual: 27000, km_compra: 10000, km_troca_oleo: 35000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2022-12-01', valor_compra: 105000.00, valor_fipe: 110000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 8, foto: '', observacoes: 'Cadastro demo' },
+    { id: 9, placa: 'YZA9L01', renavam: '00901234568', chassi: '9BD17117L10123753', marca: 'Fiat', modelo: 'Argo Drive', ano_fabricacao: 2021, ano_modelo: 2021, cor: 'Verde', combustivel: 'Flex', transmissao: 'Manual', nr_portas: 4, capacidade: 5, km_atual: 63000, km_compra: 47000, km_troca_oleo: 70000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2021-08-22', valor_compra: 55000.00, valor_fipe: 57000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 9, foto: '', observacoes: 'Cadastro demo' },
+    { id: 10, placa: 'BCD0M12', renavam: '01012345679', chassi: '9BWZZZ377KT123486', marca: 'Ford', modelo: 'Ka SE Plus', ano_fabricacao: 2020, ano_modelo: 2020, cor: 'Prata', combustivel: 'Flex', transmissao: 'Manual', nr_portas: 4, capacidade: 5, km_atual: 88000, km_compra: 72000, km_troca_oleo: 95000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2020-05-14', valor_compra: 42000.00, valor_fipe: 43000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 10, foto: '', observacoes: 'Cadastro demo' }
+];
+
+const demoLocacoes = [
+    { id: 1, veiculo_id: 1, locatario_id: 1, data_inicio: '2026-03-03', data_previsao_fim: '2026-06-02', data_encerramento: null, valor_semanal: 1200.00, caucao: 2400.00, km_entrada: 30100, km_saida: null, status: 'ativa', condicoes: 'Motorista de app. Pagamento toda segunda-feira.' },
+    { id: 2, veiculo_id: 2, locatario_id: 2, data_inicio: '2026-03-03', data_previsao_fim: '2026-06-02', data_encerramento: null, valor_semanal: 1350.00, caucao: 2700.00, km_entrada: 56500, km_saida: null, status: 'ativa', condicoes: 'Entregadora. Pagamento toda segunda-feira.' },
+    { id: 3, veiculo_id: 3, locatario_id: 3, data_inicio: '2026-03-10', data_previsao_fim: '2026-06-09', data_encerramento: null, valor_semanal: 1400.00, caucao: 2800.00, km_entrada: 17000, km_saida: null, status: 'ativa', condicoes: 'Técnico de TI. Pagamento toda segunda-feira.' },
+    { id: 4, veiculo_id: 4, locatario_id: 4, data_inicio: '2026-02-03', data_previsao_fim: '2026-05-05', data_encerramento: '2026-04-01', valor_semanal: 900.00, caucao: 1800.00, km_entrada: 41000, km_saida: 44000, status: 'encerrada', condicoes: 'Encerrada antecipadamente a pedido do locatário.' },
+    { id: 5, veiculo_id: 5, locatario_id: 5, data_inicio: '2026-03-17', data_previsao_fim: '2026-06-16', data_encerramento: null, valor_semanal: 1250.00, caucao: 2500.00, km_entrada: 68500, km_saida: null, status: 'ativa', condicoes: 'Motorista de app. Pagamento toda segunda-feira.' },
+    { id: 6, veiculo_id: 6, locatario_id: 6, data_inicio: '2026-02-17', data_previsao_fim: '2026-05-19', data_encerramento: '2026-03-31', valor_semanal: 1100.00, caucao: 2200.00, km_entrada: 49000, km_saida: 52000, status: 'encerrada', condicoes: 'Contrato encerrado no prazo.' },
+    { id: 7, veiculo_id: 7, locatario_id: 7, data_inicio: '2026-03-24', data_previsao_fim: '2026-06-23', data_encerramento: null, valor_semanal: 1500.00, caucao: 3000.00, km_entrada: 10500, km_saida: null, status: 'ativa', condicoes: 'Motorista de app. T-Cross. Pagamento toda segunda-feira.' },
+    { id: 8, veiculo_id: 8, locatario_id: 8, data_inicio: '2026-04-07', data_previsao_fim: '2026-07-07', data_encerramento: null, valor_semanal: 1450.00, caucao: 3000.00, km_entrada: 26500, km_saida: null, status: 'ativa', condicoes: 'Pagamento toda segunda-feira. Caução pago.' },
+    { id: 9, veiculo_id: 9, locatario_id: 9, data_inicio: '2026-01-13', data_previsao_fim: '2026-04-14', data_encerramento: '2026-04-06', valor_semanal: 1100.00, caucao: 2200.00, km_entrada: 57000, km_saida: 63000, status: 'encerrada', condicoes: 'Contrato encerrado no prazo.' },
+    { id: 10, veiculo_id: 10, locatario_id: 10, data_inicio: '2026-03-02', data_previsao_fim: null, data_encerramento: '2026-03-09', valor_semanal: 1000.00, caucao: 2000.00, km_entrada: 86000, km_saida: null, status: 'cancelada', condicoes: 'Cancelada: locatário desistiu antes de retirar o veículo.' }
+];
+
 function isDbConnectionError(err) {
     const code = err?.code || '';
     const message = String(err?.message || '').toLowerCase();
@@ -122,11 +161,56 @@ function getFallbackRows(sql, params = []) {
         rows.sort((a, b) => (a.razao_social || a.nome || '').localeCompare(b.razao_social || b.nome || ''));
         return [rows, []];
     }
-    if (normalized.includes('from locatarios')) return [[], []];
+    if (normalized.includes('from locatarios')) {
+        let rows = demoLocatarios.map(locatario => ({ ...locatario }));
+
+        if (normalized.includes('where id = ?')) {
+            rows = rows.filter(locatario => String(locatario.id) === String(params?.[0]));
+        }
+
+        rows.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+        return [rows, []];
+    }
+
     if (normalized.includes('from colaboradores')) return [[], []];
-    if (normalized.includes('from veiculos')) return [[], []];
+
+    if (normalized.includes('from veiculos')) {
+        let rows = demoVeiculos.map(veiculo => ({
+            ...veiculo,
+            nome_locador: demoLocadores.find(locador => locador.id === veiculo.locador_id)?.nome || ''
+        }));
+
+        if (normalized.includes('where v.id = ?') || normalized.includes('where id = ?')) {
+            rows = rows.filter(veiculo => String(veiculo.id) === String(params?.[0]));
+        }
+
+        rows.sort((a, b) => (a.placa || '').localeCompare(b.placa || ''));
+        return [rows, []];
+    }
+
     if (normalized.includes('from despesas_receitas')) return [[], []];
-    if (normalized.includes('from locacoes')) return [[], []];
+
+    if (normalized.includes('from locacoes')) {
+        let rows = demoLocacoes.map(locacao => {
+            const veiculo = demoVeiculos.find(item => item.id === locacao.veiculo_id);
+            const locatario = demoLocatarios.find(item => item.id === locacao.locatario_id);
+
+            return {
+                ...locacao,
+                nome_veiculo: veiculo ? `${veiculo.marca} ${veiculo.modelo}` : '',
+                placa: veiculo?.placa || '',
+                nome_locatario: locatario?.nome || '',
+                celular_locatario: locatario?.celular || ''
+            };
+        });
+
+        if (normalized.includes('where lc.id = ?') || normalized.includes('where id = ?')) {
+            rows = rows.filter(locacao => String(locacao.id) === String(params?.[0]));
+        }
+
+        rows.sort((a, b) => String(b.data_inicio || '').localeCompare(String(a.data_inicio || '')));
+        return [rows, []];
+    }
 
     return null;
 }
