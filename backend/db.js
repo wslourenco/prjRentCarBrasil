@@ -49,7 +49,21 @@ const demoUsers = [
 ];
 
 function isDbConnectionError(err) {
-    return ['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'PROTOCOL_CONNECTION_LOST'].includes(err?.code);
+    const code = err?.code || '';
+    const message = String(err?.message || '').toLowerCase();
+
+    return [
+        'ECONNREFUSED',
+        'ETIMEDOUT',
+        'ENOTFOUND',
+        'EAI_AGAIN',
+        'PROTOCOL_CONNECTION_LOST',
+        'ER_ACCESS_DENIED_ERROR',
+        'ER_BAD_DB_ERROR',
+        'ER_BAD_FIELD_ERROR',
+        'ER_CON_COUNT_ERROR',
+        'ER_NOT_SUPPORTED_AUTH_MODE'
+    ].includes(code) || code.startsWith('ER_') || message.includes('connect') || message.includes('access denied');
 }
 
 function getFallbackRows(sql, params = []) {
