@@ -43,10 +43,19 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // Servir frontend React (produção)
 const publicDir = path.join(__dirname, 'public');
+app.use((req, res, next) => {
+    if (!req.path.startsWith('/api') && (!path.extname(req.path) || req.path.endsWith('.html'))) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
 app.use(express.static(publicDir));
 
 // SPA fallback: rotas não-API servem o index.html
 app.get(/^(?!\/api).*/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.sendFile(path.join(publicDir, 'index.html'));
 });
 
