@@ -103,6 +103,14 @@ const demoLocacoes = [
     { id: 10, veiculo_id: 10, locatario_id: 10, data_inicio: '2026-03-02', data_previsao_fim: null, data_encerramento: '2026-03-09', valor_semanal: 1000.00, caucao: 2000.00, km_entrada: 86000, km_saida: null, status: 'cancelada', condicoes: 'Cancelada: locatário desistiu antes de retirar o veículo.' }
 ];
 
+const demoFinanceiro = [
+    { id: 1, tipo: 'despesa', data: '2026-03-05', valor: 280.00, categoria: 'Troca de Óleo', descricao: 'Troca de óleo e filtro – HB20 ABC1D23', forma_pagamento: 'pix', comprovante: '', veiculo_id: 1, locatario_id: null, colaborador_id: null, observacoes: 'Manutenção preventiva', placa_veiculo: 'ABC1D23', nome_veiculo: 'Hyundai HB20 Sense', nome_locatario: null, nome_colaborador: null },
+    { id: 2, tipo: 'despesa', data: '2026-03-08', valor: 650.00, categoria: 'Freios', descricao: 'Revisão freios dianteiros – Onix DEF2E34', forma_pagamento: 'pix', comprovante: '', veiculo_id: 2, locatario_id: null, colaborador_id: null, observacoes: 'Troca de pastilhas', placa_veiculo: 'DEF2E34', nome_veiculo: 'Chevrolet Onix Plus LT', nome_locatario: null, nome_colaborador: null },
+    { id: 3, tipo: 'despesa', data: '2026-03-15', valor: 320.00, categoria: 'Manutenção Preventiva', descricao: 'Alinhamento e balanceamento – Argo YZA9L01', forma_pagamento: 'pix', comprovante: '', veiculo_id: 9, locatario_id: null, colaborador_id: null, observacoes: 'Revisão de rotina', placa_veiculo: 'YZA9L01', nome_veiculo: 'Fiat Argo Drive', nome_locatario: null, nome_colaborador: null },
+    { id: 4, tipo: 'despesa', data: '2026-03-18', valor: 890.00, categoria: 'Troca de Pneu', descricao: 'Troca de pneu dianteiro direito – Ka BCD0M12', forma_pagamento: 'dinheiro', comprovante: '', veiculo_id: 10, locatario_id: null, colaborador_id: null, observacoes: 'Pneu danificado', placa_veiculo: 'BCD0M12', nome_veiculo: 'Ford Ka SE Plus', nome_locatario: null, nome_colaborador: null },
+    { id: 5, tipo: 'despesa', data: '2026-03-25', valor: 450.00, categoria: 'Troca de Correia', descricao: 'Troca de correia dentada – Sandero PQR6I78', forma_pagamento: 'pix', comprovante: '', veiculo_id: 6, locatario_id: null, colaborador_id: null, observacoes: 'Preventiva', placa_veiculo: 'PQR6I78', nome_veiculo: 'Renault Sandero Zen', nome_locatario: null, nome_colaborador: null }
+];
+
 function isDbConnectionError(err) {
     const code = err?.code || '';
     const message = String(err?.message || '').toLowerCase();
@@ -188,7 +196,16 @@ function getFallbackRows(sql, params = []) {
         return [rows, []];
     }
 
-    if (normalized.includes('from despesas_receitas')) return [[], []];
+    if (normalized.includes('from despesas_receitas')) {
+        let rows = demoFinanceiro.map(item => ({ ...item }));
+
+        if (normalized.includes('where id = ?')) {
+            rows = rows.filter(item => String(item.id) === String(params?.[0]));
+        }
+
+        rows.sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
+        return [rows, []];
+    }
 
     if (normalized.includes('from locacoes')) {
         let rows = demoLocacoes.map(locacao => {
