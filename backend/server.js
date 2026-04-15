@@ -9,22 +9,58 @@ const cors = require('cors');
 
 const app = express();
 
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,https://prjsislove-web.vercel.app')
+const defaultOrigins = ['http://localhost:5173', 'https://prjsislove-web.vercel.app'];
+const configuredOrigins = String(process.env.CORS_ORIGIN || '')
     .split(',')
     .map(v => v.trim())
     .filter(Boolean);
+const allowedOrigins = [...new Set([...defaultOrigins, ...configuredOrigins])];
+const allowSameHostOrigin = String(process.env.CORS_ALLOW_SAME_HOST || 'true').toLowerCase() !== 'false';
+
+function getOriginHost(origin) {
+    try {
+        return new URL(origin).host.toLowerCase();
+    } catch {
+        return '';
+    }
+}
+
+function getRequestHosts(req) {
+    const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim().toLowerCase();
+    const directHost = String(req.headers.host || '').trim().toLowerCase();
+    return [forwardedHost, directHost].filter(Boolean);
+}
 
 // Middlewares globais
-app.use(cors({
-    origin(origin, callback) {
+app.use(cors((req, callback) => {
+    const origin = req.headers.origin;
+
+    const corsOptions = {
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+        allowedHeaders: ['Content-Type', 'Authorization']
+    };
+
+    const allow = () => callback(null, { ...corsOptions, origin: true });
+
+    try {
         // Permite chamadas sem Origin (ex: health checks/server-to-server)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) return callback(null, true);
-        if (/^https:\/\/.*\.vercel\.app$/i.test(origin)) return callback(null, true);
-        return callback(new Error('Origem não permitida pelo CORS'));
-    },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+        if (!origin) return allow();
+        if (allowedOrigins.includes(origin)) return allow();
+        if (/^https:\/\/.*\.vercel\.app$/i.test(origin)) return allow();
+
+        if (allowSameHostOrigin) {
+            const originHost = getOriginHost(origin);
+            const requestHosts = getRequestHosts(req);
+            if (originHost && requestHosts.includes(originHost)) return allow();
+        }
+
+        const corsError = new Error('Origem não permitida pelo CORS');
+        corsError.status = 403;
+        corsError.code = 'CORS_NOT_ALLOWED';
+        return callback(corsError);
+    } catch (err) {
+        return callback(err);
+    }
 }));
 app.use(express.json());
 
@@ -61,8 +97,20 @@ app.get(/^(?!\/api).*/, (_req, res) => {
 
 // Tratamento global de erros
 app.use((err, req, res, _next) => {
-    console.error(err.stack);
-    res.status(500).json({ erro: 'Erro interno no servidor.' });
+    const status = Number(err?.status || err?.statusCode) || 500;
+
+    if (err?.code === 'CORS_NOT_ALLOWED') {
+        return res.status(403).json({
+            erro: `Origem não permitida pelo CORS: ${req.headers.origin || 'desconhecida'}. Configure CORS_ORIGIN no backend para incluir este domínio.`
+        });
+    }
+
+    if (status >= 500) {
+        console.error(err?.stack || err);
+        return res.status(500).json({ erro: 'Erro interno no servidor.' });
+    }
+
+    return res.status(status).json({ erro: err?.message || 'Erro na requisição.' });
 });
 
 const PORT = process.env.PORT || 3001;

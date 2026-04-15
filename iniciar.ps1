@@ -3,12 +3,57 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSCommandPath
 $backend = Join-Path $root 'backend'
 
+function Test-IsAdministrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Get-MySqlService {
+    $services = Get-Service -ErrorAction SilentlyContinue |
+    Where-Object {
+        $_.Name -match '^(MySQL|MariaDB)' -or
+        $_.DisplayName -match 'MySQL|MariaDB'
+    } |
+    Sort-Object Name
+
+    return $services | Select-Object -First 1
+}
+
 if (-not (Test-Path $backend)) {
     throw "Pasta backend não encontrada em: $backend"
 }
 
 Write-Host "Iniciando SisLoVe..." -ForegroundColor Cyan
 Write-Host "Projeto: $root"
+
+$mySqlService = Get-MySqlService
+if ($null -eq $mySqlService) {
+    Write-Host "[AVISO] Nenhum serviço MySQL/MariaDB encontrado no Windows. O backend pode entrar em modo demonstração." -ForegroundColor Yellow
+}
+elseif ($mySqlService.Status -ne 'Running') {
+    Write-Host "[AVISO] Serviço de banco '$($mySqlService.Name)' está parado." -ForegroundColor Yellow
+
+    if (Test-IsAdministrator) {
+        try {
+            Start-Service -Name $mySqlService.Name
+            Write-Host "[OK] Serviço '$($mySqlService.Name)' iniciado com sucesso." -ForegroundColor Green
+        }
+        catch {
+            Write-Host "[AVISO] Falha ao iniciar '$($mySqlService.Name)': $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "   O sistema continuará e pode entrar em modo demonstração." -ForegroundColor Yellow
+        }
+    }
+    else {
+        $escapedScriptPath = $PSCommandPath.Replace("'", "''")
+        Write-Host "[INFO] Execute este script como Administrador para iniciar o banco automaticamente:" -ForegroundColor Cyan
+        Write-Host "   Start-Process PowerShell -Verb RunAs -ArgumentList '-ExecutionPolicy Bypass -File ''$escapedScriptPath'''" -ForegroundColor DarkCyan
+        Write-Host "   O sistema continuará e pode entrar em modo demonstração." -ForegroundColor Yellow
+    }
+}
+else {
+    Write-Host "[OK] Serviço '$($mySqlService.Name)' já está em execução." -ForegroundColor Green
+}
 
 Start-Process -FilePath 'cmd.exe' -WorkingDirectory $backend -ArgumentList '/k', 'npm install --silent && node server.js'
 Start-Process -FilePath 'cmd.exe' -WorkingDirectory $root -ArgumentList '/k', 'npm install --silent && npm run dev'

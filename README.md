@@ -43,11 +43,23 @@ DB_PASSWORD=sua_senha
 DB_NAME=sislove
 CORS_ORIGIN=http://localhost:5173
 JWT_SECRET=troque_esta_chave
+JWT_EXPIRES_IN=8h
+CORS_ALLOW_SAME_HOST=true
 
 Observações:
 
 - O backend usa backend/.env para configuração do servidor.
 - O acesso ao MySQL usa defaults caso alguma variável não exista, mas é recomendado definir todas.
+- `CORS_ORIGIN` aceita múltiplos domínios separados por vírgula.
+- `CORS_ALLOW_SAME_HOST=true` permite automaticamente a origem que tiver o mesmo host da requisição (útil em produção com domínio próprio).
+- Quando uma origem não é permitida, a API retorna `403` com mensagem clara de CORS (em vez de erro interno genérico).
+
+## Deploy na Vercel
+
+- Este projeto está preparado para deploy na Vercel.
+- Use o arquivo `backend/.env.vercel.example` como referência para cadastrar variáveis no painel da Vercel.
+- Configure em: Project > Settings > Environment Variables.
+- Não defina `PORT` manualmente na Vercel.
 
 ## Instalação
 
