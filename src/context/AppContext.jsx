@@ -36,26 +36,67 @@ export function AppProvider({ children }) {
         setCarregando(true);
         setErro(null);
         try {
-            const [l, lt, col, v, fin, loc] = await Promise.all([
-                api.get('/locadores'),
-                api.get('/locatarios'),
-                api.get('/colaboradores'),
-                api.get('/veiculos'),
-                api.get('/financeiro'),
-                api.get('/locacoes'),
-            ]);
-            setLocadores(l.map(locadorFromApi));
-            setLocatarios(lt.map(locatarioFromApi));
-            setColaboradores(col.map(colaboradorFromApi));
-            setVeiculos(v.map(veiculoFromApi));
-            setDespesasReceitas(fin.map(financeiroFromApi));
-            setLocacoes(loc.map(locacaoFromApi));
+            const perfil = usuarioLogado?.perfil;
+
+            if (perfil === 'admin') {
+                const [l, lt, col, v, fin, loc] = await Promise.all([
+                    api.get('/locadores'),
+                    api.get('/locatarios'),
+                    api.get('/colaboradores'),
+                    api.get('/veiculos'),
+                    api.get('/financeiro'),
+                    api.get('/locacoes'),
+                ]);
+                setLocadores(l.map(locadorFromApi));
+                setLocatarios(lt.map(locatarioFromApi));
+                setColaboradores(col.map(colaboradorFromApi));
+                setVeiculos(v.map(veiculoFromApi));
+                setDespesasReceitas(fin.map(financeiroFromApi));
+                setLocacoes(loc.map(locacaoFromApi));
+                return;
+            }
+
+            if (perfil === 'locador') {
+                const [v, fin, loc] = await Promise.all([
+                    api.get('/veiculos'),
+                    api.get('/financeiro'),
+                    api.get('/locacoes'),
+                ]);
+                setLocadores([]);
+                setLocatarios([]);
+                setColaboradores([]);
+                setVeiculos(v.map(veiculoFromApi));
+                setDespesasReceitas(fin.map(financeiroFromApi));
+                setLocacoes(loc.map(locacaoFromApi));
+                return;
+            }
+
+            if (perfil === 'locatario') {
+                const [v, loc] = await Promise.all([
+                    api.get('/veiculos'),
+                    api.get('/locacoes'),
+                ]);
+                setLocadores([]);
+                setLocatarios([]);
+                setColaboradores([]);
+                setDespesasReceitas([]);
+                setVeiculos(v.map(veiculoFromApi));
+                setLocacoes(loc.map(locacaoFromApi));
+                return;
+            }
+
+            setLocadores([]);
+            setLocatarios([]);
+            setColaboradores([]);
+            setVeiculos([]);
+            setDespesasReceitas([]);
+            setLocacoes([]);
         } catch (e) {
             setErro(e.message);
         } finally {
             setCarregando(false);
         }
-    }, []);
+    }, [usuarioLogado?.perfil]);
 
     useEffect(() => {
         if (usuarioLogado) carregarDados();
@@ -64,6 +105,14 @@ export function AppProvider({ children }) {
     // ── Auth ──────────────────────────────────────────────
     async function login(email, senha) {
         const dados = await api.post('/auth/login', { email, senha });
+        localStorage.setItem('sislove_token', dados.token);
+        localStorage.setItem('sislove_usuario', JSON.stringify(dados.usuario));
+        setUsuarioLogado(dados.usuario);
+        return dados.usuario;
+    }
+
+    async function register(nome, email, senha, perfil) {
+        const dados = await api.post('/auth/register', { nome, email, senha, perfil });
         localStorage.setItem('sislove_token', dados.token);
         localStorage.setItem('sislove_usuario', JSON.stringify(dados.usuario));
         setUsuarioLogado(dados.usuario);
@@ -210,7 +259,7 @@ export function AppProvider({ children }) {
 
     return (
         <AppContext.Provider value={{
-            usuarioLogado, login, logout,
+            usuarioLogado, login, register, logout,
             locadores,        addLocador,        updateLocador,        removeLocador,
             locatarios,       addLocatario,       updateLocatario,       removeLocatario,
             colaboradores,    addColaborador,    updateColaborador,    removeColaborador,

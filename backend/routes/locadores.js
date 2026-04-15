@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, adminOnly } = require('../middleware/auth');
 
-router.use(authMiddleware);
+router.use(authMiddleware, adminOnly);
 
 // GET /api/locadores
 router.get('/', async (req, res) => {

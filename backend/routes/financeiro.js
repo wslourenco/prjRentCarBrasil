@@ -1,14 +1,37 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, requireProfiles } = require('../middleware/auth');
 
 router.use(authMiddleware);
+
+async function getLocadorIdByUserEmail(email) {
+    const [rows] = await pool.query(
+        'SELECT id FROM locadores WHERE email = ? ORDER BY id ASC LIMIT 1',
+        [email]
+    );
+    return rows[0]?.id || null;
+}
+
+async function ensureLocadorContext(req, res) {
+    if (req.usuario?.perfil !== 'locador') return null;
+
+    const locadorId = await getLocadorIdByUserEmail(req.usuario.email);
+    if (!locadorId) {
+        res.status(403).json({ erro: 'Não foi encontrado cadastro de locador vinculado a este usuário.' });
+        return null;
+    }
+    return locadorId;
+}
 
 // GET /api/financeiro
 router.get('/', async (req, res) => {
     try {
-        const [rows] = await pool.query(`
+        if (req.usuario?.perfil === 'locatario') {
+            return res.status(403).json({ erro: 'Locatários não possuem acesso ao módulo financeiro.' });
+        }
+
+        let sql = `
             SELECT dr.*,
                    v.placa AS placa_veiculo,
                    CONCAT(v.marca, ' ', v.modelo) AS nome_veiculo,
@@ -18,9 +41,20 @@ router.get('/', async (req, res) => {
             LEFT JOIN veiculos v ON dr.veiculo_id = v.id
             LEFT JOIN locatarios lt ON dr.locatario_id = lt.id
             LEFT JOIN colaboradores col ON dr.colaborador_id = col.id
-            ORDER BY dr.data DESC
-        `);
-        res.json(rows);
+        `;
+        const params = [];
+
+        if (req.usuario?.perfil === 'locador') {
+            const locadorId = await ensureLocadorContext(req, res);
+            if (!locadorId) return;
+            sql += ' WHERE v.locador_id = ?';
+            params.push(locadorId);
+        }
+
+        sql += ' ORDER BY dr.data DESC';
+
+        const [rows] = await pool.query(sql, params);
+        return res.json(rows);
     } catch (err) {
         console.error(err);
         res.status(500).json({ erro: 'Erro ao buscar lançamentos.' });
@@ -30,7 +64,26 @@ router.get('/', async (req, res) => {
 // GET /api/financeiro/:id
 router.get('/:id', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM despesas_receitas WHERE id = ?', [req.params.id]);
+        if (req.usuario?.perfil === 'locatario') {
+            return res.status(403).json({ erro: 'Locatários não possuem acesso ao módulo financeiro.' });
+        }
+
+        let sql = 'SELECT dr.* FROM despesas_receitas dr WHERE dr.id = ?';
+        const params = [req.params.id];
+
+        if (req.usuario?.perfil === 'locador') {
+            const locadorId = await ensureLocadorContext(req, res);
+            if (!locadorId) return;
+            sql = `
+                SELECT dr.*
+                FROM despesas_receitas dr
+                INNER JOIN veiculos v ON dr.veiculo_id = v.id
+                WHERE dr.id = ? AND v.locador_id = ?
+            `;
+            params.push(locadorId);
+        }
+
+        const [rows] = await pool.query(sql, params);
         if (rows.length === 0) return res.status(404).json({ erro: 'Lançamento não encontrado.' });
         res.json(rows[0]);
     } catch (err) {
@@ -40,7 +93,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/financeiro
-router.post('/', async (req, res) => {
+router.post('/', requireProfiles('admin', 'locador'), async (req, res) => {
     const {
         tipo, categoria, descricao, valor, data,
         forma_pagamento, comprovante,
@@ -52,6 +105,23 @@ router.post('/', async (req, res) => {
     }
 
     try {
+        if (req.usuario?.perfil === 'locador') {
+            const locadorId = await ensureLocadorContext(req, res);
+            if (!locadorId) return;
+
+            if (!veiculo_id) {
+                return res.status(400).json({ erro: 'Locador deve informar o veículo do lançamento.' });
+            }
+
+            const [ownRows] = await pool.query(
+                'SELECT id FROM veiculos WHERE id = ? AND locador_id = ? LIMIT 1',
+                [veiculo_id, locadorId]
+            );
+            if (ownRows.length === 0) {
+                return res.status(403).json({ erro: 'Você só pode lançar movimentações para veículos vinculados ao seu cadastro.' });
+            }
+        }
+
         const [result] = await pool.query(
             `INSERT INTO despesas_receitas
             (tipo, categoria, descricao, valor, data,
@@ -71,7 +141,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/financeiro/:id
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
     const {
         tipo, categoria, descricao, valor, data,
         forma_pagamento, comprovante,
@@ -79,6 +149,35 @@ router.put('/:id', async (req, res) => {
     } = req.body;
 
     try {
+        if (req.usuario?.perfil === 'locador') {
+            const locadorId = await ensureLocadorContext(req, res);
+            if (!locadorId) return;
+
+            if (!veiculo_id) {
+                return res.status(400).json({ erro: 'Locador deve informar o veículo do lançamento.' });
+            }
+
+            const [ownRows] = await pool.query(
+                'SELECT id FROM veiculos WHERE id = ? AND locador_id = ? LIMIT 1',
+                [veiculo_id, locadorId]
+            );
+            if (ownRows.length === 0) {
+                return res.status(403).json({ erro: 'Você só pode alterar movimentações dos seus veículos.' });
+            }
+
+            const [ownership] = await pool.query(
+                `SELECT dr.id
+                 FROM despesas_receitas dr
+                 INNER JOIN veiculos v ON dr.veiculo_id = v.id
+                 WHERE dr.id = ? AND v.locador_id = ?
+                 LIMIT 1`,
+                [req.params.id, locadorId]
+            );
+            if (ownership.length === 0) {
+                return res.status(403).json({ erro: 'Você só pode alterar movimentações dos seus veículos.' });
+            }
+        }
+
         const [result] = await pool.query(
             `UPDATE despesas_receitas SET
              tipo=?, categoria=?, descricao=?, valor=?, data=?,
@@ -100,8 +199,25 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/financeiro/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
     try {
+        if (req.usuario?.perfil === 'locador') {
+            const locadorId = await ensureLocadorContext(req, res);
+            if (!locadorId) return;
+
+            const [ownership] = await pool.query(
+                `SELECT dr.id
+                 FROM despesas_receitas dr
+                 INNER JOIN veiculos v ON dr.veiculo_id = v.id
+                 WHERE dr.id = ? AND v.locador_id = ?
+                 LIMIT 1`,
+                [req.params.id, locadorId]
+            );
+            if (ownership.length === 0) {
+                return res.status(403).json({ erro: 'Você só pode remover movimentações dos seus veículos.' });
+            }
+        }
+
         const [result] = await pool.query('DELETE FROM despesas_receitas WHERE id = ?', [req.params.id]);
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Lançamento não encontrado.' });
         res.json({ mensagem: 'Lançamento removido com sucesso.' });

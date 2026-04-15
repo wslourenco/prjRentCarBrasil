@@ -1,21 +1,51 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, requireProfiles } = require('../middleware/auth');
 
 router.use(authMiddleware);
+
+async function getLocadorIdByUserEmail(email) {
+    const [rows] = await pool.query(
+        'SELECT id FROM locadores WHERE email = ? ORDER BY id ASC LIMIT 1',
+        [email]
+    );
+    return rows[0]?.id || null;
+}
+
+async function ensureLocadorContext(req, res) {
+    if (req.usuario?.perfil !== 'locador') return null;
+
+    const locadorId = await getLocadorIdByUserEmail(req.usuario.email);
+    if (!locadorId) {
+        res.status(403).json({ erro: 'Não foi encontrado cadastro de locador vinculado a este usuário.' });
+        return null;
+    }
+    return locadorId;
+}
 
 // GET /api/veiculos
 router.get('/', async (req, res) => {
     try {
-        const [rows] = await pool.query(`
+        let sql = `
             SELECT v.*,
                    COALESCE(l.razao_social, l.nome) AS nome_locador
             FROM veiculos v
             LEFT JOIN locadores l ON v.locador_id = l.id
-            ORDER BY v.placa
-        `);
-        res.json(rows);
+        `;
+        const params = [];
+
+        if (req.usuario?.perfil === 'locador') {
+            const locadorId = await ensureLocadorContext(req, res);
+            if (!locadorId) return;
+            sql += ' WHERE v.locador_id = ?';
+            params.push(locadorId);
+        }
+
+        sql += ' ORDER BY v.placa';
+
+        const [rows] = await pool.query(sql, params);
+        return res.json(rows);
     } catch (err) {
         console.error(err);
         res.status(500).json({ erro: 'Erro ao buscar veículos.' });
@@ -25,13 +55,23 @@ router.get('/', async (req, res) => {
 // GET /api/veiculos/:id
 router.get('/:id', async (req, res) => {
     try {
-        const [rows] = await pool.query(`
+        let sql = `
             SELECT v.*,
                    COALESCE(l.razao_social, l.nome) AS nome_locador
             FROM veiculos v
             LEFT JOIN locadores l ON v.locador_id = l.id
             WHERE v.id = ?
-        `, [req.params.id]);
+        `;
+        const params = [req.params.id];
+
+        if (req.usuario?.perfil === 'locador') {
+            const locadorId = await ensureLocadorContext(req, res);
+            if (!locadorId) return;
+            sql += ' AND v.locador_id = ?';
+            params.push(locadorId);
+        }
+
+        const [rows] = await pool.query(sql, params);
         if (rows.length === 0) return res.status(404).json({ erro: 'Veículo não encontrado.' });
         res.json(rows[0]);
     } catch (err) {
@@ -41,7 +81,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/veiculos
-router.post('/', async (req, res) => {
+router.post('/', requireProfiles('admin', 'locador'), async (req, res) => {
     const {
         placa, marca, modelo, ano_fabricacao, ano_modelo, cor, combustivel,
         transmissao, nr_portas, capacidade,
@@ -57,6 +97,13 @@ router.post('/', async (req, res) => {
     }
 
     try {
+        let locadorIdValue = locador_id || null;
+        if (req.usuario?.perfil === 'locador') {
+            const locadorId = await ensureLocadorContext(req, res);
+            if (!locadorId) return;
+            locadorIdValue = locadorId;
+        }
+
         const [result] = await pool.query(
             `INSERT INTO veiculos
             (placa, marca, modelo, ano_fabricacao, ano_modelo, cor, combustivel,
@@ -75,7 +122,7 @@ router.post('/', async (req, res) => {
                 data_compra || null, valor_compra || null, valor_fipe || null,
                 seguradora, nr_apolice, vencimento_seguro || null,
                 data_licenciamento || null, data_vistoria || null,
-                bloqueador, nr_bloqueador, locador_id || null, foto, observacoes]
+                bloqueador, nr_bloqueador, locadorIdValue, foto, observacoes]
         );
         const [novo] = await pool.query(`
             SELECT v.*, COALESCE(l.razao_social, l.nome) AS nome_locador
@@ -93,7 +140,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/veiculos/:id
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
     const {
         placa, marca, modelo, ano_fabricacao, ano_modelo, cor, combustivel,
         transmissao, nr_portas, capacidade,
@@ -105,6 +152,22 @@ router.put('/:id', async (req, res) => {
     } = req.body;
 
     try {
+        let locadorIdValue = locador_id || null;
+
+        if (req.usuario?.perfil === 'locador') {
+            const locadorId = await ensureLocadorContext(req, res);
+            if (!locadorId) return;
+
+            const [ownRows] = await pool.query(
+                'SELECT id FROM veiculos WHERE id = ? AND locador_id = ? LIMIT 1',
+                [req.params.id, locadorId]
+            );
+            if (ownRows.length === 0) {
+                return res.status(403).json({ erro: 'Você só pode editar veículos vinculados ao seu cadastro de locador.' });
+            }
+            locadorIdValue = locadorId;
+        }
+
         const [result] = await pool.query(
             `UPDATE veiculos SET
              placa=?, marca=?, modelo=?, ano_fabricacao=?, ano_modelo=?, cor=?, combustivel=?,
@@ -123,7 +186,7 @@ router.put('/:id', async (req, res) => {
                 data_compra || null, valor_compra || null, valor_fipe || null,
                 seguradora, nr_apolice, vencimento_seguro || null,
                 data_licenciamento || null, data_vistoria || null,
-                bloqueador, nr_bloqueador, locador_id || null, foto, observacoes,
+                bloqueador, nr_bloqueador, locadorIdValue, foto, observacoes,
                 req.params.id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Veículo não encontrado.' });
@@ -143,8 +206,21 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/veiculos/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
     try {
+        if (req.usuario?.perfil === 'locador') {
+            const locadorId = await ensureLocadorContext(req, res);
+            if (!locadorId) return;
+
+            const [ownRows] = await pool.query(
+                'SELECT id FROM veiculos WHERE id = ? AND locador_id = ? LIMIT 1',
+                [req.params.id, locadorId]
+            );
+            if (ownRows.length === 0) {
+                return res.status(403).json({ erro: 'Você só pode remover veículos vinculados ao seu cadastro de locador.' });
+            }
+        }
+
         const [result] = await pool.query('DELETE FROM veiculos WHERE id = ?', [req.params.id]);
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Veículo não encontrado.' });
         res.json({ mensagem: 'Veículo removido com sucesso.' });

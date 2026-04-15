@@ -27,4 +27,14 @@ function adminOnly(req, res, next) {
     next();
 }
 
-module.exports = { authMiddleware, adminOnly };
+function requireProfiles(...allowedProfiles) {
+    return (req, res, next) => {
+        const perfil = req.usuario?.perfil;
+        if (!allowedProfiles.includes(perfil)) {
+            return res.status(403).json({ erro: 'Acesso não permitido para este perfil.' });
+        }
+        next();
+    };
+}
+
+module.exports = { authMiddleware, adminOnly, requireProfiles };

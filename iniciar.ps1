@@ -45,10 +45,24 @@ elseif ($mySqlService.Status -ne 'Running') {
         }
     }
     else {
-        $escapedScriptPath = $PSCommandPath.Replace("'", "''")
-        Write-Host "[INFO] Execute este script como Administrador para iniciar o banco automaticamente:" -ForegroundColor Cyan
-        Write-Host "   Start-Process PowerShell -Verb RunAs -ArgumentList '-ExecutionPolicy Bypass -File ''$escapedScriptPath'''" -ForegroundColor DarkCyan
-        Write-Host "   O sistema continuará e pode entrar em modo demonstração." -ForegroundColor Yellow
+        Write-Host "[INFO] Solicitando permissao de Administrador para iniciar '$($mySqlService.Name)'..." -ForegroundColor Cyan
+        try {
+            $startCmd = "Start-Service -Name '$($mySqlService.Name)'"
+            Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $startCmd | Out-Null
+
+            $mySqlService = Get-Service -Name $mySqlService.Name -ErrorAction SilentlyContinue
+            if ($mySqlService -and $mySqlService.Status -eq 'Running') {
+                Write-Host "[OK] Servico '$($mySqlService.Name)' iniciado com sucesso." -ForegroundColor Green
+            }
+            else {
+                Write-Host "[AVISO] Nao foi possivel iniciar '$($mySqlService.Name)' apos tentativa de elevacao." -ForegroundColor Yellow
+                Write-Host "   O sistema continuara e pode entrar em modo demonstracao." -ForegroundColor Yellow
+            }
+        }
+        catch {
+            Write-Host "[AVISO] Elevacao cancelada ou falhou: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "   O sistema continuara e pode entrar em modo demonstracao." -ForegroundColor Yellow
+        }
     }
 }
 else {

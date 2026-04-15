@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Car, User, Phone, Mail, DollarSign, Wrench, X, Plus, CheckCircle,
-  ChevronRight, MessageCircle, Bell, Check
+  ChevronRight, MessageCircle, Bell, Check, CalendarDays
 } from 'lucide-react';
 
 const EMPTY_LOCACAO = {
@@ -13,10 +13,12 @@ const EMPTY_LOCACAO = {
   caucao: '',
   condicoes: '',
   kmEntrada: '',
+  periodicidade: 'semanal',
+  quantidadePeriodos: '1',
 };
 
 export default function Painel() {
-  const { locacoes, veiculos, locatarios, despesasReceitas, addLocacao, encerrarLocacao, updateVeiculo } = useApp();
+  const { locacoes, veiculos, locatarios, despesasReceitas, addLocacao, encerrarLocacao, updateVeiculo, usuarioLogado } = useApp();
   const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
   const [abaDetalhe, setAbaDetalhe] = useState('info');
   const [modalNovaLocacao, setModalNovaLocacao] = useState(false);
@@ -76,6 +78,16 @@ export default function Painel() {
   }
 
   const veiculosDisponiveis = veiculos.filter(v => !locacoesAtivas.find(l => String(l.veiculoId) === String(v.id)));
+
+  if (usuarioLogado?.perfil === 'locatario') {
+    return (
+      <PainelLocatario
+        veiculos={veiculos}
+        locacoes={locacoes}
+        addLocacao={addLocacao}
+      />
+    );
+  }
 
   return (
     <div className="page-content">
@@ -277,6 +289,148 @@ export default function Painel() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PainelLocatario({ veiculos, locacoes, addLocacao }) {
+  const [form, setForm] = useState({
+    veiculoId: '',
+    dataInicio: new Date().toISOString().split('T')[0],
+    periodicidade: 'semanal',
+    quantidadePeriodos: '1',
+    condicoes: '',
+  });
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState('');
+
+  const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
+  const veiculosDisponiveis = veiculos.filter(v => !locacoesAtivas.some(l => String(l.veiculoId) === String(v.id)));
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setErro('');
+    setSalvando(true);
+    try {
+      await addLocacao({
+        veiculoId: form.veiculoId,
+        dataInicio: form.dataInicio,
+        periodicidade: form.periodicidade,
+        quantidadePeriodos: Number(form.quantidadePeriodos),
+        condicoes: form.condicoes,
+      });
+      setForm({
+        veiculoId: '',
+        dataInicio: new Date().toISOString().split('T')[0],
+        periodicidade: 'semanal',
+        quantidadePeriodos: '1',
+        condicoes: '',
+      });
+    } catch (err) {
+      setErro(err.message || 'Não foi possível iniciar a locação.');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="page-content">
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Solicitar Locação</h2>
+        <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>
+          Escolha um veículo disponível e o período da locação (semanal, quinzenal ou mensal).
+        </p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 440px) 1fr', gap: 16 }}>
+        <div className="card">
+          {veiculosDisponiveis.length === 0 ? (
+            <div className="empty-state"><Car size={32} /><p>Não há veículos disponíveis no momento.</p></div>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label>Veículo disponível *</label>
+                <select required value={form.veiculoId} onChange={e => setForm({ ...form, veiculoId: e.target.value })}>
+                  <option value="">Selecione o veículo</option>
+                  {veiculosDisponiveis.map(v => (
+                    <option key={v.id} value={v.id}>{v.marca} {v.modelo} - {v.placa}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-grid-2">
+                <div className="form-group">
+                  <label>Data de início *</label>
+                  <input type="date" required value={form.dataInicio} onChange={e => setForm({ ...form, dataInicio: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label>Periodicidade *</label>
+                  <select value={form.periodicidade} onChange={e => setForm({ ...form, periodicidade: e.target.value })}>
+                    <option value="semanal">Semanal</option>
+                    <option value="quinzenal">Quinzenal</option>
+                    <option value="mensal">Mensal</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label>Quantidade de períodos *</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={form.quantidadePeriodos}
+                  onChange={e => setForm({ ...form, quantidadePeriodos: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label>Observações</label>
+                <textarea value={form.condicoes} onChange={e => setForm({ ...form, condicoes: e.target.value })} />
+              </div>
+
+              {erro && <div className="alert alert-error" style={{ marginTop: 12 }}>{erro}</div>}
+
+              <button type="submit" className="btn btn-primary" style={{ marginTop: 12 }} disabled={salvando}>
+                <CalendarDays size={16} /> {salvando ? 'Enviando...' : 'Confirmar Locação'}
+              </button>
+            </form>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Minhas Locações</span>
+            <span className="badge badge-blue">{locacoes.length}</span>
+          </div>
+          {locacoes.length === 0 ? (
+            <div className="empty-state"><CalendarDays size={32} /><p>Você ainda não possui locações.</p></div>
+          ) : (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Veículo</th>
+                    <th>Início</th>
+                    <th>Previsão Fim</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {locacoes.map(loc => (
+                    <tr key={loc.id}>
+                      <td>{loc.nomeVeiculo || loc.placa || loc.veiculoId}</td>
+                      <td>{loc.dataInicio}</td>
+                      <td>{loc.dataPrevisaoFim || '-'}</td>
+                      <td><span className={`badge ${loc.status === 'ativa' ? 'badge-green' : 'badge-gray'}`}>{loc.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

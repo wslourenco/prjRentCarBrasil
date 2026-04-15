@@ -17,6 +17,9 @@ export default function Sidebar() {
   }
 
   const avatarLetters = usuarioLogado?.nome?.slice(0, 2).toUpperCase() || '??';
+  const isAdmin = usuarioLogado?.perfil === 'admin';
+  const isLocador = usuarioLogado?.perfil === 'locador';
+  const isLocatario = usuarioLogado?.perfil === 'locatario';
 
   return (
     <aside className="sidebar">
@@ -30,34 +33,49 @@ export default function Sidebar() {
         <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'active' : ''}>
           <LayoutDashboard size={16} /> Dashboard
         </NavLink>
-        <NavLink to="/painel" className={({ isActive }) => isActive ? 'active' : ''}>
-          <ChevronRight size={16} /> Painel de Controle
-        </NavLink>
+        {(isAdmin || isLocatario) && (
+          <NavLink to="/painel" className={({ isActive }) => isActive ? 'active' : ''}>
+            <ChevronRight size={16} /> Painel de Controle
+          </NavLink>
+        )}
 
         <span className="sidebar-section-title">Cadastros</span>
-        {(usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador') && (
+        {(isAdmin || isLocador) && (
           <>
-            <NavLink to="/locadores" className={({ isActive }) => isActive ? 'active' : ''}>
-              <UserCheck size={16} /> Locadores
-            </NavLink>
             <NavLink to="/veiculos" className={({ isActive }) => isActive ? 'active' : ''}>
               <Car size={16} /> Veículos
             </NavLink>
           </>
         )}
-        <NavLink to="/locatarios" className={({ isActive }) => isActive ? 'active' : ''}>
-          <Users size={16} /> Locatários
-        </NavLink>
-        <NavLink to="/colaboradores" className={({ isActive }) => isActive ? 'active' : ''}>
-          <Briefcase size={16} /> Colaboradores
-        </NavLink>
+        {isLocatario && (
+          <NavLink to="/veiculos" className={({ isActive }) => isActive ? 'active' : ''}>
+            <Car size={16} /> Veículos Disponíveis
+          </NavLink>
+        )}
+        {isAdmin && (
+          <>
+            <NavLink to="/locadores" className={({ isActive }) => isActive ? 'active' : ''}>
+              <UserCheck size={16} /> Locadores
+            </NavLink>
+            <NavLink to="/locatarios" className={({ isActive }) => isActive ? 'active' : ''}>
+              <Users size={16} /> Locatários
+            </NavLink>
+            <NavLink to="/colaboradores" className={({ isActive }) => isActive ? 'active' : ''}>
+              <Briefcase size={16} /> Colaboradores
+            </NavLink>
+          </>
+        )}
 
-        <span className="sidebar-section-title">Financeiro</span>
-        <NavLink to="/financeiro" className={({ isActive }) => isActive ? 'active' : ''}>
-          <DollarSign size={16} /> Despesas & Receitas
-        </NavLink>
+        {(isAdmin || isLocador) && (
+          <>
+            <span className="sidebar-section-title">Financeiro</span>
+            <NavLink to="/financeiro" className={({ isActive }) => isActive ? 'active' : ''}>
+              <DollarSign size={16} /> Despesas, Lucros e Gráficos
+            </NavLink>
+          </>
+        )}
 
-        {usuarioLogado?.perfil === 'admin' && (
+        {isAdmin && (
           <>
             <span className="sidebar-section-title">Administração</span>
             <NavLink to="/admin" className={({ isActive }) => isActive ? 'active' : ''}>

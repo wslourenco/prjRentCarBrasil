@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Car, Eye, EyeOff } from 'lucide-react';
+import { Car, Eye, EyeOff, UserPlus } from 'lucide-react';
 
-export default function Login() {
-  const { login } = useApp();
+export default function Register() {
+  const { register } = useApp();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: '', senha: '' });
+  const [form, setForm] = useState({ nome: '', email: '', senha: '', perfil: 'locatario' });
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [showSenha, setShowSenha] = useState(false);
@@ -16,10 +16,10 @@ export default function Login() {
     setErro('');
     setCarregando(true);
     try {
-      const usuario = await login(form.email, form.senha);
+      const usuario = await register(form.nome, form.email, form.senha, form.perfil);
       navigate(usuario.perfil === 'locatario' ? '/painel' : '/dashboard');
     } catch (e) {
-      setErro(e.message || 'E-mail ou senha inválidos.');
+      setErro(e.message || 'Não foi possível criar sua conta.');
     } finally {
       setCarregando(false);
     }
@@ -33,14 +33,26 @@ export default function Login() {
             <Car size={32} color="var(--primary)" />
             <h1>SisLoVe</h1>
           </div>
-          <p>Sistema de Locação de Veículos</p>
+          <p>Novo cadastro de usuário</p>
         </div>
 
-        <h2>Entrar na conta</h2>
+        <h2>Criar conta</h2>
 
         {erro && <div className="alert alert-error">{erro}</div>}
 
         <form onSubmit={handleSubmit}>
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label>Nome</label>
+            <input
+              type="text"
+              placeholder="Seu nome completo"
+              value={form.nome}
+              onChange={e => setForm({ ...form, nome: e.target.value })}
+              required
+              autoFocus
+            />
+          </div>
+
           <div className="form-group" style={{ marginBottom: 14 }}>
             <label>E-mail</label>
             <input
@@ -49,9 +61,17 @@ export default function Login() {
               value={form.email}
               onChange={e => setForm({ ...form, email: e.target.value })}
               required
-              autoFocus
             />
           </div>
+
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label>Perfil</label>
+            <select value={form.perfil} onChange={e => setForm({ ...form, perfil: e.target.value })}>
+              <option value="locatario">Locatário</option>
+              <option value="locador">Locador</option>
+            </select>
+          </div>
+
           <div className="form-group" style={{ marginBottom: 20 }}>
             <label>Senha</label>
             <div style={{ position: 'relative' }}>
@@ -61,6 +81,7 @@ export default function Login() {
                 value={form.senha}
                 onChange={e => setForm({ ...form, senha: e.target.value })}
                 required
+                minLength={6}
                 style={{ width: '100%', paddingRight: 40 }}
               />
               <button
@@ -72,20 +93,14 @@ export default function Login() {
               </button>
             </div>
           </div>
+
           <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px' }} disabled={carregando}>
-            {carregando ? 'Entrando...' : 'Entrar'}
+            <UserPlus size={16} /> {carregando ? 'Criando conta...' : 'Cadastrar'}
           </button>
         </form>
 
-        <div style={{ marginTop: 24, padding: 14, background: 'var(--gray-50)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--gray-500)' }}>
-          <strong>Contas de demonstração:</strong><br />
-          admin@sislove.com / admin123<br />
-          locador@sislove.com / locador123<br />
-          locatario@sislove.com / locatario123
-        </div>
-
-        <div style={{ marginTop: 14, textAlign: 'center', fontSize: 13, color: 'var(--gray-600)' }}>
-          Não tem conta? <Link to="/register">Cadastre-se aqui</Link>
+        <div style={{ marginTop: 18, textAlign: 'center', fontSize: 13, color: 'var(--gray-600)' }}>
+          Já possui conta? <Link to="/login">Entrar</Link>
         </div>
       </div>
     </div>

@@ -21,12 +21,17 @@ const EMPTY_VEICULO = {
 };
 
 export default function Veiculos() {
-  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores } = useApp();
+  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, locacoes, usuarioLogado } = useApp();
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_VEICULO);
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
   const [view, setView] = useState('cards'); // 'cards' | 'table'
+
+  const podeGerenciar = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador';
+  const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
+  const veiculosDisponiveis = veiculos.filter(v => !locacoesAtivas.some(l => String(l.veiculoId) === String(v.id)));
+  const listaVeiculos = usuarioLogado?.perfil === 'locatario' ? veiculosDisponiveis : veiculos;
 
   const [erroCrud, setErroCrud] = useState('');
 
@@ -60,22 +65,26 @@ export default function Veiculos() {
       <div className="flex-between mb-24">
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Veículos</h2>
-          <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>{veiculos.length} veículo(s) cadastrado(s)</p>
+          <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>
+            {listaVeiculos.length} veículo(s) {usuarioLogado?.perfil === 'locatario' ? 'disponível(is) para locação' : 'cadastrado(s)'}
+          </p>
         </div>
         <div className="flex" style={{ gap: 10 }}>
           <div className="toggle-group">
             <button type="button" className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')}>Cards</button>
             <button type="button" className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>Tabela</button>
           </div>
-          <button className="btn btn-primary" onClick={abrirNovo}><Plus size={16} /> Novo Veículo</button>
+          {podeGerenciar && (
+            <button className="btn btn-primary" onClick={abrirNovo}><Plus size={16} /> Novo Veículo</button>
+          )}
         </div>
       </div>
 
-      {veiculos.length === 0 ? (
+      {listaVeiculos.length === 0 ? (
         <div className="card"><div className="empty-state"><Car size={40} /><p>Nenhum veículo cadastrado.</p></div></div>
       ) : view === 'cards' ? (
         <div className="veiculo-cards">
-          {veiculos.map(v => (
+          {listaVeiculos.map(v => (
             <div key={v.id} className="veiculo-card">
               <div className="veiculo-card-img">
                 {v.foto ? <img src={v.foto} alt={`${v.marca} ${v.modelo}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -97,10 +106,12 @@ export default function Veiculos() {
               </div>
               <div className="veiculo-card-footer">
                 <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>FIPE: {v.valorFipe ? `R$ ${Number(v.valorFipe).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</span>
-                <div className="flex" style={{ gap: 6 }}>
-                  <button className="btn-icon" onClick={() => abrirEditar(v)}><Edit2 size={14} /></button>
-                  <button className="btn-icon" style={{ borderColor: 'var(--danger-light)', color: 'var(--danger)' }} onClick={() => setConfirmarExclusao(v.id)}><Trash2 size={14} /></button>
-                </div>
+                {podeGerenciar && (
+                  <div className="flex" style={{ gap: 6 }}>
+                    <button className="btn-icon" onClick={() => abrirEditar(v)}><Edit2 size={14} /></button>
+                    <button className="btn-icon" style={{ borderColor: 'var(--danger-light)', color: 'var(--danger)' }} onClick={() => setConfirmarExclusao(v.id)}><Trash2 size={14} /></button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -124,7 +135,7 @@ export default function Veiculos() {
                 </tr>
               </thead>
               <tbody>
-                {veiculos.map(v => (
+                {listaVeiculos.map(v => (
                   <tr key={v.id}>
                     <td className="fw-600">{v.placa}</td>
                     <td>{v.marca} {v.modelo}</td>
@@ -136,10 +147,12 @@ export default function Veiculos() {
                     <td>{nomeLocador(v.locadorId)}</td>
                     <td>{v.valorFipe ? `R$ ${Number(v.valorFipe).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</td>
                     <td>
-                      <div className="flex" style={{ gap: 6 }}>
-                        <button className="btn-icon" onClick={() => abrirEditar(v)}><Edit2 size={14} /></button>
-                        <button className="btn-icon" style={{ borderColor: 'var(--danger-light)', color: 'var(--danger)' }} onClick={() => setConfirmarExclusao(v.id)}><Trash2 size={14} /></button>
-                      </div>
+                      {podeGerenciar && (
+                        <div className="flex" style={{ gap: 6 }}>
+                          <button className="btn-icon" onClick={() => abrirEditar(v)}><Edit2 size={14} /></button>
+                          <button className="btn-icon" style={{ borderColor: 'var(--danger-light)', color: 'var(--danger)' }} onClick={() => setConfirmarExclusao(v.id)}><Trash2 size={14} /></button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -149,7 +162,7 @@ export default function Veiculos() {
         </div>
       )}
 
-      {confirmarExclusao && (
+      {podeGerenciar && confirmarExclusao && (
         <div className="modal-overlay" onClick={() => setConfirmarExclusao(null)}>
           <div className="modal" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header"><span className="modal-title">Confirmar exclusão</span></div>
@@ -166,7 +179,7 @@ export default function Veiculos() {
         </div>
       )}
 
-      {modal && (
+      {podeGerenciar && modal && (
         <div className="modal-overlay" onClick={fecharModal}>
           <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
             <div className="modal-header">

@@ -34,14 +34,29 @@ INSERT INTO locatarios (tipo, nome, cpf, rg, data_nascimento, email, telefone, c
 ('fisica','Paula Renata Figueiredo','000.111.222-33','00.111.222-3','1990-04-04','paula.figueiredo@email.com','(81)3000-1111','(81)90000-1111','(81)90000-1111','52050-010','Av. Norte Miguel Arraes de Alencar','2200','Casa Amarela','Recife','PE','01234567899','B','2027-04-04','DETRAN','PE','Contadora',5200.00);
 
 -- ----------------------------------------------------------------
+-- 10 Colaboradores
+-- ----------------------------------------------------------------
+INSERT INTO colaboradores (tipo, categoria, nome, cpf, razao_social, cnpj, email, telefone, celular, whatsapp, contato_nome, contato_cargo, contato_telefone, cidade, estado, banco, agencia, conta, pix_chave, observacoes) VALUES
+('fisica','Mecânico','Rafael Gomes Lima','101.202.303-40',NULL,NULL,'rafael.lima@colabsis.com','(11)3010-1100','(11)98101-1100','(11)98101-1100','Rafael Gomes','Mecânico Responsável','(11)98101-1100','São Paulo','SP','Itaú','0741','11223-4','101.202.303-40','Especialista em manutenção preventiva.'),
+('juridica','Oficina',NULL,NULL,'Auto Center Paulista Ltda','12.345.678/0001-90','contato@autocenterpaulista.com.br','(11)3222-1001','(11)98888-1001','(11)98888-1001','Marcos Paulo','Gerente','(11)98888-1001','São Paulo','SP','Bradesco','0023','55443-2','12.345.678/0001-90','Atende revisões gerais e freios.'),
+('juridica','Funilaria',NULL,NULL,'Funilaria Nova Era ME','23.456.789/0001-01','atendimento@novaerafunilaria.com','(21)3333-2002','(21)97777-2002','(21)97777-2002','Patrícia Santos','Supervisora','(21)97777-2002','Rio de Janeiro','RJ','Santander','0033','77889-0','23.456.789/0001-01','Parceiro para reparos de lataria e pintura.'),
+('fisica','Eletricista Automotivo','Leandro Souza Alves','202.303.404-51',NULL,NULL,'leandro.alves@colabsis.com','(31)3444-3003','(31)96666-3003','(31)96666-3003','Leandro Souza','Técnico','(31)96666-3003','Belo Horizonte','MG','Caixa','0162','34567-1','202.303.404-51','Diagnóstico e manutenção elétrica.'),
+('juridica','Borracharia',NULL,NULL,'Pneu Rápido Serviços Automotivos','34.567.890/0001-12','contato@pneurapido.com.br','(41)3555-4004','(41)95555-4004','(41)95555-4004','Guilherme Rosa','Atendente','(41)95555-4004','Curitiba','PR','Banco do Brasil','0027','99112-3','34.567.890/0001-12','Troca e alinhamento de pneus.'),
+('fisica','Lavador','Diego Nunes Rocha','303.404.505-62',NULL,NULL,'diego.rocha@colabsis.com','(51)3666-5005','(51)94444-5005','(51)94444-5005','Diego Nunes','Lavador','(51)94444-5005','Porto Alegre','RS','Inter','','55667788-1','303.404.505-62','Serviço de lavagem e higienização interna.'),
+('juridica','Despachante',NULL,NULL,'Despachante Central Sul','45.678.901/0001-23','suporte@despachantecentralsul.com','(85)3777-6006','(85)93333-6006','(85)93333-6006','Renata Moura','Consultora','(85)93333-6006','Fortaleza','CE','Nubank','','99887766-5','45.678.901/0001-23','Apoio em IPVA, licenciamento e documentação.'),
+('fisica','Guincho','Eduardo Martins Pacheco','404.505.606-73',NULL,NULL,'eduardo.pacheco@colabsis.com','(71)3888-7007','(71)92222-7007','(71)92222-7007','Eduardo Martins','Motorista de Guincho','(71)92222-7007','Salvador','BA','Sicredi','0155','22334-5','404.505.606-73','Atendimento de reboque 24h.'),
+('juridica','Seguradora',NULL,NULL,'Protege Frotas Seguros SA','56.789.012/0001-34','comercial@protegefrotas.com.br','(62)3999-8008','(62)91111-8008','(62)91111-8008','Fabiana Oliveira','Executiva de Contas','(62)91111-8008','Goiânia','GO','Itaú','0741','66554-1','56.789.012/0001-34','Renovação e gestão de apólices da frota.'),
+('fisica','Tapeceiro','Anderson Ribeiro Costa','505.606.707-84',NULL,NULL,'anderson.costa@colabsis.com','(81)3001-9009','(81)90000-9009','(81)90000-9009','Anderson Ribeiro','Tapeceiro','(81)90000-9009','Recife','PE','C6 Bank','','33445566-7','505.606.707-84','Reparo de bancos e acabamento interno.');
+
+-- ----------------------------------------------------------------
 -- 10 Veículos (locador_id 1 a 10)
 -- ----------------------------------------------------------------
 INSERT INTO veiculos (placa, renavam, chassi, marca, modelo, ano_fabricacao, ano_modelo, cor, combustivel, transmissao, nr_portas, capacidade, km_atual, km_compra, km_troca_oleo, data_compra, valor_compra, valor_fipe, locador_id) VALUES
-('ABC1D23','00123456789','9BWZZZ377VT004251','Hyundai','HB20 Sense',2022,2023,'Branco','Flex','Manual',4,5,32500,15000,40000,'2022-03-10',62000.00,65000.00,1),
-('DEF2E34','00234567891','9BGKS48U0HG123456','Chevrolet','Onix Plus LT',2021,2022,'Prata','Flex','Automático',4,5,58000,42000,65000,'2021-06-15',72000.00,75000.00,2),
-('GHI3F45','00345678902','9C2JC4110ER123789','Fiat','Cronos Drive',2023,2023,'Preto','Flex','Manual',4,5,18200,8000,30000,'2023-01-20',82000.00,85000.00,3),
-('JKL4G56','00456789013','9BD17145P26543210','Fiat','Mobi Like',2022,2022,'Vermelho','Flex','Manual',4,5,44000,30000,50000,'2022-09-05',48000.00,50000.00,4),
-('MNO5H67','00567890124','9BFZZZ335JB123987','Volkswagen','Polo MPI',2020,2021,'Cinza','Flex','Manual',4,5,71000,55000,80000,'2020-11-12',58000.00,60000.00,5),
+('ABC1D23','00123456789','9BWZZZ377VT004251','Hyundai','HB20 Sense',2022,2023,'Branco','Flex','Manual',4,5,32500,15000,32000,'2022-03-10',62000.00,65000.00,1),
+('DEF2E34','00234567891','9BGKS48U0HG123456','Chevrolet','Onix Plus LT',2021,2022,'Prata','Flex','Automático',4,5,58000,42000,56000,'2021-06-15',72000.00,75000.00,2),
+('GHI3F45','00345678902','9C2JC4110ER123789','Fiat','Cronos Drive',2023,2023,'Preto','Flex','Manual',4,5,18200,8000,17000,'2023-01-20',82000.00,85000.00,3),
+('JKL4G56','00456789013','9BD17145P26543210','Fiat','Mobi Like',2022,2022,'Vermelho','Flex','Manual',4,5,44000,30000,43000,'2022-09-05',48000.00,50000.00,4),
+('MNO5H67','00567890124','9BFZZZ335JB123987','Volkswagen','Polo MPI',2020,2021,'Cinza','Flex','Manual',4,5,71000,55000,70000,'2020-11-12',58000.00,60000.00,5),
 ('PQR6I78','00678901235','8A1FB3AF0NU123654','Renault','Sandero Zen',2021,2022,'Azul','Flex','Manual',4,5,52000,38000,60000,'2021-04-30',52000.00,54000.00,6),
 ('STU7J89','00789012346','9BWZZZ377GT123321','Volkswagen','T-Cross 200 TSI',2023,2024,'Branco','Flex','Automático',4,5,12000,0,20000,'2023-07-18',128000.00,132000.00,7),
 ('VWX8K90','00890123457','9BFZZZ335TB123159','Chevrolet','Tracker Premier',2022,2023,'Preto','Flex','Automático',4,5,27000,10000,35000,'2022-12-01',105000.00,110000.00,8),
@@ -79,16 +94,54 @@ INSERT INTO despesas_receitas (tipo, data, valor, categoria, descricao, forma_pa
 ('receita','2026-04-07',500.00,'Caução','Caução locação Tracker VWX8K90','deposito',8,8);
 
 -- ----------------------------------------------------------------
--- 10 Despesas
+-- 10 Manutenções
 -- ----------------------------------------------------------------
 INSERT INTO despesas_receitas (tipo, data, valor, categoria, descricao, forma_pagamento, veiculo_id) VALUES
-('despesa','2026-03-05',280.00,'Manutenção','Troca de óleo e filtro – HB20 ABC1D23','pix',1),
-('despesa','2026-03-08',650.00,'Manutenção','Revisão freios dianteiros – Onix DEF2E34','pix',2),
-('despesa','2026-03-10',1200.00,'Seguro','Parcela seguro março – Cronos GHI3F45','boleto',3),
-('despesa','2026-03-12',180.00,'Combustível','Abastecimento – Polo MNO5H67','cartao_debito',5),
-('despesa','2026-03-15',320.00,'Manutenção','Alinhamento e balanceamento – Argo YZA9L01','pix',9),
-('despesa','2026-03-18',890.00,'Manutenção','Troca de pneu dianteiro direito – Ka BCD0M12','dinheiro',10),
-('despesa','2026-03-22',1800.00,'IPVA','IPVA 2026 – T-Cross STU7J89','boleto',7),
-('despesa','2026-03-25',450.00,'Manutenção','Troca de correia dentada – Sandero PQR6I78','pix',6),
-('despesa','2026-04-02',980.00,'Seguro','Parcela seguro abril – Tracker VWX8K90','boleto',8),
-('despesa','2026-04-05',210.00,'Licenciamento','Licenciamento 2026 – Mobi JKL4G56','boleto',4);
+('despesa','2026-03-05',280.00,'Manutencao','Troca de óleo e filtro – HB20 ABC1D23','pix',1),
+('despesa','2026-03-08',650.00,'Manutencao','Revisão freios dianteiros – Onix DEF2E34','pix',2),
+('despesa','2026-03-10',320.00,'Manutencao','Alinhamento e balanceamento – Argo YZA9L01','pix',9),
+('despesa','2026-03-12',890.00,'Manutencao','Troca de pneu dianteiro direito – Ka BCD0M12','dinheiro',10),
+('despesa','2026-03-15',450.00,'Manutencao','Troca de correia dentada – Sandero PQR6I78','pix',6),
+('despesa','2026-03-18',540.00,'Manutencao','Revisão preventiva 20.000 km – T-Cross STU7J89','pix',7),
+('despesa','2026-03-22',610.00,'Manutencao','Troca de pastilhas e disco dianteiro – Tracker VWX8K90','cartao_credito',8),
+('despesa','2026-03-25',230.00,'Manutencao','Higienização de ar-condicionado – Mobi JKL4G56','pix',4),
+('despesa','2026-04-02',380.00,'Manutencao','Troca de bateria – Polo MNO5H67','boleto',5),
+('despesa','2026-04-05',290.00,'Manutencao','Balanceamento e rodízio – Cronos GHI3F45','pix',3);
+
+-- ----------------------------------------------------------------
+-- Despesas adicionais por categoria (10 itens por categoria)
+-- Categorias solicitadas: proteção, regularização, patrocinador(taxa),
+-- documentos, infrações, manutenções corretivas/preventivas/por desgaste,
+-- manutenção pneus, manutenção estética, despesas variadas e administrativas.
+-- ----------------------------------------------------------------
+INSERT INTO despesas_receitas (tipo, data, valor, categoria, descricao, forma_pagamento, veiculo_id)
+SELECT
+	'despesa' AS tipo,
+	DATE_ADD('2026-04-10', INTERVAL ((c.ordem - 1) * 2 + v.id) DAY) AS data,
+	ROUND(120 + (v.id * 15) + (c.ordem * 11), 2) AS valor,
+	c.categoria,
+	CONCAT(c.descricao_base, ' - ', v.marca, ' ', v.modelo, ' ', v.placa) AS descricao,
+	CASE MOD(v.id + c.ordem, 5)
+		WHEN 0 THEN 'pix'
+		WHEN 1 THEN 'boleto'
+		WHEN 2 THEN 'transferencia'
+		WHEN 3 THEN 'cartao_credito'
+		ELSE 'dinheiro'
+	END AS forma_pagamento,
+	v.id AS veiculo_id
+FROM veiculos v
+JOIN (
+	SELECT 1 AS ordem, 'Proteção' AS categoria, 'Mensalidade de proteção veicular' AS descricao_base
+	UNION ALL SELECT 2, 'Regularização', 'Taxa de regularização anual'
+	UNION ALL SELECT 3, 'Patrocinador (Taxa)', 'Repasse de taxa de patrocinador'
+	UNION ALL SELECT 4, 'Documentos', 'Emissão e autenticação de documentos'
+	UNION ALL SELECT 5, 'Infrações', 'Pagamento de infração de trânsito'
+	UNION ALL SELECT 6, 'Manutenções Corretivas', 'Correção de falha mecânica'
+	UNION ALL SELECT 7, 'Manutenções Preventivas', 'Revisão preventiva programada'
+	UNION ALL SELECT 8, 'Manutenções por Desgaste', 'Reposição por desgaste natural'
+	UNION ALL SELECT 9, 'Manutenção Pneus', 'Serviço de pneus e alinhamento'
+	UNION ALL SELECT 10, 'Manutenção Estética', 'Polimento e estética automotiva'
+	UNION ALL SELECT 11, 'Despesas Variadas', 'Despesa variada (uber, comissão e afins)'
+	UNION ALL SELECT 12, 'Despesas Administrativas', 'Despesa administrativa operacional'
+) c
+WHERE v.id BETWEEN 1 AND 10;

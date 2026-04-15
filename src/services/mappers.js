@@ -226,6 +226,8 @@ export function locacaoToApi(f) {
         caucao: f.caucao || 0,
         km_entrada: f.kmEntrada || 0,
         condicoes: f.condicoes || f.observacoes,
+        periodicidade: f.periodicidade || null,
+        quantidade_periodos: f.quantidadePeriodos || null,
     };
 }
 

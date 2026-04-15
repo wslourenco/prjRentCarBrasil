@@ -5,6 +5,80 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
+function sanitizeProfile(profile) {
+    const normalized = String(profile || '').trim().toLowerCase();
+    return ['locador', 'locatario'].includes(normalized) ? normalized : '';
+}
+
+function buildTokenPayload(usuario) {
+    return { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil };
+}
+
+function buildJwtToken(usuario) {
+    const jwtSecret = String(process.env.JWT_SECRET || '').trim().replace(/^['"]|['"]$/g, '');
+    if (!jwtSecret) {
+        const err = new Error('Configuração de autenticação ausente.');
+        err.status = 500;
+        throw err;
+    }
+
+    const rawExpiresIn = String(process.env.JWT_EXPIRES_IN || '8h').trim().replace(/^['"]|['"]$/g, '');
+    const expiresIn = /^(\d+|\d+\s*(ms|s|m|h|d|w|y))$/i.test(rawExpiresIn) ? rawExpiresIn : '8h';
+
+    return jwt.sign(buildTokenPayload(usuario), jwtSecret, { expiresIn });
+}
+
+// POST /api/auth/register
+router.post('/register', async (req, res) => {
+    const { nome, email, senha, perfil } = req.body;
+    const perfilEscolhido = sanitizeProfile(perfil);
+
+    if (!nome || !email || !senha || !perfilEscolhido) {
+        return res.status(400).json({ erro: 'Nome, email, senha e perfil (locador ou locatário) são obrigatórios.' });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        const [existente] = await conn.query('SELECT id FROM usuarios WHERE email = ?', [email]);
+        if (existente.length > 0) {
+            await conn.rollback();
+            return res.status(409).json({ erro: 'Já existe um usuário com esse email.' });
+        }
+
+        const hash = await bcrypt.hash(senha, 10);
+        const [result] = await conn.query(
+            'INSERT INTO usuarios (nome, email, senha_hash, perfil) VALUES (?,?,?,?)',
+            [nome, email, hash, perfilEscolhido]
+        );
+
+        if (perfilEscolhido === 'locador') {
+            await conn.query(
+                'INSERT INTO locadores (tipo, nome, email) VALUES (?,?,?)',
+                ['fisica', nome, email]
+            );
+        } else {
+            await conn.query(
+                'INSERT INTO locatarios (tipo, nome, email, categoria_cnh, motorist_app) VALUES (?,?,?,?,?)',
+                ['fisica', nome, email, 'B', 0]
+            );
+        }
+
+        await conn.commit();
+
+        const usuario = { id: result.insertId, nome, email, perfil: perfilEscolhido };
+        const token = buildJwtToken(usuario);
+        return res.status(201).json({ token, usuario });
+    } catch (err) {
+        await conn.rollback();
+        console.error(err);
+        return res.status(err.status || 500).json({ erro: err.message || 'Erro ao registrar usuário.' });
+    } finally {
+        conn.release();
+    }
+});
+
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
     const { email, senha } = req.body;
@@ -27,19 +101,7 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ erro: 'Credenciais inválidas.' });
         }
 
-        const jwtSecret = String(process.env.JWT_SECRET || '').trim().replace(/^['"]|['"]$/g, '');
-        if (!jwtSecret) {
-            return res.status(500).json({ erro: 'Configuração de autenticação ausente.' });
-        }
-
-        const rawExpiresIn = String(process.env.JWT_EXPIRES_IN || '8h').trim().replace(/^['"]|['"]$/g, '');
-        const expiresIn = /^(\d+|\d+\s*(ms|s|m|h|d|w|y))$/i.test(rawExpiresIn) ? rawExpiresIn : '8h';
-
-        const token = jwt.sign(
-            { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil },
-            jwtSecret,
-            { expiresIn }
-        );
+        const token = buildJwtToken(usuario);
 
         res.json({
             token,
