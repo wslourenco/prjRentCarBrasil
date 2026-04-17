@@ -1,4 +1,5 @@
 import { useApp } from '../context/AppContext';
+import { Link } from 'react-router-dom';
 import { Car, Users, DollarSign, TrendingUp, UserCheck, Briefcase, AlertCircle } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -16,6 +17,66 @@ export default function Dashboard() {
   }
 
   return <DashboardAdmin veiculos={veiculos} locatarios={locatarios} locadores={locadores} locacoes={locacoes} despesasReceitas={despesasReceitas} />;
+}
+
+function formatarMoedaBR(valor) {
+  return `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+}
+
+function ResumoFinanceiroDashboard({ despesasReceitas }) {
+  const ultimosLancamentos = [...despesasReceitas]
+    .sort((a, b) => new Date(`${b.data || ''}T12:00:00`) - new Date(`${a.data || ''}T12:00:00`))
+    .slice(0, 6);
+
+  const receitasRecentes = ultimosLancamentos
+    .filter(item => item.tipo === 'receita')
+    .reduce((acc, item) => acc + Number(item.valor || 0), 0);
+
+  const despesasRecentes = ultimosLancamentos
+    .filter(item => item.tipo === 'despesa')
+    .reduce((acc, item) => acc + Number(item.valor || 0), 0);
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-header">
+        <span className="card-title">Resumo Financeiro</span>
+        <Link to="/financeiro" className="btn btn-outline btn-sm">Ver completo</Link>
+      </div>
+
+      <div className="stat-grid" style={{ marginBottom: 12 }}>
+        <div className="stat-card">
+          <div className="stat-icon green"><TrendingUp size={18} /></div>
+          <div>
+            <div className="stat-label">Receitas recentes</div>
+            <div className="stat-value" style={{ fontSize: 16, color: 'var(--secondary)' }}>{formatarMoedaBR(receitasRecentes)}</div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon red"><DollarSign size={18} /></div>
+          <div>
+            <div className="stat-label">Despesas recentes</div>
+            <div className="stat-value" style={{ fontSize: 16, color: 'var(--danger)' }}>{formatarMoedaBR(despesasRecentes)}</div>
+          </div>
+        </div>
+      </div>
+
+      {ultimosLancamentos.length === 0 ? (
+        <div className="empty-state" style={{ padding: 20 }}>Nenhum lançamento financeiro recente.</div>
+      ) : (
+        ultimosLancamentos.map(item => (
+          <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 13 }}>
+            <div>
+              <div style={{ fontWeight: 600 }}>{item.categoria || 'Sem categoria'}</div>
+              <div style={{ color: 'var(--gray-500)' }}>{item.data} • {item.tipo === 'receita' ? 'Receita' : 'Despesa'}</div>
+            </div>
+            <strong style={{ color: item.tipo === 'receita' ? 'var(--secondary)' : 'var(--danger)' }}>
+              {item.tipo === 'receita' ? '+' : '-'} {formatarMoedaBR(item.valor)}
+            </strong>
+          </div>
+        ))
+      )}
+    </div>
+  );
 }
 
 function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasReceitas }) {
@@ -194,6 +255,8 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
           </div>
         </div>
       </div>
+
+      <ResumoFinanceiroDashboard despesasReceitas={despesasReceitas} />
     </div>
   );
 }
@@ -303,6 +366,8 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
           )}
         </div>
       </div>
+
+      <ResumoFinanceiroDashboard despesasReceitas={despesasReceitas} />
     </div>
   );
 }

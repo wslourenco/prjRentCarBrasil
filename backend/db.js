@@ -19,6 +19,7 @@ const pool = mysql.createPool({
     user: env('DB_USER', 'root'),
     password: env('DB_PASSWORD', ''),
     database: env('DB_NAME', 'sislove'),
+    charset: 'utf8mb4',
     waitForConnections: true,
     connectionLimit: 10,
     timezone: '-03:00',

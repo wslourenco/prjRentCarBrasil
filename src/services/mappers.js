@@ -1,3 +1,35 @@
+function normalizarTextoMojibake(valor) {
+    if (typeof valor !== 'string') return valor;
+    if (!/[ÃÂâ�├]/.test(valor)) return valor;
+
+    const corrigidoSequencias = valor
+        .replace(/├º/g, 'ç')
+        .replace(/├ú/g, 'ã')
+        .replace(/├®/g, 'é')
+        .replace(/├¡/g, 'á')
+        .replace(/├ó/g, 'ó')
+        .replace(/├ô/g, 'õ')
+        .replace(/├ê/g, 'ê')
+        .replace(/├í/g, 'í')
+        .replace(/├ç/g, 'Ç')
+        .replace(/Manuten[cç][aã]oEst[ée]tica/gi, 'Manutenção Estética');
+
+    try {
+        // Corrige textos que vieram como latin1, mas deveriam ser utf-8.
+        const bytes = Uint8Array.from(corrigidoSequencias, (char) => char.charCodeAt(0) & 0xff);
+        const convertido = new TextDecoder('utf-8').decode(bytes);
+        return convertido || corrigidoSequencias;
+    } catch {
+        return corrigidoSequencias;
+    }
+}
+
+function normalizarStringsObjeto(obj) {
+    return Object.fromEntries(
+        Object.entries(obj).map(([chave, valor]) => [chave, typeof valor === 'string' ? normalizarTextoMojibake(valor) : valor])
+    );
+}
+
 // ── Locadores ──────────────────────────────────────────────────────────────────
 export function locadorToApi(f) {
     return {
@@ -18,7 +50,7 @@ export function locadorToApi(f) {
 }
 
 export function locadorFromApi(r) {
-    return {
+    return normalizarStringsObjeto({
         id: r.id,
         tipo: r.tipo || 'fisica',
         nome: r.nome || '',
@@ -37,7 +69,7 @@ export function locadorFromApi(r) {
         observacoes: r.observacoes || '',
         // campo calculado para exibição
         nomeExibido: r.tipo === 'juridica' ? (r.razao_social || '') : (r.nome || ''),
-    };
+    });
 }
 
 // ── Locatários ─────────────────────────────────────────────────────────────────
@@ -65,7 +97,7 @@ export function locatarioToApi(f) {
 }
 
 export function locatarioFromApi(r) {
-    return {
+    return normalizarStringsObjeto({
         id: r.id,
         tipo: r.tipo || 'fisica',
         nome: r.nome || '',
@@ -85,7 +117,7 @@ export function locatarioFromApi(r) {
         refNome1: r.ref_nome1 || '', refTelefone1: r.ref_telefone1 || '',
         refNome2: r.ref_nome2 || '', refTelefone2: r.ref_telefone2 || '',
         observacoes: r.observacoes || '',
-    };
+    });
 }
 
 // ── Colaboradores ──────────────────────────────────────────────────────────────
@@ -111,7 +143,7 @@ export function colaboradorToApi(f) {
 }
 
 export function colaboradorFromApi(r) {
-    return {
+    return normalizarStringsObjeto({
         id: r.id,
         tipo: r.tipo || 'juridica',
         categoria: r.categoria || '',
@@ -133,7 +165,7 @@ export function colaboradorFromApi(r) {
         vencimentoContrato: r.vencimento_contrato,
         observacoes: r.observacoes || '',
         nomeExibido: r.tipo === 'juridica' ? (r.razao_social || '') : (r.nome || ''),
-    };
+    });
 }
 
 // ── Veículos ───────────────────────────────────────────────────────────────────
@@ -158,7 +190,7 @@ export function veiculoToApi(f) {
 }
 
 export function veiculoFromApi(r) {
-    return {
+    return normalizarStringsObjeto({
         id: r.id,
         placa: r.placa || '', renavam: r.renavam || '', chassi: r.chassi || '',
         marca: r.marca || '', modelo: r.modelo || '',
@@ -174,7 +206,7 @@ export function veiculoFromApi(r) {
         bloqueador: r.bloqueador || '', nrBloqueador: r.nr_bloqueador || '',
         locadorId: r.locador_id, nomeLocador: r.nome_locador || '',
         foto: r.foto || '', observacoes: r.observacoes || '',
-    };
+    });
 }
 
 // ── Financeiro ─────────────────────────────────────────────────────────────────
@@ -195,7 +227,7 @@ export function financeiroToApi(f) {
 }
 
 export function financeiroFromApi(r) {
-    return {
+    return normalizarStringsObjeto({
         id: r.id,
         tipo: r.tipo,
         data: r.data,
@@ -212,7 +244,7 @@ export function financeiroFromApi(r) {
         nomeVeiculo: r.nome_veiculo,
         nomeLocatario: r.nome_locatario,
         nomeColaborador: r.nome_colaborador,
-    };
+    });
 }
 
 // ── Locações ───────────────────────────────────────────────────────────────────
@@ -232,7 +264,7 @@ export function locacaoToApi(f) {
 }
 
 export function locacaoFromApi(r) {
-    return {
+    return normalizarStringsObjeto({
         id: r.id,
         veiculoId: r.veiculo_id,
         locatarioId: r.locatario_id,
@@ -249,5 +281,16 @@ export function locacaoFromApi(r) {
         placa: r.placa,
         nomeLocatario: r.nome_locatario,
         celularLocatario: r.celular_locatario,
-    };
+    });
+}
+
+// ── Usuários ───────────────────────────────────────────────────────────────────
+export function usuarioFromApi(r) {
+    return normalizarStringsObjeto({
+        id: r.id,
+        nome: r.nome || '',
+        email: r.email || '',
+        perfil: r.perfil || 'locador',
+        ativo: r.ativo ?? 1,
+    });
 }

@@ -47,6 +47,95 @@ function tokenArquivoSeguro(texto) {
     .toLowerCase() || 'todos';
 }
 
+function normalizarTextoMojibake(valor) {
+  if (typeof valor !== 'string') return valor;
+  if (!/[ÃÂâ�├]/.test(valor)) return valor;
+
+  const corrigidoSequencias = valor
+    .replace(/├º/g, 'ç')
+    .replace(/├ú/g, 'ã')
+    .replace(/├®/g, 'é')
+    .replace(/├¡/g, 'á')
+    .replace(/├ó/g, 'ó')
+    .replace(/├ô/g, 'õ')
+    .replace(/├ê/g, 'ê')
+    .replace(/├í/g, 'í')
+    .replace(/├ç/g, 'Ç')
+    .replace(/Manuten[cç][aã]oEst[ée]tica/gi, 'Manutenção Estética');
+
+  try {
+    const bytes = Uint8Array.from(corrigidoSequencias, (char) => char.charCodeAt(0) & 0xff);
+    const convertido = new TextDecoder('utf-8').decode(bytes);
+    return convertido || corrigidoSequencias;
+  } catch {
+    return corrigidoSequencias;
+  }
+}
+
+function chaveComparacaoCategoria(valor) {
+  return String(valor || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function distanciaLevenshtein(a, b) {
+  const s = String(a || '');
+  const t = String(b || '');
+  const linhas = s.length + 1;
+  const colunas = t.length + 1;
+  const dp = Array.from({ length: linhas }, () => Array(colunas).fill(0));
+
+  for (let i = 0; i < linhas; i += 1) dp[i][0] = i;
+  for (let j = 0; j < colunas; j += 1) dp[0][j] = j;
+
+  for (let i = 1; i < linhas; i += 1) {
+    for (let j = 1; j < colunas; j += 1) {
+      const custo = s[i - 1] === t[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + custo
+      );
+    }
+  }
+
+  return dp[s.length][t.length];
+}
+
+function normalizarCategoriaDespesa(valor) {
+  const original = String(valor || '').trim();
+  if (!original) return 'Sem categoria';
+
+  const aposMojibake = normalizarTextoMojibake(original);
+  const chaveOrigem = chaveComparacaoCategoria(aposMojibake);
+
+  const exata = CATEGORIAS_DESPESA.find((categoria) => chaveComparacaoCategoria(categoria) === chaveOrigem);
+  if (exata) return exata;
+
+  const candidatos = CATEGORIAS_DESPESA.map((categoria) => ({
+    categoria,
+    chave: chaveComparacaoCategoria(categoria),
+  }));
+
+  let melhor = null;
+  for (const candidato of candidatos) {
+    const dist = distanciaLevenshtein(chaveOrigem, candidato.chave);
+    const base = Math.max(candidato.chave.length, chaveOrigem.length) || 1;
+    const score = 1 - (dist / base);
+    if (!melhor || score > melhor.score) {
+      melhor = { categoria: candidato.categoria, score };
+    }
+  }
+
+  if (melhor && melhor.score >= 0.72) {
+    return melhor.categoria;
+  }
+
+  return aposMojibake || original;
+}
+
 export default function Financeiro() {
   const { despesasReceitas, addDespesaReceita, updateDespesaReceita, removeDespesaReceita, veiculos, locatarios, colaboradores, locacoes, usuarioLogado, carregarDados } = useApp();
   const [modal, setModal] = useState(false);
@@ -55,6 +144,7 @@ export default function Financeiro() {
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroVeiculo, setFiltroVeiculo] = useState('');
+  const [filtroCategoria, setFiltroCategoria] = useState('');
   const [erroCrud, setErroCrud] = useState('');
   const [graficoInicio, setGraficoInicio] = useState('');
   const [graficoFim, setGraficoFim] = useState('');
@@ -119,10 +209,23 @@ export default function Financeiro() {
     return ordenacao.direcao === 'asc' ? ' ^' : ' v';
   }
 
+  const categoriasDisponiveisFiltro = useMemo(() => {
+    const categorias = despesasReceitas
+      .filter(d => {
+        if (filtroTipo && d.tipo !== filtroTipo) return false;
+        if (filtroVeiculo && String(d.veiculoId) !== String(filtroVeiculo)) return false;
+        return Boolean(d.categoria);
+      })
+      .map(d => String(d.categoria));
+
+    return Array.from(new Set(categorias)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [despesasReceitas, filtroTipo, filtroVeiculo]);
+
   const lista = useMemo(() => {
     const filtrada = despesasReceitas.filter(d => {
       if (filtroTipo && d.tipo !== filtroTipo) return false;
       if (filtroVeiculo && String(d.veiculoId) !== String(filtroVeiculo)) return false;
+      if (filtroCategoria && String(d.categoria || '') !== String(filtroCategoria)) return false;
       return true;
     });
 
@@ -142,7 +245,7 @@ export default function Financeiro() {
     });
 
     return ordenada;
-  }, [despesasReceitas, filtroTipo, filtroVeiculo, ordenacao, veiculos]);
+  }, [despesasReceitas, filtroTipo, filtroVeiculo, filtroCategoria, ordenacao, veiculos]);
 
   const totalReceitas = lista.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
   const totalDespesas = lista.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
@@ -220,7 +323,7 @@ export default function Financeiro() {
         return true;
       })
       .reduce((acc, d) => {
-        const categoria = d.categoria || 'Sem categoria';
+        const categoria = normalizarCategoriaDespesa(d.categoria || 'Sem categoria');
         if (!acc[categoria]) {
           acc[categoria] = { categoria, valor: 0, quantidade: 0 };
         }
@@ -556,6 +659,12 @@ export default function Financeiro() {
   }, [graficoVeiculo]);
 
   useEffect(() => {
+    if (filtroCategoria && !categoriasDisponiveisFiltro.includes(filtroCategoria)) {
+      setFiltroCategoria('');
+    }
+  }, [filtroCategoria, categoriasDisponiveisFiltro]);
+
+  useEffect(() => {
     if (primeiroRefreshFiltro.current) {
       primeiroRefreshFiltro.current = false;
       return;
@@ -575,7 +684,7 @@ export default function Financeiro() {
       ativo = false;
       clearTimeout(timer);
     };
-  }, [filtroTipo, filtroVeiculo, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, carregarDados]);
+  }, [filtroTipo, filtroVeiculo, filtroCategoria, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, carregarDados]);
 
   const itensPorPaginaAtual = Number(itensPorPaginaGrafico) || 6;
   const totalPaginasGrafico = Math.max(1, Math.ceil(resumoPorLocacao.length / itensPorPaginaAtual));
@@ -824,6 +933,10 @@ export default function Financeiro() {
             <option value="">Todos os veículos</option>
             {veiculos.map(v => <option key={v.id} value={v.id}>{v.marca} {v.modelo} – {v.placa}</option>)}
           </select>
+          <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, flex: 1, minWidth: 220, maxWidth: 360 }}>
+            <option value="">Todas as categorias</option>
+            {categoriasDisponiveisFiltro.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
 
         {lista.length === 0 ? (
@@ -1035,6 +1148,9 @@ function LocacaoPizza3D({ item }) {
               verticalAlign="bottom"
               height={20}
               formatter={(value) => {
+                if (value === 'Receitas') {
+                  return `Receitas: ${formatarMoedaBR(item.receita)}`;
+                }
                 if (value === 'Despesas') {
                   return `Despesas: ${formatarMoedaBR(item.despesa)}`;
                 }

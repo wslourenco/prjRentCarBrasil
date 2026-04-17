@@ -7,6 +7,7 @@ import {
     veiculoToApi, veiculoFromApi,
     financeiroToApi, financeiroFromApi,
     locacaoToApi, locacaoFromApi,
+    usuarioFromApi,
 } from '../services/mappers';
 
 const AppContext = createContext(null);
@@ -105,18 +106,20 @@ export function AppProvider({ children }) {
     // ── Auth ──────────────────────────────────────────────
     async function login(email, senha) {
         const dados = await api.post('/auth/login', { email, senha });
+        const usuarioNormalizado = usuarioFromApi(dados.usuario || {});
         localStorage.setItem('sislove_token', dados.token);
-        localStorage.setItem('sislove_usuario', JSON.stringify(dados.usuario));
-        setUsuarioLogado(dados.usuario);
-        return dados.usuario;
+        localStorage.setItem('sislove_usuario', JSON.stringify(usuarioNormalizado));
+        setUsuarioLogado(usuarioNormalizado);
+        return usuarioNormalizado;
     }
 
     async function register(nome, email, senha, perfil) {
         const dados = await api.post('/auth/register', { nome, email, senha, perfil });
+        const usuarioNormalizado = usuarioFromApi(dados.usuario || {});
         localStorage.setItem('sislove_token', dados.token);
-        localStorage.setItem('sislove_usuario', JSON.stringify(dados.usuario));
-        setUsuarioLogado(dados.usuario);
-        return dados.usuario;
+        localStorage.setItem('sislove_usuario', JSON.stringify(usuarioNormalizado));
+        setUsuarioLogado(usuarioNormalizado);
+        return usuarioNormalizado;
     }
 
     function logout() {
@@ -239,18 +242,21 @@ export function AppProvider({ children }) {
     // ── Usuários (admin) ──────────────────────────────────
     async function carregarUsuarios() {
         const lista = await api.get('/usuarios');
-        setUsuarios(lista);
-        return lista;
+        const normalizada = lista.map(usuarioFromApi);
+        setUsuarios(normalizada);
+        return normalizada;
     }
     async function addUsuario(dados) {
         const novo = await api.post('/usuarios', dados);
-        setUsuarios(prev => [...prev, novo]);
-        return novo;
+        const normalizado = usuarioFromApi(novo);
+        setUsuarios(prev => [...prev, normalizado]);
+        return normalizado;
     }
     async function updateUsuario(id, dados) {
         const atualizado = await api.put(`/usuarios/${id}`, dados);
-        setUsuarios(prev => prev.map(u => u.id === id ? atualizado : u));
-        return atualizado;
+        const normalizado = usuarioFromApi(atualizado);
+        setUsuarios(prev => prev.map(u => u.id === id ? normalizado : u));
+        return normalizado;
     }
     async function removeUsuario(id) {
         await api.delete(`/usuarios/${id}`);
