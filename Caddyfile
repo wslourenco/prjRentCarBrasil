@@ -1,0 +1,13 @@
+:8080 {
+  encode gzip zstd
+
+  handle /api/* {
+    reverse_proxy https://backend-api-production-3d96.up.railway.app
+  }
+
+  handle {
+    root * /app/dist
+    try_files {path} /index.html
+    file_server
+  }
+}

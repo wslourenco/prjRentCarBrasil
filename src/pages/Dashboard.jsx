@@ -1,5 +1,6 @@
 import { useApp } from '../context/AppContext';
 import { Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
 import { Car, Users, DollarSign, TrendingUp, UserCheck, Briefcase, AlertCircle } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -21,6 +22,11 @@ export default function Dashboard() {
 
 function formatarMoedaBR(valor) {
   return `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+}
+
+function categoriaLancamento(item) {
+  const valor = String(item?.categoria || '').trim();
+  return valor || 'Sem categoria';
 }
 
 function ResumoFinanceiroDashboard({ despesasReceitas }) {
@@ -80,10 +86,21 @@ function ResumoFinanceiroDashboard({ despesasReceitas }) {
 }
 
 function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasReceitas }) {
+  const [filtroCategoriaFinanceiro, setFiltroCategoriaFinanceiro] = useState('');
+
+  const categoriasFinanceiras = useMemo(() => {
+    const categorias = despesasReceitas.map(categoriaLancamento);
+    return Array.from(new Set(categorias)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [despesasReceitas]);
+
+  const despesasReceitasFiltradas = useMemo(() => {
+    if (!filtroCategoriaFinanceiro) return despesasReceitas;
+    return despesasReceitas.filter((item) => categoriaLancamento(item) === filtroCategoriaFinanceiro);
+  }, [despesasReceitas, filtroCategoriaFinanceiro]);
 
   const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
-  const totalReceitas = despesasReceitas.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
-  const totalDespesas = despesasReceitas.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
+  const totalReceitas = despesasReceitasFiltradas.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
+  const totalDespesas = despesasReceitasFiltradas.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
   const saldo = totalReceitas - totalDespesas;
 
   const ocupacao = veiculos.length > 0 ? Math.round((locacoesAtivas.length / veiculos.length) * 100) : 0;
@@ -113,6 +130,14 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Dashboard</h2>
         <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>Visão geral do sistema de locação</p>
+        <div style={{ marginTop: 10, maxWidth: 320 }}>
+          <select value={filtroCategoriaFinanceiro} onChange={e => setFiltroCategoriaFinanceiro(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%' }}>
+            <option value="">Todas as categorias financeiras</option>
+            {categoriasFinanceiras.map((categoria) => (
+              <option key={categoria} value={categoria}>{categoria}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Stats */}
@@ -146,7 +171,7 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
           <div>
             <div className="stat-label">Receitas</div>
             <div className="stat-value" style={{ fontSize: 18 }}>R$ {totalReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-            <div className="stat-sub">Total registrado</div>
+            <div className="stat-sub">{filtroCategoriaFinanceiro ? `Categoria: ${filtroCategoriaFinanceiro}` : 'Total registrado'}</div>
           </div>
         </div>
         <div className="stat-card">
@@ -154,7 +179,7 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
           <div>
             <div className="stat-label">Despesas</div>
             <div className="stat-value" style={{ fontSize: 18 }}>R$ {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-            <div className="stat-sub">Total registrado</div>
+            <div className="stat-sub">{filtroCategoriaFinanceiro ? `Categoria: ${filtroCategoriaFinanceiro}` : 'Total registrado'}</div>
           </div>
         </div>
         <div className="stat-card">
@@ -256,7 +281,7 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
         </div>
       </div>
 
-      <ResumoFinanceiroDashboard despesasReceitas={despesasReceitas} />
+      <ResumoFinanceiroDashboard despesasReceitas={despesasReceitasFiltradas} />
     </div>
   );
 }
@@ -273,18 +298,30 @@ const PALETA_MARCA = [
 ];
 
 function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
+  const [filtroCategoriaFinanceiro, setFiltroCategoriaFinanceiro] = useState('');
+
+  const categoriasFinanceiras = useMemo(() => {
+    const categorias = despesasReceitas.map(categoriaLancamento);
+    return Array.from(new Set(categorias)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [despesasReceitas]);
+
+  const despesasReceitasFiltradas = useMemo(() => {
+    if (!filtroCategoriaFinanceiro) return despesasReceitas;
+    return despesasReceitas.filter((item) => categoriaLancamento(item) === filtroCategoriaFinanceiro);
+  }, [despesasReceitas, filtroCategoriaFinanceiro]);
+
   const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
-  const totalReceitas = despesasReceitas.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
-  const totalDespesas = despesasReceitas.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
+  const totalReceitas = despesasReceitasFiltradas.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
+  const totalDespesas = despesasReceitasFiltradas.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
   const lucro = totalReceitas - totalDespesas;
   const ocupacao = veiculos.length > 0 ? Math.round((locacoesAtivas.length / veiculos.length) * 100) : 0;
 
   const lucroPorVeiculo = veiculos.map(v => {
-    const receitas = despesasReceitas
+    const receitas = despesasReceitasFiltradas
       .filter(d => d.tipo === 'receita' && String(d.veiculoId || '') === String(v.id))
       .reduce((acc, d) => acc + Number(d.valor || 0), 0);
 
-    const despesas = despesasReceitas
+    const despesas = despesasReceitasFiltradas
       .filter(d => d.tipo === 'despesa' && String(d.veiculoId || '') === String(v.id))
       .reduce((acc, d) => acc + Number(d.valor || 0), 0);
 
@@ -300,6 +337,14 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Dashboard do Locador</h2>
         <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>Visão dos seus veículos, locações e desempenho financeiro</p>
+        <div style={{ marginTop: 10, maxWidth: 320 }}>
+          <select value={filtroCategoriaFinanceiro} onChange={e => setFiltroCategoriaFinanceiro(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%' }}>
+            <option value="">Todas as categorias financeiras</option>
+            {categoriasFinanceiras.map((categoria) => (
+              <option key={categoria} value={categoria}>{categoria}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="stat-grid">
@@ -367,7 +412,7 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
         </div>
       </div>
 
-      <ResumoFinanceiroDashboard despesasReceitas={despesasReceitas} />
+      <ResumoFinanceiroDashboard despesasReceitas={despesasReceitasFiltradas} />
     </div>
   );
 }

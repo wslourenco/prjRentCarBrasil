@@ -136,6 +136,14 @@ function normalizarCategoriaDespesa(valor) {
   return aposMojibake || original;
 }
 
+function categoriaLancamento(item) {
+  if (!item) return 'Sem categoria';
+  if (item.tipo === 'despesa') return normalizarCategoriaDespesa(item.categoria || 'Sem categoria');
+
+  const valor = String(item.categoria || '').trim();
+  return valor || 'Sem categoria';
+}
+
 export default function Financeiro() {
   const { despesasReceitas, addDespesaReceita, updateDespesaReceita, removeDespesaReceita, veiculos, locatarios, colaboradores, locacoes, usuarioLogado, carregarDados } = useApp();
   const [modal, setModal] = useState(false);
@@ -150,6 +158,7 @@ export default function Financeiro() {
   const [graficoFim, setGraficoFim] = useState('');
   const [graficoStatus, setGraficoStatus] = useState('');
   const [graficoVeiculo, setGraficoVeiculo] = useState('');
+  const [graficoCategoria, setGraficoCategoria] = useState('');
   const [paginaGrafico, setPaginaGrafico] = useState(1);
   const [itensPorPaginaGrafico, setItensPorPaginaGrafico] = useState('6');
   const [exportandoXlsx, setExportandoXlsx] = useState(false);
@@ -270,11 +279,15 @@ export default function Financeiro() {
       return withinPeriodo(loc.dataInicio);
     });
 
-    const movimentosFiltrados = despesasReceitas.filter(d => withinPeriodo(d.data));
+    const movimentosFiltrados = despesasReceitas
+      .filter(d => withinPeriodo(d.data))
+      .filter(d => {
+        if (graficoCategoria && categoriaLancamento(d) !== graficoCategoria) return false;
+        return true;
+      });
 
     return locacoesFiltradas.map(loc => {
-      const receitas = despesasReceitas
-        .filter(d => withinPeriodo(d.data))
+      const receitas = movimentosFiltrados
         .filter(d => d.tipo === 'receita' && String(d.veiculoId) === String(loc.veiculoId) && String(d.locatarioId || '') === String(loc.locatarioId || ''))
         .reduce((acc, d) => acc + Number(d.valor || 0), 0);
 
@@ -291,7 +304,15 @@ export default function Financeiro() {
       };
     }).filter(item => item.receita > 0 || item.despesa > 0)
       .sort((a, b) => b.lucro - a.lucro);
-  }, [despesasReceitas, locacoes, graficoInicio, graficoFim, graficoStatus, graficoVeiculo]);
+  }, [despesasReceitas, locacoes, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoCategoria]);
+
+  const categoriasDisponiveisGrafico = useMemo(() => {
+    const categorias = despesasReceitas
+      .map(categoriaLancamento)
+      .filter(Boolean);
+
+    return Array.from(new Set(categorias)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [despesasReceitas]);
 
   const despesasDetalhadasCategoria = useMemo(() => {
     const dataInicioMs = graficoInicio ? new Date(`${graficoInicio}T00:00:00`).getTime() : null;
@@ -320,10 +341,11 @@ export default function Financeiro() {
       .filter(d => {
         if (graficoVeiculo && String(d.veiculoId || '') !== String(graficoVeiculo)) return false;
         if (graficoStatus && !veiculosComStatus.has(String(d.veiculoId || ''))) return false;
+        if (graficoCategoria && categoriaLancamento(d) !== graficoCategoria) return false;
         return true;
       })
       .reduce((acc, d) => {
-        const categoria = normalizarCategoriaDespesa(d.categoria || 'Sem categoria');
+        const categoria = categoriaLancamento(d);
         if (!acc[categoria]) {
           acc[categoria] = { categoria, valor: 0, quantidade: 0 };
         }
@@ -339,7 +361,7 @@ export default function Financeiro() {
         ticketMedio: item.quantidade > 0 ? item.valor / item.quantidade : 0,
       }))
       .sort((a, b) => b.valor - a.valor);
-  }, [despesasReceitas, locacoes, graficoInicio, graficoFim, graficoStatus, graficoVeiculo]);
+  }, [despesasReceitas, locacoes, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoCategoria]);
 
   const lucrosDetalhados = useMemo(() => {
     return resumoPorLocacao
@@ -364,6 +386,7 @@ export default function Financeiro() {
     const periodoInicio = graficoInicio || 'inicio-aberto';
     const periodoFim = graficoFim || 'fim-aberto';
     const status = graficoStatus || 'todos';
+    const categoria = graficoCategoria || 'todas';
     const veiculoSelecionado = veiculos.find((v) => String(v.id) === String(graficoVeiculo));
     const veiculo = veiculoSelecionado?.placa || 'todos';
 
@@ -371,9 +394,10 @@ export default function Financeiro() {
       `de-${tokenArquivoSeguro(periodoInicio)}`,
       `ate-${tokenArquivoSeguro(periodoFim)}`,
       `status-${tokenArquivoSeguro(status)}`,
+      `categoria-${tokenArquivoSeguro(categoria)}`,
       `veiculo-${tokenArquivoSeguro(veiculo)}`,
     ].join('__');
-  }, [graficoInicio, graficoFim, graficoStatus, graficoVeiculo, veiculos]);
+  }, [graficoInicio, graficoFim, graficoStatus, graficoCategoria, graficoVeiculo, veiculos]);
 
   function exportarGraficosCsv() {
     if (resumoPorLocacao.length === 0 && despesasDetalhadasCategoria.length === 0 && lucrosDetalhados.length === 0) {
@@ -510,6 +534,7 @@ export default function Financeiro() {
         { Campo: 'Filtro de início', Valor: graficoInicio || 'Não aplicado' },
         { Campo: 'Filtro de fim', Valor: graficoFim || 'Não aplicado' },
         { Campo: 'Filtro de status', Valor: graficoStatus || 'Não aplicado' },
+        { Campo: 'Filtro de categoria', Valor: graficoCategoria || 'Não aplicado' },
         { Campo: 'Filtro de veículo', Valor: graficoVeiculo ? (nomeVeiculo(graficoVeiculo) || graficoVeiculo) : 'Não aplicado' },
         { Campo: 'Total de receitas', Valor: totalReceitasResumo },
         { Campo: 'Total de despesas', Valor: totalDespesasResumo },
@@ -652,7 +677,7 @@ export default function Financeiro() {
 
   useEffect(() => {
     setPaginaGrafico(1);
-  }, [graficoInicio, graficoFim, graficoStatus, graficoVeiculo, itensPorPaginaGrafico]);
+  }, [graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoCategoria, itensPorPaginaGrafico]);
 
   useEffect(() => {
     setFiltroVeiculo(graficoVeiculo);
@@ -663,6 +688,12 @@ export default function Financeiro() {
       setFiltroCategoria('');
     }
   }, [filtroCategoria, categoriasDisponiveisFiltro]);
+
+  useEffect(() => {
+    if (graficoCategoria && !categoriasDisponiveisGrafico.includes(graficoCategoria)) {
+      setGraficoCategoria('');
+    }
+  }, [graficoCategoria, categoriasDisponiveisGrafico]);
 
   useEffect(() => {
     if (primeiroRefreshFiltro.current) {
@@ -684,7 +715,7 @@ export default function Financeiro() {
       ativo = false;
       clearTimeout(timer);
     };
-  }, [filtroTipo, filtroVeiculo, filtroCategoria, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, carregarDados]);
+  }, [filtroTipo, filtroVeiculo, filtroCategoria, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoCategoria, carregarDados]);
 
   const itensPorPaginaAtual = Number(itensPorPaginaGrafico) || 6;
   const totalPaginasGrafico = Math.max(1, Math.ceil(resumoPorLocacao.length / itensPorPaginaAtual));
@@ -777,6 +808,13 @@ export default function Financeiro() {
             <select value={graficoVeiculo} onChange={e => setGraficoVeiculo(e.target.value)}>
               <option value="">Todos os veículos</option>
               {veiculos.map(v => <option key={v.id} value={v.id}>{v.marca} {v.modelo} – {v.placa}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{ minWidth: 220, flex: 1 }}>
+            <label>Categoria</label>
+            <select value={graficoCategoria} onChange={e => setGraficoCategoria(e.target.value)}>
+              <option value="">Todas as categorias</option>
+              {categoriasDisponiveisGrafico.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ minWidth: 140 }}>
