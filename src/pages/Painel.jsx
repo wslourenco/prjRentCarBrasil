@@ -343,9 +343,14 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
     });
 
   useEffect(() => {
-    if (!form.veiculoId) return;
-    if (veiculosDisponiveis.some(v => String(v.id) === String(form.veiculoId))) return;
-    setForm(prev => ({ ...prev, veiculoId: '' }));
+    if (form.veiculoId && veiculosDisponiveis.some(v => String(v.id) === String(form.veiculoId))) {
+      return;
+    }
+
+    setForm(prev => ({
+      ...prev,
+      veiculoId: veiculosDisponiveis[0] ? String(veiculosDisponiveis[0].id) : '',
+    }));
   }, [veiculosDisponiveis, form.veiculoId]);
 
   async function handleSubmit(e) {
@@ -440,35 +445,6 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
             <span className="card-title">Minhas intenções de locação</span>
             <span className="badge badge-blue">{locacoes.length}</span>
           </div>
-          {veiculosDisponiveis.length > 0 ? (
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)' }}>
-              <div style={{ display: 'grid', gap: 8 }}>
-                {veiculosDisponiveis.map(v => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setForm(prev => ({ ...prev, veiculoId: String(v.id) }))}
-                    style={{
-                      fontSize: 13,
-                      color: 'var(--gray-700)',
-                      textAlign: 'left',
-                      background: String(form.veiculoId) === String(v.id) ? 'var(--primary-light)' : 'transparent',
-                      border: String(form.veiculoId) === String(v.id) ? '1px solid var(--primary)' : '1px solid var(--gray-200)',
-                      borderRadius: 'var(--radius)',
-                      padding: '8px 10px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {v.marca} {v.modelo} - {v.placa}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', fontSize: 12, color: 'var(--gray-500)' }}>
-              Não há veículos disponíveis para nova locação.
-            </div>
-          )}
           {locacoes.length === 0 ? (
             <div className="empty-state"><CalendarDays size={32} /><p>Você ainda não possui locações.</p></div>
           ) : (
