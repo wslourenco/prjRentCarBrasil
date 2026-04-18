@@ -431,14 +431,11 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
 
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Minhas intensões de locação</span>
+            <span className="card-title">Minhas intenções de locação</span>
             <span className="badge badge-blue">{locacoes.length}</span>
           </div>
           {veiculosDisponiveis.length > 0 ? (
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-700)', marginBottom: 8 }}>
-                Selecione um veículo para nova locação
-              </div>
               <div style={{ display: 'grid', gap: 8 }}>
                 {veiculosDisponiveis.map(v => (
                   <label key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--gray-700)', cursor: 'pointer' }}>
