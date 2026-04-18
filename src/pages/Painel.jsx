@@ -391,12 +391,18 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
             <form onSubmit={handleSubmit}>
               <div className="form-group" style={{ marginBottom: 12 }}>
                 <label>Veículo disponível *</label>
-                <select required value={form.veiculoId} onChange={e => setForm({ ...form, veiculoId: e.target.value })}>
-                  <option value="">Selecione o veículo</option>
+                <div style={{ display: 'grid', gap: 8, maxHeight: 180, overflowY: 'auto', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', padding: 10 }}>
                   {veiculosDisponiveis.map(v => (
-                    <option key={v.id} value={v.id}>{v.marca} {v.modelo} - {v.placa}</option>
+                    <label key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--gray-700)' }}>
+                      <input
+                        type="checkbox"
+                        checked={String(form.veiculoId) === String(v.id)}
+                        onChange={e => setForm({ ...form, veiculoId: e.target.checked ? String(v.id) : '' })}
+                      />
+                      <span>{v.marca} {v.modelo} - {v.placa}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
 
               <div className="form-grid-2">
