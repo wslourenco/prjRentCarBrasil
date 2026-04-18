@@ -24,13 +24,25 @@ export default function Painel() {
   const [modalNovaLocacao, setModalNovaLocacao] = useState(false);
   const [formLocacao, setFormLocacao] = useState(EMPTY_LOCACAO);
   const [confirmarEncerrar, setConfirmarEncerrar] = useState(null);
+  const [filtroCategoriaVeiculo, setFiltroCategoriaVeiculo] = useState('');
 
   const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
+
+  const categoriasVeiculo = Array.from(new Set(
+    veiculos
+      .map(v => String(v.marca || '').trim() || 'Sem categoria')
+      .filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+
   const veiculosLocados = locacoesAtivas.map(loc => {
     const veiculo = veiculos.find(v => String(v.id) === String(loc.veiculoId));
     const locatario = locatarios.find(l => String(l.id) === String(loc.locatarioId));
     return { locacao: loc, veiculo, locatario };
-  }).filter(item => item.veiculo);
+  }).filter(item => item.veiculo)
+    .filter(item => {
+      if (!filtroCategoriaVeiculo) return true;
+      return (String(item.veiculo.marca || '').trim() || 'Sem categoria') === filtroCategoriaVeiculo;
+    });
 
   function selecionarVeiculo(item) {
     setVeiculoSelecionado(item);
@@ -77,7 +89,12 @@ export default function Painel() {
     return { value: formLocacao[field] || '', onChange: e => setFormLocacao({ ...formLocacao, [field]: e.target.value }) };
   }
 
-  const veiculosDisponiveis = veiculos.filter(v => !locacoesAtivas.find(l => String(l.veiculoId) === String(v.id)));
+  const veiculosDisponiveis = veiculos
+    .filter(v => !locacoesAtivas.find(l => String(l.veiculoId) === String(v.id)))
+    .filter(v => {
+      if (!filtroCategoriaVeiculo) return true;
+      return (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoriaVeiculo;
+    });
 
   if (usuarioLogado?.perfil === 'locatario') {
     return (
@@ -96,7 +113,13 @@ export default function Painel() {
           <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Painel de Controle</h2>
           <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>{locacoesAtivas.length} locação(ões) ativa(s)</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setModalNovaLocacao(true)}><Plus size={16} /> Nova Locação</button>
+        <div className="flex" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
+            <option value="">Todas as categorias do veículo</option>
+            {categoriasVeiculo.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
+          </select>
+          <button className="btn btn-primary" onClick={() => setModalNovaLocacao(true)}><Plus size={16} /> Nova Locação</button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: veiculoSelecionado ? '320px 1fr' : '1fr', gap: 16 }}>
@@ -294,6 +317,7 @@ export default function Painel() {
 }
 
 function PainelLocatario({ veiculos, locacoes, addLocacao }) {
+  const [filtroCategoriaVeiculo, setFiltroCategoriaVeiculo] = useState('');
   const [form, setForm] = useState({
     veiculoId: '',
     dataInicio: new Date().toISOString().split('T')[0],
@@ -305,7 +329,18 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
   const [erro, setErro] = useState('');
 
   const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
-  const veiculosDisponiveis = veiculos.filter(v => !locacoesAtivas.some(l => String(l.veiculoId) === String(v.id)));
+  const categoriasVeiculo = Array.from(new Set(
+    veiculos
+      .map(v => String(v.marca || '').trim() || 'Sem categoria')
+      .filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+
+  const veiculosDisponiveis = veiculos
+    .filter(v => !locacoesAtivas.some(l => String(l.veiculoId) === String(v.id)))
+    .filter(v => {
+      if (!filtroCategoriaVeiculo) return true;
+      return (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoriaVeiculo;
+    });
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -340,6 +375,12 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
         <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>
           Escolha um veículo disponível e o período da locação (semanal, quinzenal ou mensal).
         </p>
+        <div style={{ marginTop: 10, maxWidth: 280 }}>
+          <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
+            <option value="">Todas as categorias do veículo</option>
+            {categoriasVeiculo.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
+          </select>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 440px) 1fr', gap: 16 }}>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus, Edit2, Trash2, X, Check, Car } from 'lucide-react';
 
@@ -27,11 +27,25 @@ export default function Veiculos() {
   const [form, setForm] = useState(EMPTY_VEICULO);
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
   const [view, setView] = useState('cards'); // 'cards' | 'table'
+  const [filtroCategoria, setFiltroCategoria] = useState('');
 
   const podeGerenciar = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador';
   const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
   const veiculosDisponiveis = veiculos.filter(v => !locacoesAtivas.some(l => String(l.veiculoId) === String(v.id)));
   const listaVeiculos = usuarioLogado?.perfil === 'locatario' ? veiculosDisponiveis : veiculos;
+
+  const categoriasVeiculo = useMemo(() => {
+    const categorias = listaVeiculos
+      .map(v => String(v.marca || '').trim() || 'Sem categoria')
+      .filter(Boolean);
+
+    return Array.from(new Set(categorias)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [listaVeiculos]);
+
+  const listaVeiculosFiltrada = useMemo(() => {
+    if (!filtroCategoria) return listaVeiculos;
+    return listaVeiculos.filter(v => (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoria);
+  }, [listaVeiculos, filtroCategoria]);
 
   const [erroCrud, setErroCrud] = useState('');
 
@@ -66,10 +80,14 @@ export default function Veiculos() {
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Veículos</h2>
           <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>
-            {listaVeiculos.length} veículo(s) {usuarioLogado?.perfil === 'locatario' ? 'disponível(is) para locação' : 'cadastrado(s)'}
+            {listaVeiculosFiltrada.length} veículo(s) {usuarioLogado?.perfil === 'locatario' ? 'disponível(is) para locação' : 'cadastrado(s)'}
           </p>
         </div>
-        <div className="flex" style={{ gap: 10 }}>
+        <div className="flex" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select aria-label="Categoria do Veículo" value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
+            <option value="">Todas as categorias do veículo</option>
+            {categoriasVeiculo.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
+          </select>
           <div className="toggle-group">
             <button type="button" className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')}>Cards</button>
             <button type="button" className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>Tabela</button>
@@ -80,11 +98,11 @@ export default function Veiculos() {
         </div>
       </div>
 
-      {listaVeiculos.length === 0 ? (
+      {listaVeiculosFiltrada.length === 0 ? (
         <div className="card"><div className="empty-state"><Car size={40} /><p>Nenhum veículo cadastrado.</p></div></div>
       ) : view === 'cards' ? (
         <div className="veiculo-cards">
-          {listaVeiculos.map(v => (
+          {listaVeiculosFiltrada.map(v => (
             <div key={v.id} className="veiculo-card">
               <div className="veiculo-card-img">
                 {v.foto ? <img src={v.foto} alt={`${v.marca} ${v.modelo}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -135,7 +153,7 @@ export default function Veiculos() {
                 </tr>
               </thead>
               <tbody>
-                {listaVeiculos.map(v => (
+                {listaVeiculosFiltrada.map(v => (
                   <tr key={v.id}>
                     <td className="fw-600">{v.placa}</td>
                     <td>{v.marca} {v.modelo}</td>

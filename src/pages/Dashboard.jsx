@@ -87,6 +87,7 @@ function ResumoFinanceiroDashboard({ despesasReceitas }) {
 
 function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasReceitas }) {
   const [filtroCategoriaFinanceiro, setFiltroCategoriaFinanceiro] = useState('');
+  const [filtroCategoriaVeiculo, setFiltroCategoriaVeiculo] = useState('');
 
   const categoriasFinanceiras = useMemo(() => {
     const categorias = despesasReceitas.map(categoriaLancamento);
@@ -98,15 +99,30 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
     return despesasReceitas.filter((item) => categoriaLancamento(item) === filtroCategoriaFinanceiro);
   }, [despesasReceitas, filtroCategoriaFinanceiro]);
 
-  const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
+  const categoriasVeiculo = useMemo(() => {
+    const categorias = veiculos
+      .map(v => String(v.marca || '').trim() || 'Sem categoria')
+      .filter(Boolean);
+    return Array.from(new Set(categorias)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [veiculos]);
+
+  const veiculosFiltrados = useMemo(() => {
+    if (!filtroCategoriaVeiculo) return veiculos;
+    return veiculos.filter(v => (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoriaVeiculo);
+  }, [veiculos, filtroCategoriaVeiculo]);
+
+  const idsVeiculosFiltrados = useMemo(() => new Set(veiculosFiltrados.map(v => String(v.id))), [veiculosFiltrados]);
+
+  const locacoesAtivas = locacoes.filter(l => l.status === 'ativa' && idsVeiculosFiltrados.has(String(l.veiculoId)));
+  const locacoesRecentes = locacoes.filter(l => idsVeiculosFiltrados.has(String(l.veiculoId)));
   const totalReceitas = despesasReceitasFiltradas.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
   const totalDespesas = despesasReceitasFiltradas.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
   const saldo = totalReceitas - totalDespesas;
 
-  const ocupacao = veiculos.length > 0 ? Math.round((locacoesAtivas.length / veiculos.length) * 100) : 0;
+  const ocupacao = veiculosFiltrados.length > 0 ? Math.round((locacoesAtivas.length / veiculosFiltrados.length) * 100) : 0;
 
   // Agrupar veículos por marca para o gráfico de categoria
-  const porMarca = veiculos.reduce((acc, v) => {
+  const porMarca = veiculosFiltrados.reduce((acc, v) => {
     acc[v.marca || 'Sem marca'] = (acc[v.marca || 'Sem marca'] || 0) + 1;
     return acc;
   }, {});
@@ -119,7 +135,7 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
   }));
 
   // Alertas de manutenção
-  const alertas = veiculos.filter(v => {
+  const alertas = veiculosFiltrados.filter(v => {
     const kmAtual = Number(v.kmAtual || 0);
     const kmTrocaOleo = Number(v.kmTrocaOleo || 0);
     return kmTrocaOleo > 0 && kmAtual >= kmTrocaOleo;
@@ -130,10 +146,16 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Dashboard</h2>
         <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>Visão geral do sistema de locação</p>
-        <div style={{ marginTop: 10, maxWidth: 320 }}>
-          <select value={filtroCategoriaFinanceiro} onChange={e => setFiltroCategoriaFinanceiro(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%' }}>
+        <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <select value={filtroCategoriaFinanceiro} onChange={e => setFiltroCategoriaFinanceiro(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
             <option value="">Todas as categorias financeiras</option>
             {categoriasFinanceiras.map((categoria) => (
+              <option key={categoria} value={categoria}>{categoria}</option>
+            ))}
+          </select>
+          <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
+            <option value="">Todas as categorias do veículo</option>
+            {categoriasVeiculo.map((categoria) => (
               <option key={categoria} value={categoria}>{categoria}</option>
             ))}
           </select>
@@ -146,7 +168,7 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
           <div className="stat-icon blue"><Car size={20} /></div>
           <div>
             <div className="stat-label">Veículos Cadastrados</div>
-            <div className="stat-value">{veiculos.length}</div>
+            <div className="stat-value">{veiculosFiltrados.length}</div>
             <div className="stat-sub">{locacoesAtivas.length} locados atualmente</div>
           </div>
         </div>
@@ -206,7 +228,7 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
             <div className="progress-fill" style={{ width: `${ocupacao}%`, background: 'var(--primary)' }} />
           </div>
           <p style={{ fontSize: 12, color: 'var(--gray-500)' }}>
-            {locacoesAtivas.length} de {veiculos.length} veículos locados
+            {locacoesAtivas.length} de {veiculosFiltrados.length} veículos locados
           </p>
 
           <div style={{ marginTop: 20 }}>
@@ -267,10 +289,10 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
 
           <div style={{ marginTop: 20 }}>
             <div className="card-title" style={{ marginBottom: 12 }}>Locações Recentes</div>
-            {locacoes.length === 0 ? (
+            {locacoesRecentes.length === 0 ? (
               <div className="empty-state" style={{ padding: 20 }}>Nenhuma locação registrada</div>
             ) : (
-              locacoes.slice(-5).reverse().map(loc => (
+              locacoesRecentes.slice(-5).reverse().map(loc => (
                 <div key={loc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 13 }}>
                   <span>{loc.placa || loc.veiculoId}</span>
                   <span className={`badge ${loc.status === 'ativa' ? 'badge-green' : 'badge-gray'}`}>{loc.status}</span>
@@ -299,6 +321,7 @@ const PALETA_MARCA = [
 
 function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
   const [filtroCategoriaFinanceiro, setFiltroCategoriaFinanceiro] = useState('');
+  const [filtroCategoriaVeiculo, setFiltroCategoriaVeiculo] = useState('');
 
   const categoriasFinanceiras = useMemo(() => {
     const categorias = despesasReceitas.map(categoriaLancamento);
@@ -310,13 +333,27 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
     return despesasReceitas.filter((item) => categoriaLancamento(item) === filtroCategoriaFinanceiro);
   }, [despesasReceitas, filtroCategoriaFinanceiro]);
 
-  const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
+  const categoriasVeiculo = useMemo(() => {
+    const categorias = veiculos
+      .map(v => String(v.marca || '').trim() || 'Sem categoria')
+      .filter(Boolean);
+    return Array.from(new Set(categorias)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [veiculos]);
+
+  const veiculosFiltrados = useMemo(() => {
+    if (!filtroCategoriaVeiculo) return veiculos;
+    return veiculos.filter(v => (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoriaVeiculo);
+  }, [veiculos, filtroCategoriaVeiculo]);
+
+  const idsVeiculosFiltrados = useMemo(() => new Set(veiculosFiltrados.map(v => String(v.id))), [veiculosFiltrados]);
+
+  const locacoesAtivas = locacoes.filter(l => l.status === 'ativa' && idsVeiculosFiltrados.has(String(l.veiculoId)));
   const totalReceitas = despesasReceitasFiltradas.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
   const totalDespesas = despesasReceitasFiltradas.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
   const lucro = totalReceitas - totalDespesas;
-  const ocupacao = veiculos.length > 0 ? Math.round((locacoesAtivas.length / veiculos.length) * 100) : 0;
+  const ocupacao = veiculosFiltrados.length > 0 ? Math.round((locacoesAtivas.length / veiculosFiltrados.length) * 100) : 0;
 
-  const lucroPorVeiculo = veiculos.map(v => {
+  const lucroPorVeiculo = veiculosFiltrados.map(v => {
     const receitas = despesasReceitasFiltradas
       .filter(d => d.tipo === 'receita' && String(d.veiculoId || '') === String(v.id))
       .reduce((acc, d) => acc + Number(d.valor || 0), 0);
@@ -337,10 +374,16 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Dashboard do Locador</h2>
         <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>Visão dos seus veículos, locações e desempenho financeiro</p>
-        <div style={{ marginTop: 10, maxWidth: 320 }}>
-          <select value={filtroCategoriaFinanceiro} onChange={e => setFiltroCategoriaFinanceiro(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%' }}>
+        <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <select value={filtroCategoriaFinanceiro} onChange={e => setFiltroCategoriaFinanceiro(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
             <option value="">Todas as categorias financeiras</option>
             {categoriasFinanceiras.map((categoria) => (
+              <option key={categoria} value={categoria}>{categoria}</option>
+            ))}
+          </select>
+          <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
+            <option value="">Todas as categorias do veículo</option>
+            {categoriasVeiculo.map((categoria) => (
               <option key={categoria} value={categoria}>{categoria}</option>
             ))}
           </select>
@@ -352,7 +395,7 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
           <div className="stat-icon blue"><Car size={20} /></div>
           <div>
             <div className="stat-label">Meus Veículos</div>
-            <div className="stat-value">{veiculos.length}</div>
+            <div className="stat-value">{veiculosFiltrados.length}</div>
             <div className="stat-sub">{locacoesAtivas.length} com locação ativa</div>
           </div>
         </div>
@@ -390,7 +433,7 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
           <div className="progress-bar" style={{ marginBottom: 10 }}>
             <div className="progress-fill" style={{ width: `${ocupacao}%`, background: 'var(--primary)' }} />
           </div>
-          <p style={{ fontSize: 12, color: 'var(--gray-500)' }}>{locacoesAtivas.length} de {veiculos.length} veículos em locação ativa</p>
+          <p style={{ fontSize: 12, color: 'var(--gray-500)' }}>{locacoesAtivas.length} de {veiculosFiltrados.length} veículos em locação ativa</p>
         </div>
 
         <div className="card">
@@ -418,16 +461,40 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
 }
 
 function DashboardLocatario({ veiculos, locacoes }) {
-  const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
-  const locacoesEncerradas = locacoes.filter(l => l.status === 'encerrada');
-  const locacoesCanceladas = locacoes.filter(l => l.status === 'cancelada');
-  const veiculosDisponiveis = Math.max(veiculos.length - locacoesAtivas.length, 0);
+  const [filtroCategoriaVeiculo, setFiltroCategoriaVeiculo] = useState('');
+
+  const categoriasVeiculo = useMemo(() => {
+    const categorias = veiculos
+      .map(v => String(v.marca || '').trim() || 'Sem categoria')
+      .filter(Boolean);
+    return Array.from(new Set(categorias)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [veiculos]);
+
+  const veiculosFiltrados = useMemo(() => {
+    if (!filtroCategoriaVeiculo) return veiculos;
+    return veiculos.filter(v => (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoriaVeiculo);
+  }, [veiculos, filtroCategoriaVeiculo]);
+
+  const idsVeiculosFiltrados = useMemo(() => new Set(veiculosFiltrados.map(v => String(v.id))), [veiculosFiltrados]);
+  const locacoesFiltradas = locacoes.filter(l => idsVeiculosFiltrados.has(String(l.veiculoId)));
+  const locacoesAtivas = locacoesFiltradas.filter(l => l.status === 'ativa');
+  const locacoesEncerradas = locacoesFiltradas.filter(l => l.status === 'encerrada');
+  const locacoesCanceladas = locacoesFiltradas.filter(l => l.status === 'cancelada');
+  const veiculosDisponiveis = Math.max(veiculosFiltrados.length - locacoesAtivas.length, 0);
 
   return (
     <div className="page-content">
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Dashboard do Locatário</h2>
         <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>Acompanhe suas locações e disponibilidade de veículos</p>
+        <div style={{ marginTop: 10, maxWidth: 320 }}>
+          <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
+            <option value="">Todas as categorias do veículo</option>
+            {categoriasVeiculo.map((categoria) => (
+              <option key={categoria} value={categoria}>{categoria}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="stat-grid">
@@ -465,10 +532,10 @@ function DashboardLocatario({ veiculos, locacoes }) {
         <div className="card-header">
           <span className="card-title">Últimas Locações</span>
         </div>
-        {locacoes.length === 0 ? (
+        {locacoesFiltradas.length === 0 ? (
           <div className="empty-state" style={{ padding: 20 }}>Nenhuma locação registrada.</div>
         ) : (
-          locacoes.slice(0, 8).map(loc => (
+          locacoesFiltradas.slice(0, 8).map(loc => (
             <div key={loc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 13 }}>
               <span>{loc.nomeVeiculo || loc.placa || `Veículo ${loc.veiculoId}`}</span>
               <span className={`badge ${loc.status === 'ativa' ? 'badge-green' : 'badge-gray'}`}>{loc.status}</span>
