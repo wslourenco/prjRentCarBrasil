@@ -21,7 +21,10 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "status": 308,
+      "headers": {
+        "Location": "https://prjsislove-production.up.railway.app/$1"
+      }
     }
   ]
 }
