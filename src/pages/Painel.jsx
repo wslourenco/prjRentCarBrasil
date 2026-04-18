@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Car, User, Phone, Mail, DollarSign, Wrench, X, Plus, CheckCircle,
@@ -342,17 +342,6 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
       return (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoriaVeiculo;
     });
 
-  useEffect(() => {
-    if (form.veiculoId && veiculosDisponiveis.some(v => String(v.id) === String(form.veiculoId))) {
-      return;
-    }
-
-    setForm(prev => ({
-      ...prev,
-      veiculoId: veiculosDisponiveis[0] ? String(veiculosDisponiveis[0].id) : '',
-    }));
-  }, [veiculosDisponiveis, form.veiculoId]);
-
   async function handleSubmit(e) {
     e.preventDefault();
     setErro('');
@@ -433,7 +422,7 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
 
               {erro && <div className="alert alert-error" style={{ marginTop: 12 }}>{erro}</div>}
 
-              <button type="submit" className="btn btn-primary" style={{ marginTop: 12 }} disabled={salvando}>
+              <button type="submit" className="btn btn-primary" style={{ marginTop: 12 }} disabled={salvando || !form.veiculoId}>
                 <CalendarDays size={16} /> {salvando ? 'Enviando...' : 'Confirmar Locação'}
               </button>
             </form>
@@ -442,9 +431,33 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
 
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Minhas Locações</span>
+            <span className="card-title">Minhas intensões de locação</span>
             <span className="badge badge-blue">{locacoes.length}</span>
           </div>
+          {veiculosDisponiveis.length > 0 ? (
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-700)', marginBottom: 8 }}>
+                Selecione um veículo para nova locação
+              </div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {veiculosDisponiveis.map(v => (
+                  <label key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--gray-700)', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="veiculoNovaLocacao"
+                      checked={String(form.veiculoId) === String(v.id)}
+                      onChange={() => setForm({ ...form, veiculoId: String(v.id) })}
+                    />
+                    <span>{v.marca} {v.modelo} - {v.placa}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', fontSize: 12, color: 'var(--gray-500)' }}>
+              Não há veículos disponíveis para nova locação.
+            </div>
+          )}
           {locacoes.length === 0 ? (
             <div className="empty-state"><CalendarDays size={32} /><p>Você ainda não possui locações.</p></div>
           ) : (
