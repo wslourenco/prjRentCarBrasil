@@ -115,7 +115,7 @@ export default function Painel() {
         </div>
         <div className="flex" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
-            <option value="">Todas as categorias do veículo</option>
+            <option value="">Todas as montadoras</option>
             {categoriasVeiculo.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
           </select>
           <button className="btn btn-primary" onClick={() => setModalNovaLocacao(true)}><Plus size={16} /> Nova Locação</button>
@@ -377,7 +377,7 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
         </p>
         <div style={{ marginTop: 10, maxWidth: 280 }}>
           <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
-            <option value="">Todas as categorias do veículo</option>
+            <option value="">Todas as montadoras</option>
             {categoriasVeiculo.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
           </select>
         </div>

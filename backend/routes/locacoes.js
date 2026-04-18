@@ -5,12 +5,26 @@ const { authMiddleware, requireProfiles } = require('../middleware/auth');
 
 router.use(authMiddleware);
 
-async function getLocadorIdByUserEmail(email) {
-    const [rows] = await pool.query(
-        'SELECT id FROM locadores WHERE email = ? ORDER BY id ASC LIMIT 1',
-        [email]
-    );
-    return rows[0]?.id || null;
+async function getLocadorIdForUser(usuario) {
+    const email = String(usuario?.email || '').trim();
+    if (email) {
+        const [rowsByEmail] = await pool.query(
+            'SELECT id FROM locadores WHERE email = ? ORDER BY id ASC LIMIT 1',
+            [email]
+        );
+        if (rowsByEmail[0]?.id) return rowsByEmail[0].id;
+    }
+
+    const userId = Number(usuario?.id || 0);
+    if (Number.isInteger(userId) && userId > 0) {
+        const [rowsById] = await pool.query(
+            'SELECT id FROM locadores WHERE id = ? LIMIT 1',
+            [userId]
+        );
+        if (rowsById[0]?.id) return rowsById[0].id;
+    }
+
+    return null;
 }
 
 async function getLocatarioIdByUserEmail(email) {
@@ -63,7 +77,7 @@ router.get('/', async (req, res) => {
             sql += ' WHERE lc.locatario_id = ?';
             params.push(locatarioId);
         } else if (req.usuario?.perfil === 'locador') {
-            const locadorId = await getLocadorIdByUserEmail(req.usuario.email);
+            const locadorId = await getLocadorIdForUser(req.usuario);
             if (!locadorId) return res.json([]);
             sql += ' WHERE v.locador_id = ?';
             params.push(locadorId);
@@ -99,7 +113,7 @@ router.get('/:id', async (req, res) => {
             sql += ' AND lc.locatario_id = ?';
             params.push(locatarioId);
         } else if (req.usuario?.perfil === 'locador') {
-            const locadorId = await getLocadorIdByUserEmail(req.usuario.email);
+            const locadorId = await getLocadorIdForUser(req.usuario);
             if (!locadorId) return res.status(404).json({ erro: 'Locação não encontrada.' });
             sql += ' AND v.locador_id = ?';
             params.push(locadorId);
@@ -260,7 +274,7 @@ router.patch('/:id/encerrar', requireProfiles('admin', 'locador'), async (req, r
 
     try {
         if (req.usuario?.perfil === 'locador') {
-            const locadorId = await getLocadorIdByUserEmail(req.usuario.email);
+            const locadorId = await getLocadorIdForUser(req.usuario);
             if (!locadorId) {
                 return res.status(403).json({ erro: 'Não foi encontrado cadastro de locador vinculado a este usuário.' });
             }
