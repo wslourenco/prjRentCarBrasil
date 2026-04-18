@@ -26,13 +26,17 @@ const EMPTY_VEICULO = {
 };
 
 export default function Veiculos() {
-  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, locacoes, usuarioLogado } = useApp();
+  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, locacoes, usuarioLogado, addLocacao } = useApp();
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_VEICULO);
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
   const [view, setView] = useState('cards'); // 'cards' | 'table'
   const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [veiculoSelecionadoLocacao, setVeiculoSelecionadoLocacao] = useState('');
+  const [locandoVeiculo, setLocandoVeiculo] = useState(false);
+  const [erroLocacaoRapida, setErroLocacaoRapida] = useState('');
+  const [sucessoLocacaoRapida, setSucessoLocacaoRapida] = useState('');
 
   const podeGerenciar = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador';
   const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
@@ -89,6 +93,33 @@ export default function Veiculos() {
     return l ? (l.tipo === 'juridica' ? l.razaoSocial : l.nome) : '-';
   }
 
+  async function handleLocacaoRapida() {
+    if (!veiculoSelecionadoLocacao) {
+      setErroLocacaoRapida('Selecione um veículo disponível para locar.');
+      return;
+    }
+
+    setErroLocacaoRapida('');
+    setSucessoLocacaoRapida('');
+    setLocandoVeiculo(true);
+    try {
+      const hoje = new Date().toISOString().split('T')[0];
+      await addLocacao({
+        veiculoId: veiculoSelecionadoLocacao,
+        dataInicio: hoje,
+        periodicidade: 'semanal',
+        quantidadePeriodos: 1,
+        condicoes: 'Locação iniciada pela tela Veículos Disponíveis',
+      });
+      setVeiculoSelecionadoLocacao('');
+      setSucessoLocacaoRapida('Veículo locado com sucesso.');
+    } catch (err) {
+      setErroLocacaoRapida(err.message || 'Não foi possível locar o veículo selecionado.');
+    } finally {
+      setLocandoVeiculo(false);
+    }
+  }
+
   return (
     <div className="page-content">
       <div className="flex-between mb-24">
@@ -97,6 +128,12 @@ export default function Veiculos() {
           <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>
             {listaVeiculosFiltrada.length} veículo(s) {usuarioLogado?.perfil === 'locatario' ? 'disponível(is) para locação' : 'cadastrado(s)'}
           </p>
+          {usuarioLogado?.perfil === 'locatario' && erroLocacaoRapida && (
+            <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 6 }}>{erroLocacaoRapida}</p>
+          )}
+          {usuarioLogado?.perfil === 'locatario' && sucessoLocacaoRapida && (
+            <p style={{ color: 'var(--success)', fontSize: 12, marginTop: 6 }}>{sucessoLocacaoRapida}</p>
+          )}
         </div>
         <div className="flex" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <select aria-label="Categoria do Veículo" value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
@@ -107,6 +144,15 @@ export default function Veiculos() {
             <button type="button" className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')}>Cards</button>
             <button type="button" className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>Tabela</button>
           </div>
+          {usuarioLogado?.perfil === 'locatario' && (
+            <button
+              className="btn btn-primary"
+              disabled={!veiculoSelecionadoLocacao || locandoVeiculo}
+              onClick={handleLocacaoRapida}
+            >
+              <Check size={16} /> {locandoVeiculo ? 'Locando...' : 'Locar Veículo'}
+            </button>
+          )}
           {podeGerenciar && (
             <button className="btn btn-primary" onClick={abrirNovo}><Plus size={16} /> Novo Veículo</button>
           )}
@@ -138,7 +184,18 @@ export default function Veiculos() {
                 </div>
               </div>
               <div className="veiculo-card-footer">
-                <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>FIPE: {v.valorFipe ? `R$ ${Number(v.valorFipe).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {usuarioLogado?.perfil === 'locatario' && (
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--gray-600)' }}>
+                      <input
+                        type="checkbox"
+                        checked={String(veiculoSelecionadoLocacao) === String(v.id)}
+                        onChange={e => setVeiculoSelecionadoLocacao(e.target.checked ? String(v.id) : '')}
+                      />
+                      Selecionar
+                    </label>
+                  )}
+                </div>
                 {podeGerenciar && (
                   <div className="flex" style={{ gap: 6 }}>
                     <button className="btn-icon" onClick={() => abrirEditar(v)}><Edit2 size={14} /></button>
@@ -155,6 +212,7 @@ export default function Veiculos() {
             <table>
               <thead>
                 <tr>
+                  {usuarioLogado?.perfil === 'locatario' && <th>Selecionar</th>}
                   <th>Placa</th>
                   <th>Marca/Modelo</th>
                   <th>Ano</th>
@@ -163,13 +221,21 @@ export default function Veiculos() {
                   <th>Combustível</th>
                   <th>Cor</th>
                   <th>Locador</th>
-                  <th>Val. FIPE</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {listaVeiculosFiltrada.map(v => (
                   <tr key={v.id}>
+                    {usuarioLogado?.perfil === 'locatario' && (
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={String(veiculoSelecionadoLocacao) === String(v.id)}
+                          onChange={e => setVeiculoSelecionadoLocacao(e.target.checked ? String(v.id) : '')}
+                        />
+                      </td>
+                    )}
                     <td className="fw-600">{v.placa}</td>
                     <td>{v.marca} {v.modelo}</td>
                     <td>{v.anoFabricacao}/{v.anoModelo}</td>
@@ -178,7 +244,6 @@ export default function Veiculos() {
                     <td>{v.combustivel}</td>
                     <td>{v.cor}</td>
                     <td>{nomeLocador(v.locadorId)}</td>
-                    <td>{v.valorFipe ? `R$ ${Number(v.valorFipe).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</td>
                     <td>
                       {podeGerenciar && (
                         <div className="flex" style={{ gap: 6 }}>
