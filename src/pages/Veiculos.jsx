@@ -4,6 +4,11 @@ import { Plus, Edit2, Trash2, X, Check, Car } from 'lucide-react';
 
 const COMBUSTIVEIS = ['Flex','Gasolina','Etanol','Diesel','GNV','Elétrico','Híbrido'];
 const TRANSMISSOES = ['Manual','Automático','Semi-automático','CVT'];
+const MONTADORAS = [
+  'Fiat', 'Chevrolet', 'Volkswagen', 'Toyota', 'Honda', 'Hyundai', 'Renault', 'Nissan',
+  'Jeep', 'Ford', 'Peugeot', 'Citroën', 'Mitsubishi', 'Kia', 'BMW', 'Mercedes-Benz',
+  'Audi', 'Volvo', 'BYD', 'Chery', 'Ram', 'Land Rover', 'Porsche', 'Subaru', 'Suzuki'
+];
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
 const EMPTY_VEICULO = {
@@ -41,6 +46,16 @@ export default function Veiculos() {
 
     return Array.from(new Set(categorias)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   }, [listaVeiculos]);
+
+  const montadorasFormulario = useMemo(() => {
+    const existentes = veiculos
+      .map(v => String(v.marca || '').trim())
+      .filter(Boolean);
+
+    const atual = String(form.marca || '').trim();
+    const todas = [...MONTADORAS, ...existentes, ...(atual ? [atual] : [])];
+    return Array.from(new Set(todas)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [veiculos, form.marca]);
 
   const listaVeiculosFiltrada = useMemo(() => {
     if (!filtroCategoria) return listaVeiculos;
@@ -212,7 +227,12 @@ export default function Veiculos() {
                     <div className="form-group"><label>Placa *</label><input required {...f('placa')} /></div>
                     <div className="form-group"><label>RENAVAM</label><input {...f('renavam')} /></div>
                     <div className="form-group"><label>Chassi</label><input {...f('chassi')} /></div>
-                    <div className="form-group"><label>Marca *</label><input required {...f('marca')} /></div>
+                    <div className="form-group"><label>Montadora *</label>
+                      <select required {...f('marca')}>
+                        <option value="">Selecione a montadora</option>
+                        {montadorasFormulario.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
                     <div className="form-group"><label>Modelo *</label><input required {...f('modelo')} /></div>
                     <div className="form-group"><label>Ano Fabricação</label><input type="number" min="1990" max="2030" {...f('anoFabricacao')} /></div>
                     <div className="form-group"><label>Ano Modelo</label><input type="number" min="1990" max="2030" {...f('anoModelo')} /></div>
