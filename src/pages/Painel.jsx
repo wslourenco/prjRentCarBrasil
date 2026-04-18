@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Car, User, Phone, Mail, DollarSign, Wrench, X, Plus, CheckCircle,
@@ -342,6 +342,12 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
       return (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoriaVeiculo;
     });
 
+  useEffect(() => {
+    if (!form.veiculoId) return;
+    if (veiculosDisponiveis.some(v => String(v.id) === String(form.veiculoId))) return;
+    setForm(prev => ({ ...prev, veiculoId: '' }));
+  }, [veiculosDisponiveis, form.veiculoId]);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setErro('');
@@ -438,15 +444,23 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)' }}>
               <div style={{ display: 'grid', gap: 8 }}>
                 {veiculosDisponiveis.map(v => (
-                  <label key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--gray-700)', cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="veiculoNovaLocacao"
-                      checked={String(form.veiculoId) === String(v.id)}
-                      onChange={() => setForm({ ...form, veiculoId: String(v.id) })}
-                    />
-                    <span>{v.marca} {v.modelo} - {v.placa}</span>
-                  </label>
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, veiculoId: String(v.id) }))}
+                    style={{
+                      fontSize: 13,
+                      color: 'var(--gray-700)',
+                      textAlign: 'left',
+                      background: String(form.veiculoId) === String(v.id) ? 'var(--primary-light)' : 'transparent',
+                      border: String(form.veiculoId) === String(v.id) ? '1px solid var(--primary)' : '1px solid var(--gray-200)',
+                      borderRadius: 'var(--radius)',
+                      padding: '8px 10px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {v.marca} {v.modelo} - {v.placa}
+                  </button>
                 ))}
               </div>
             </div>
