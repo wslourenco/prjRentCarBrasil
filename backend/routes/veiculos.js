@@ -13,6 +13,14 @@ async function getLocadorIdByUserEmail(email) {
     return rows[0]?.id || null;
 }
 
+async function getLocatarioIdByUserEmail(email) {
+    const [rows] = await pool.query(
+        'SELECT id FROM locatarios WHERE email = ? ORDER BY id ASC LIMIT 1',
+        [email]
+    );
+    return rows[0]?.id || null;
+}
+
 async function ensureLocadorContext(req, res) {
     if (req.usuario?.perfil !== 'locador') return null;
 
@@ -40,6 +48,25 @@ router.get('/', async (req, res) => {
             if (!locadorId) return;
             sql += ' WHERE v.locador_id = ?';
             params.push(locadorId);
+        } else if (req.usuario?.perfil === 'locatario') {
+            const locatarioId = await getLocatarioIdByUserEmail(req.usuario.email);
+            if (!locatarioId) return res.json([]);
+
+            sql += `
+                WHERE (
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM locacoes la
+                        WHERE la.veiculo_id = v.id AND la.status = 'ativa'
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM locacoes ll
+                        WHERE ll.veiculo_id = v.id AND ll.locatario_id = ?
+                    )
+                )
+            `;
+            params.push(locatarioId);
         }
 
         sql += ' ORDER BY v.placa';
@@ -69,6 +96,25 @@ router.get('/:id', async (req, res) => {
             if (!locadorId) return;
             sql += ' AND v.locador_id = ?';
             params.push(locadorId);
+        } else if (req.usuario?.perfil === 'locatario') {
+            const locatarioId = await getLocatarioIdByUserEmail(req.usuario.email);
+            if (!locatarioId) return res.status(404).json({ erro: 'Veículo não encontrado.' });
+
+            sql += `
+                AND (
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM locacoes la
+                        WHERE la.veiculo_id = v.id AND la.status = 'ativa'
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM locacoes ll
+                        WHERE ll.veiculo_id = v.id AND ll.locatario_id = ?
+                    )
+                )
+            `;
+            params.push(locatarioId);
         }
 
         const [rows] = await pool.query(sql, params);

@@ -13,6 +13,14 @@ async function getLocadorIdByUserEmail(email) {
     return rows[0]?.id || null;
 }
 
+async function getLocatarioIdByUserEmail(email) {
+    const [rows] = await pool.query(
+        'SELECT id FROM locatarios WHERE email = ? ORDER BY id ASC LIMIT 1',
+        [email]
+    );
+    return rows[0]?.id || null;
+}
+
 async function ensureLocadorContext(req, res) {
     if (req.usuario?.perfil !== 'locador') return null;
 
@@ -27,10 +35,6 @@ async function ensureLocadorContext(req, res) {
 // GET /api/financeiro
 router.get('/', async (req, res) => {
     try {
-        if (req.usuario?.perfil === 'locatario') {
-            return res.status(403).json({ erro: 'Locatários não possuem acesso ao módulo financeiro.' });
-        }
-
         let sql = `
             SELECT dr.*,
                    v.placa AS placa_veiculo,
@@ -49,6 +53,22 @@ router.get('/', async (req, res) => {
             if (!locadorId) return;
             sql += ' WHERE v.locador_id = ?';
             params.push(locadorId);
+        } else if (req.usuario?.perfil === 'locatario') {
+            const locatarioId = await getLocatarioIdByUserEmail(req.usuario.email);
+            if (!locatarioId) return res.json([]);
+
+            sql += `
+                WHERE (
+                    dr.locatario_id = ?
+                    OR EXISTS (
+                        SELECT 1
+                        FROM locacoes lc
+                        WHERE lc.veiculo_id = dr.veiculo_id
+                          AND lc.locatario_id = ?
+                    )
+                )
+            `;
+            params.push(locatarioId, locatarioId);
         }
 
         sql += ' ORDER BY dr.data DESC';
@@ -64,10 +84,6 @@ router.get('/', async (req, res) => {
 // GET /api/financeiro/:id
 router.get('/:id', async (req, res) => {
     try {
-        if (req.usuario?.perfil === 'locatario') {
-            return res.status(403).json({ erro: 'Locatários não possuem acesso ao módulo financeiro.' });
-        }
-
         let sql = 'SELECT dr.* FROM despesas_receitas dr WHERE dr.id = ?';
         const params = [req.params.id];
 
@@ -81,6 +97,25 @@ router.get('/:id', async (req, res) => {
                 WHERE dr.id = ? AND v.locador_id = ?
             `;
             params.push(locadorId);
+        } else if (req.usuario?.perfil === 'locatario') {
+            const locatarioId = await getLocatarioIdByUserEmail(req.usuario.email);
+            if (!locatarioId) return res.status(404).json({ erro: 'Lançamento não encontrado.' });
+
+            sql = `
+                                SELECT dr.*
+                                FROM despesas_receitas dr
+                                WHERE dr.id = ?
+                                    AND (
+                                        dr.locatario_id = ?
+                                        OR EXISTS (
+                                                SELECT 1
+                                                FROM locacoes lc
+                                                WHERE lc.veiculo_id = dr.veiculo_id
+                                                    AND lc.locatario_id = ?
+                                        )
+                                    )
+                        `;
+            params.push(locatarioId, locatarioId);
         }
 
         const [rows] = await pool.query(sql, params);
