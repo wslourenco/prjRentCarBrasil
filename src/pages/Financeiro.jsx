@@ -152,11 +152,13 @@ export default function Financeiro() {
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroVeiculo, setFiltroVeiculo] = useState('');
+  const [filtroMontadora, setFiltroMontadora] = useState('');
   const [erroCrud, setErroCrud] = useState('');
   const [graficoInicio, setGraficoInicio] = useState('');
   const [graficoFim, setGraficoFim] = useState('');
   const [graficoStatus, setGraficoStatus] = useState('');
   const [graficoVeiculo, setGraficoVeiculo] = useState('');
+  const [graficoMontadora, setGraficoMontadora] = useState('');
   const [paginaGrafico, setPaginaGrafico] = useState(1);
   const [itensPorPaginaGrafico, setItensPorPaginaGrafico] = useState('6');
   const [exportandoXlsx, setExportandoXlsx] = useState(false);
@@ -216,10 +218,26 @@ export default function Financeiro() {
     return ordenacao.direcao === 'asc' ? ' ^' : ' v';
   }
 
+  const marcaPorVeiculoId = useMemo(() => {
+    return new Map(veiculos.map(v => [String(v.id), String(v.marca || '').trim()]));
+  }, [veiculos]);
+
+  const montadorasDisponiveis = useMemo(() => {
+    const montadoras = veiculos
+      .map(v => String(v.marca || '').trim())
+      .filter(Boolean);
+
+    return Array.from(new Set(montadoras)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [veiculos]);
+
   const lista = useMemo(() => {
     const filtrada = despesasReceitas.filter(d => {
       if (filtroTipo && d.tipo !== filtroTipo) return false;
       if (filtroVeiculo && String(d.veiculoId) !== String(filtroVeiculo)) return false;
+      if (filtroMontadora) {
+        const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || '';
+        if (montadora !== filtroMontadora) return false;
+      }
       return true;
     });
 
@@ -239,7 +257,7 @@ export default function Financeiro() {
     });
 
     return ordenada;
-  }, [despesasReceitas, filtroTipo, filtroVeiculo, ordenacao, veiculos]);
+  }, [despesasReceitas, filtroTipo, filtroVeiculo, filtroMontadora, ordenacao, marcaPorVeiculoId]);
 
   const totalReceitas = lista.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
   const totalDespesas = lista.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
@@ -261,10 +279,20 @@ export default function Financeiro() {
     const locacoesFiltradas = locacoes.filter(loc => {
       if (graficoStatus && loc.status !== graficoStatus) return false;
       if (graficoVeiculo && String(loc.veiculoId) !== String(graficoVeiculo)) return false;
+      if (graficoMontadora) {
+        const montadora = marcaPorVeiculoId.get(String(loc.veiculoId || '')) || '';
+        if (montadora !== graficoMontadora) return false;
+      }
       return withinPeriodo(loc.dataInicio);
     });
 
-    const movimentosFiltrados = despesasReceitas.filter(d => withinPeriodo(d.data));
+    const movimentosFiltrados = despesasReceitas
+      .filter(d => withinPeriodo(d.data))
+      .filter(d => {
+        if (!graficoMontadora) return true;
+        const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || '';
+        return montadora === graficoMontadora;
+      });
 
     return locacoesFiltradas.map(loc => {
       const receitas = movimentosFiltrados
@@ -284,7 +312,7 @@ export default function Financeiro() {
       };
     }).filter(item => item.receita > 0 || item.despesa > 0)
       .sort((a, b) => b.lucro - a.lucro);
-  }, [despesasReceitas, locacoes, graficoInicio, graficoFim, graficoStatus, graficoVeiculo]);
+  }, [despesasReceitas, locacoes, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoMontadora, marcaPorVeiculoId]);
 
   const despesasDetalhadasCategoria = useMemo(() => {
     const dataInicioMs = graficoInicio ? new Date(`${graficoInicio}T00:00:00`).getTime() : null;
@@ -303,6 +331,10 @@ export default function Financeiro() {
       if (!graficoStatus) return false;
       if (loc.status !== graficoStatus) return false;
       if (graficoVeiculo && String(loc.veiculoId) !== String(graficoVeiculo)) return false;
+      if (graficoMontadora) {
+        const montadora = marcaPorVeiculoId.get(String(loc.veiculoId || '')) || '';
+        if (montadora !== graficoMontadora) return false;
+      }
       return withinPeriodo(loc.dataInicio);
     });
 
@@ -312,6 +344,10 @@ export default function Financeiro() {
       .filter(d => d.tipo === 'despesa' && withinPeriodo(d.data))
       .filter(d => {
         if (graficoVeiculo && String(d.veiculoId || '') !== String(graficoVeiculo)) return false;
+        if (graficoMontadora) {
+          const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || '';
+          if (montadora !== graficoMontadora) return false;
+        }
         if (graficoStatus && !veiculosComStatus.has(String(d.veiculoId || ''))) return false;
         return true;
       })
@@ -332,7 +368,7 @@ export default function Financeiro() {
         ticketMedio: item.quantidade > 0 ? item.valor / item.quantidade : 0,
       }))
       .sort((a, b) => b.valor - a.valor);
-  }, [despesasReceitas, locacoes, graficoInicio, graficoFim, graficoStatus, graficoVeiculo]);
+  }, [despesasReceitas, locacoes, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoMontadora, marcaPorVeiculoId]);
 
   const lucrosDetalhados = useMemo(() => {
     return resumoPorLocacao
@@ -357,6 +393,7 @@ export default function Financeiro() {
     const periodoInicio = graficoInicio || 'inicio-aberto';
     const periodoFim = graficoFim || 'fim-aberto';
     const status = graficoStatus || 'todos';
+    const montadora = graficoMontadora || 'todas';
     const veiculoSelecionado = veiculos.find((v) => String(v.id) === String(graficoVeiculo));
     const veiculo = veiculoSelecionado?.placa || 'todos';
 
@@ -364,9 +401,10 @@ export default function Financeiro() {
       `de-${tokenArquivoSeguro(periodoInicio)}`,
       `ate-${tokenArquivoSeguro(periodoFim)}`,
       `status-${tokenArquivoSeguro(status)}`,
+      `montadora-${tokenArquivoSeguro(montadora)}`,
       `veiculo-${tokenArquivoSeguro(veiculo)}`,
     ].join('__');
-  }, [graficoInicio, graficoFim, graficoStatus, graficoVeiculo, veiculos]);
+  }, [graficoInicio, graficoFim, graficoStatus, graficoMontadora, graficoVeiculo, veiculos]);
 
   function exportarGraficosCsv() {
     if (resumoPorLocacao.length === 0 && despesasDetalhadasCategoria.length === 0 && lucrosDetalhados.length === 0) {
@@ -503,6 +541,7 @@ export default function Financeiro() {
         { Campo: 'Filtro de início', Valor: graficoInicio || 'Não aplicado' },
         { Campo: 'Filtro de fim', Valor: graficoFim || 'Não aplicado' },
         { Campo: 'Filtro de status', Valor: graficoStatus || 'Não aplicado' },
+        { Campo: 'Filtro de montadora', Valor: graficoMontadora || 'Não aplicado' },
         { Campo: 'Filtro de veículo', Valor: graficoVeiculo ? (nomeVeiculo(graficoVeiculo) || graficoVeiculo) : 'Não aplicado' },
         { Campo: 'Total de receitas', Valor: totalReceitasResumo },
         { Campo: 'Total de despesas', Valor: totalDespesasResumo },
@@ -645,7 +684,7 @@ export default function Financeiro() {
 
   useEffect(() => {
     setPaginaGrafico(1);
-  }, [graficoInicio, graficoFim, graficoStatus, graficoVeiculo, itensPorPaginaGrafico]);
+  }, [graficoInicio, graficoFim, graficoStatus, graficoMontadora, graficoVeiculo, itensPorPaginaGrafico]);
 
   useEffect(() => {
     setFiltroVeiculo(graficoVeiculo);
@@ -671,7 +710,7 @@ export default function Financeiro() {
       ativo = false;
       clearTimeout(timer);
     };
-  }, [filtroTipo, filtroVeiculo, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, carregarDados]);
+  }, [filtroTipo, filtroVeiculo, filtroMontadora, graficoInicio, graficoFim, graficoStatus, graficoMontadora, graficoVeiculo, carregarDados]);
 
   const itensPorPaginaAtual = Number(itensPorPaginaGrafico) || 6;
   const totalPaginasGrafico = Math.max(1, Math.ceil(resumoPorLocacao.length / itensPorPaginaAtual));
@@ -757,6 +796,13 @@ export default function Financeiro() {
               <option value="ativa">Ativa</option>
               <option value="encerrada">Encerrada</option>
               <option value="cancelada">Cancelada</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ minWidth: 220, flex: 1 }}>
+            <label>Montadora</label>
+            <select value={graficoMontadora} onChange={e => setGraficoMontadora(e.target.value)}>
+              <option value="">Todas as montadoras</option>
+              {montadorasDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ minWidth: 220, flex: 1 }}>
@@ -919,6 +965,10 @@ export default function Financeiro() {
           <select value={filtroVeiculo} onChange={e => setFiltroVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, flex: 1, maxWidth: 280 }}>
             <option value="">Todos os veículos</option>
             {veiculos.map(v => <option key={v.id} value={v.id}>{v.marca} {v.modelo} – {v.placa}</option>)}
+          </select>
+          <select value={filtroMontadora} onChange={e => setFiltroMontadora(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, flex: 1, maxWidth: 260 }}>
+            <option value="">Todas as montadoras</option>
+            {montadorasDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
 
