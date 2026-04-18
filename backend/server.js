@@ -78,7 +78,10 @@ app.use('/api/usuarios', require('./routes/usuarios'));
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // Servir frontend React (produção)
-const publicDir = path.join(__dirname, 'public');
+// No Vercel, preferimos o build atual em dist para evitar artefatos estáticos antigos.
+const distDir = path.join(__dirname, '..', 'dist');
+const legacyPublicDir = path.join(__dirname, 'public');
+const publicDir = process.env.VERCEL ? distDir : legacyPublicDir;
 app.use((req, res, next) => {
     if (!req.path.startsWith('/api') && (!path.extname(req.path) || req.path.endsWith('.html'))) {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');

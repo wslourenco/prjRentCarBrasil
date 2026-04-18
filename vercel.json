@@ -1,6 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
+  "buildCommand": "npm run build",
+  "functions": {
+    "backend/server.js": {
+      "includeFiles": "dist/**"
+    }
+  },
   "builds": [
     {
       "src": "backend/server.js",
