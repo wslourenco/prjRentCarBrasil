@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Car, User, Phone, Mail, DollarSign, Wrench, X, Plus, CheckCircle,
@@ -342,6 +342,17 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
       return (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoriaVeiculo;
     });
 
+  useEffect(() => {
+    if (form.veiculoId && veiculosDisponiveis.some(v => String(v.id) === String(form.veiculoId))) {
+      return;
+    }
+
+    setForm(prev => ({
+      ...prev,
+      veiculoId: veiculosDisponiveis[0] ? String(veiculosDisponiveis[0].id) : '',
+    }));
+  }, [veiculosDisponiveis, form.veiculoId]);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setErro('');
@@ -373,7 +384,7 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Solicitar Locação</h2>
         <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>
-          Escolha um veículo disponível e o período da locação (semanal, quinzenal ou mensal).
+          Defina o período da locação (semanal, quinzenal ou mensal).
         </p>
         <div style={{ marginTop: 10, maxWidth: 280 }}>
           <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
@@ -389,22 +400,6 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
             <div className="empty-state"><Car size={32} /><p>Não há veículos disponíveis no momento.</p></div>
           ) : (
             <form onSubmit={handleSubmit}>
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label>Veículo disponível *</label>
-                <div style={{ display: 'grid', gap: 8, maxHeight: 180, overflowY: 'auto', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', padding: 10 }}>
-                  {veiculosDisponiveis.map(v => (
-                    <label key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--gray-700)' }}>
-                      <input
-                        type="checkbox"
-                        checked={String(form.veiculoId) === String(v.id)}
-                        onChange={e => setForm({ ...form, veiculoId: e.target.checked ? String(v.id) : '' })}
-                      />
-                      <span>{v.marca} {v.modelo} - {v.placa}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
               <div className="form-grid-2">
                 <div className="form-group">
                   <label>Data de início *</label>
