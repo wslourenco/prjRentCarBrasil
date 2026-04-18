@@ -100,7 +100,7 @@ export default function Veiculos() {
         </div>
         <div className="flex" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <select aria-label="Categoria do Veículo" value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
-            <option value="">Todas as categorias do veículo</option>
+            <option value="">Todas as montadoras</option>
             {categoriasVeiculo.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
           </select>
           <div className="toggle-group">

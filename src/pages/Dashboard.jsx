@@ -154,7 +154,7 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
             ))}
           </select>
           <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
-            <option value="">Todas as categorias do veículo</option>
+            <option value="">Todas as montadoras</option>
             {categoriasVeiculo.map((categoria) => (
               <option key={categoria} value={categoria}>{categoria}</option>
             ))}
@@ -382,7 +382,7 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
             ))}
           </select>
           <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
-            <option value="">Todas as categorias do veículo</option>
+            <option value="">Todas as montadoras</option>
             {categoriasVeiculo.map((categoria) => (
               <option key={categoria} value={categoria}>{categoria}</option>
             ))}
@@ -489,7 +489,7 @@ function DashboardLocatario({ veiculos, locacoes }) {
         <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>Acompanhe suas locações e disponibilidade de veículos</p>
         <div style={{ marginTop: 10, maxWidth: 320 }}>
           <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
-            <option value="">Todas as categorias do veículo</option>
+            <option value="">Todas as montadoras</option>
             {categoriasVeiculo.map((categoria) => (
               <option key={categoria} value={categoria}>{categoria}</option>
             ))}

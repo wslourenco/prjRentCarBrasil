@@ -18,6 +18,8 @@ const EMPTY = {
   data: new Date().toISOString().split('T')[0],
   valor: '',
   categoria: '',
+  periodoInicioSemanal: '',
+  periodoFimSemanal: '',
   descricao: '',
   veiculoId: '',
   locatarioId: '',
@@ -144,6 +146,32 @@ function categoriaLancamento(item) {
   return valor || 'Sem categoria';
 }
 
+function sanitizarObservacoesSemPeriodo(observacoes) {
+  return String(observacoes || '')
+    .replace(/(?:^|\n)Per[ií]odo semanal:\s*\d{4}-\d{2}-\d{2}\s*a\s*\d{4}-\d{2}-\d{2}(?=\n|$)/gi, '')
+    .replace(/^\n+|\n+$/g, '');
+}
+
+function extrairPeriodoSemanalDeObservacoes(observacoes) {
+  const texto = String(observacoes || '');
+  const match = texto.match(/Per[ií]odo semanal:\s*(\d{4}-\d{2}-\d{2})\s*a\s*(\d{4}-\d{2}-\d{2})/i);
+  return {
+    inicio: match?.[1] || '',
+    fim: match?.[2] || '',
+    observacoesSemPeriodo: sanitizarObservacoesSemPeriodo(texto),
+  };
+}
+
+function montarObservacoesComPeriodoSemanal(observacoes, categoria, inicio, fim) {
+  const base = sanitizarObservacoesSemPeriodo(observacoes);
+  const ehAluguelSemanal = String(categoria || '') === 'Aluguel Semanal';
+
+  if (!ehAluguelSemanal || !inicio || !fim) return base;
+
+  const linhaPeriodo = `Período semanal: ${inicio} a ${fim}`;
+  return base ? `${base}\n${linhaPeriodo}` : linhaPeriodo;
+}
+
 export default function Financeiro() {
   const { despesasReceitas, addDespesaReceita, updateDespesaReceita, removeDespesaReceita, veiculos, locatarios, colaboradores, locacoes, usuarioLogado, carregarDados } = useApp();
   const [modal, setModal] = useState(false);
@@ -170,15 +198,47 @@ export default function Financeiro() {
     setForm({ ...EMPTY, tipo: tipoInicial, categoria: tipoInicial === 'receita' ? CATEGORIAS_RECEITA[0] : CATEGORIAS_DESPESA[0] });
     setEditId(null); setModal(true); setErroCrud('');
   }
-  function abrirEditar(d) { setForm({ ...EMPTY, ...d }); setEditId(d.id); setModal(true); setErroCrud(''); }
+  function abrirEditar(d) {
+    const periodo = extrairPeriodoSemanalDeObservacoes(d.observacoes || '');
+    setForm({
+      ...EMPTY,
+      ...d,
+      observacoes: periodo.observacoesSemPeriodo,
+      periodoInicioSemanal: periodo.inicio,
+      periodoFimSemanal: periodo.fim,
+    });
+    setEditId(d.id);
+    setModal(true);
+    setErroCrud('');
+  }
   function fecharModal() { setModal(false); setEditId(null); setErroCrud(''); }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setErroCrud('');
+
+    const precisaPeriodoSemanal = form.tipo === 'receita' && form.categoria === 'Aluguel Semanal';
+    if (precisaPeriodoSemanal && (!form.periodoInicioSemanal || !form.periodoFimSemanal)) {
+      setErroCrud('Para Aluguel Semanal, informe data de início e data final.');
+      return;
+    }
+
+    const payload = {
+      ...form,
+      observacoes: montarObservacoesComPeriodoSemanal(
+        form.observacoes,
+        form.categoria,
+        form.periodoInicioSemanal,
+        form.periodoFimSemanal
+      ),
+    };
+
+    delete payload.periodoInicioSemanal;
+    delete payload.periodoFimSemanal;
+
     try {
-      if (editId) await updateDespesaReceita(editId, form);
-      else await addDespesaReceita(form);
+      if (editId) await updateDespesaReceita(editId, payload);
+      else await addDespesaReceita(payload);
       fecharModal();
     } catch (err) {
       setErroCrud(err.message || 'Erro ao salvar. Tente novamente.');
@@ -1093,6 +1153,12 @@ export default function Financeiro() {
                         {(form.tipo === 'receita' ? CATEGORIAS_RECEITA : CATEGORIAS_DESPESA).map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
+                    {form.tipo === 'receita' && form.categoria === 'Aluguel Semanal' && (
+                      <>
+                        <div className="form-group"><label>Data de início *</label><input required type="date" {...f('periodoInicioSemanal')} /></div>
+                        <div className="form-group"><label>Data final *</label><input required type="date" {...f('periodoFimSemanal')} /></div>
+                      </>
+                    )}
                     <div className="form-group"><label>Forma de Pagamento</label>
                       <select {...f('formaPagamento')}>
                         {['pix','dinheiro','transferência','débito','crédito','boleto','cheque'].map(f2 => <option key={f2} value={f2} style={{ textTransform: 'capitalize' }}>{f2}</option>)}
