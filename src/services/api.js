@@ -4,10 +4,12 @@ const envBase = String(import.meta.env.VITE_API_URL ?? '')
     .replace(/\/$/, '');
 
 const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const isRailwayHost = window.location.hostname.endsWith('.railway.app');
 const sameOriginBase = window.location.origin;
-const resolvedBase = isLocalhost
-    ? (envBase || 'http://localhost:3001')
+const defaultProdBase = isRailwayHost
+    ? 'https://backend-api-production-3d96.up.railway.app'
     : sameOriginBase;
+const resolvedBase = envBase || (isLocalhost ? 'http://localhost:3001' : defaultProdBase);
 
 const BASE = `${resolvedBase}/api`;
 const FALLBACK_BASE = `${sameOriginBase}/api`;
@@ -45,15 +47,20 @@ async function request(method, path, body) {
         body: body !== undefined ? JSON.stringify(body) : undefined
     };
 
-    try {
-        const res = await fetch(`${BASE}${path}`, options);
-        return await parseResponse(res);
-    } catch (error) {
-        if (!isLocalhost && BASE !== FALLBACK_BASE) {
-            const retry = await fetch(`${FALLBACK_BASE}${path}`, options);
-            return await parseResponse(retry);
+    const candidates = [BASE];
+    if (!isLocalhost && !isRailwayHost && BASE !== FALLBACK_BASE) {
+        candidates.push(FALLBACK_BASE);
+    }
+
+    for (let i = 0; i < candidates.length; i += 1) {
+        const apiBase = candidates[i];
+        try {
+            const res = await fetch(`${apiBase}${path}`, options);
+            return await parseResponse(res);
+        } catch (error) {
+            const isLast = i === candidates.length - 1;
+            if (isLast) throw error;
         }
-        throw error;
     }
 }
 
