@@ -36,9 +36,7 @@ export default function Veiculos() {
   const [veiculoSelecionadoLocacao, setVeiculoSelecionadoLocacao] = useState('');
 
   const podeGerenciar = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador';
-  const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
-  const veiculosDisponiveis = veiculos.filter(v => !locacoesAtivas.some(l => String(l.veiculoId) === String(v.id)));
-  const listaVeiculos = usuarioLogado?.perfil === 'locatario' ? veiculosDisponiveis : veiculos;
+  const listaVeiculos = veiculos;
 
   const categoriasVeiculo = useMemo(() => {
     const categorias = listaVeiculos
