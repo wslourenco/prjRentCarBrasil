@@ -456,7 +456,7 @@ export default function Financeiro() {
         return normalizarMontadora(montadora) === normalizarMontadora(graficoMontadora);
       });
 
-    return locacoesFiltradas.map(loc => {
+    const resumoBase = locacoesFiltradas.map(loc => {
       const receitas = movimentosFiltrados
         .filter(d => d.tipo === 'receita' && String(d.veiculoId) === String(loc.veiculoId) && String(d.locatarioId || '') === String(loc.locatarioId || ''))
         .reduce((acc, d) => acc + Number(d.valor || 0), 0);
@@ -472,9 +472,42 @@ export default function Financeiro() {
         despesa: despesas,
         lucro: receitas - despesas,
       };
-    }).filter(item => item.receita > 0 || item.despesa > 0)
+    });
+
+    const chavesComLocacao = new Set(
+      locacoesFiltradas.map(loc => `${String(loc.veiculoId || '')}::${String(loc.locatarioId || '')}`)
+    );
+
+    const resumoFallback = movimentosFiltrados
+      .filter((mov) => {
+        if (!mov?.veiculoId) return false;
+        if (graficoVeiculo && String(mov.veiculoId) !== String(graficoVeiculo)) return false;
+
+        const chave = `${String(mov.veiculoId || '')}::${String(mov.locatarioId || '')}`;
+        return !chavesComLocacao.has(chave);
+      })
+      .reduce((acc, mov) => {
+        const chave = `${String(mov.veiculoId || '')}::${String(mov.locatarioId || '')}`;
+        if (!acc[chave]) {
+          acc[chave] = {
+            id: `veiculo-${String(mov.veiculoId || '')}-${String(mov.locatarioId || '0')}`,
+            titulo: nomeVeiculo(mov.veiculoId),
+            receita: 0,
+            despesa: 0,
+            lucro: 0,
+          };
+        }
+
+        if (mov.tipo === 'receita') acc[chave].receita += Number(mov.valor || 0);
+        if (mov.tipo === 'despesa') acc[chave].despesa += Number(mov.valor || 0);
+        acc[chave].lucro = acc[chave].receita - acc[chave].despesa;
+        return acc;
+      }, {});
+
+    return [...resumoBase, ...Object.values(resumoFallback)]
+      .filter(item => item.receita > 0 || item.despesa > 0)
       .sort((a, b) => b.lucro - a.lucro);
-  }, [despesasReceitasEscopo, locacoesEscopo, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoMontadora, marcaPorVeiculoId]);
+  }, [despesasReceitasEscopo, locacoesEscopo, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoMontadora, marcaPorVeiculoId, nomeVeiculo]);
 
   const despesasDetalhadasCategoria = useMemo(() => {
     const dataInicioMs = graficoInicio ? new Date(`${graficoInicio}T00:00:00`).getTime() : null;
