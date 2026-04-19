@@ -31,14 +31,37 @@ async function getLocatarioIdByUserEmail(email, db = pool) {
     return rows[0]?.id || null;
 }
 
+async function getUserIdentity(conn, usuario) {
+    const identity = {
+        id: Number(usuario?.id || 0) || null,
+        nome: String(usuario?.nome || '').trim(),
+        email: String(usuario?.email || '').trim(),
+    };
+
+    if (identity.id && (!identity.email || !identity.nome)) {
+        const [rows] = await conn.query(
+            'SELECT nome, email FROM usuarios WHERE id = ? AND ativo = TRUE LIMIT 1',
+            [identity.id]
+        );
+
+        if (rows[0]) {
+            if (!identity.nome) identity.nome = String(rows[0].nome || '').trim();
+            if (!identity.email) identity.email = String(rows[0].email || '').trim();
+        }
+    }
+
+    return identity;
+}
+
 async function ensureLocatarioForUser(conn, usuario) {
-    const email = String(usuario?.email || '').trim();
+    const identity = await getUserIdentity(conn, usuario);
+    const email = identity.email;
     if (!email) return null;
 
     const existente = await getLocatarioIdByUserEmail(email, conn);
     if (existente) return existente;
 
-    const nome = String(usuario?.nome || '').trim() || 'Locatario';
+    const nome = identity.nome || 'Locatario';
 
     try {
         const [result] = await conn.query(
@@ -193,7 +216,13 @@ router.get('/', async (req, res) => {
         const params = [];
 
         if (req.usuario?.perfil === 'locatario') {
-            const locatarioId = await getLocatarioIdByUserEmail(req.usuario.email);
+            const conn = await pool.getConnection();
+            let locatarioId = null;
+            try {
+                locatarioId = await ensureLocatarioForUser(conn, req.usuario);
+            } finally {
+                conn.release();
+            }
             if (!locatarioId) return res.json([]);
             sql += ' WHERE lc.locatario_id = ?';
             params.push(locatarioId);
@@ -229,7 +258,13 @@ router.get('/:id', async (req, res) => {
         const params = [req.params.id];
 
         if (req.usuario?.perfil === 'locatario') {
-            const locatarioId = await getLocatarioIdByUserEmail(req.usuario.email);
+            const conn = await pool.getConnection();
+            let locatarioId = null;
+            try {
+                locatarioId = await ensureLocatarioForUser(conn, req.usuario);
+            } finally {
+                conn.release();
+            }
             if (!locatarioId) return res.status(404).json({ erro: 'Locação não encontrada.' });
             sql += ' AND lc.locatario_id = ?';
             params.push(locatarioId);
