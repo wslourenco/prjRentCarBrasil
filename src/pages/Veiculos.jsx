@@ -150,7 +150,7 @@ export default function Veiculos() {
               disabled={!veiculoSelecionadoLocacao || locandoVeiculo}
               onClick={handleLocacaoRapida}
             >
-              <Check size={16} /> {locandoVeiculo ? 'Locando...' : 'Locar Veículo'}
+              <Check size={16} /> {locandoVeiculo ? 'Cadastrando...' : 'Cadastrar veículo para locação'}
             </button>
           )}
           {podeGerenciar && (
