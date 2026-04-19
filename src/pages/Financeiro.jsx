@@ -333,6 +333,7 @@ export default function Financeiro() {
     });
   }, [veiculos, locacoes, despesasReceitas]);
 
+
   const veiculosCatalogoPorId = useMemo(
     () => new Map(veiculosCatalogo.map(v => [String(v.id), v])),
     [veiculosCatalogo]
@@ -348,6 +349,21 @@ export default function Financeiro() {
     const prefixo = `${v.marca || ''} ${v.modelo || ''}`.trim() || v.nome || 'Veículo';
     return v.placa ? `${prefixo} – ${v.placa}` : prefixo;
   }, [veiculosCatalogoPorId]);
+
+  const idsVeiculosEscopoLocador = useMemo(
+    () => new Set(veiculos.map(v => String(v.id))),
+    [veiculos]
+  );
+
+  const despesasReceitasEscopo = useMemo(() => {
+    if (usuarioLogado?.perfil !== 'locador') return despesasReceitas;
+    return despesasReceitas.filter(d => idsVeiculosEscopoLocador.has(String(d.veiculoId || '')));
+  }, [despesasReceitas, idsVeiculosEscopoLocador, usuarioLogado?.perfil]);
+
+  const locacoesEscopo = useMemo(() => {
+    if (usuarioLogado?.perfil !== 'locador') return locacoes;
+    return locacoes.filter(loc => idsVeiculosEscopoLocador.has(String(loc.veiculoId || '')));
+  }, [locacoes, idsVeiculosEscopoLocador, usuarioLogado?.perfil]);
 
   const montadorasDisponiveis = useMemo(() => {
     // Para locatário, mostrar apenas montadoras dos veículos que ele tem locados
@@ -373,21 +389,6 @@ export default function Financeiro() {
     const montadoras = [...montadorasVeiculos, ...montadorasFinanceiro];
     return Array.from(new Set(montadoras)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   }, [veiculosCatalogo, despesasReceitas, locacoesEscopo, usuarioLogado]);
-
-  const idsVeiculosEscopoLocador = useMemo(
-    () => new Set(veiculos.map(v => String(v.id))),
-    [veiculos]
-  );
-
-  const despesasReceitasEscopo = useMemo(() => {
-    if (usuarioLogado?.perfil !== 'locador') return despesasReceitas;
-    return despesasReceitas.filter(d => idsVeiculosEscopoLocador.has(String(d.veiculoId || '')));
-  }, [despesasReceitas, idsVeiculosEscopoLocador, usuarioLogado?.perfil]);
-
-  const locacoesEscopo = useMemo(() => {
-    if (usuarioLogado?.perfil !== 'locador') return locacoes;
-    return locacoes.filter(loc => idsVeiculosEscopoLocador.has(String(loc.veiculoId || '')));
-  }, [locacoes, idsVeiculosEscopoLocador, usuarioLogado?.perfil]);
 
   const idsVeiculosLocatarioAtivos = useMemo(() => {
     if (usuarioLogado?.perfil !== 'locatario') return null;
