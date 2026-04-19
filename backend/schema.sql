@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   email       VARCHAR(120) NOT NULL UNIQUE,
   senha_hash  VARCHAR(255) NOT NULL,
   perfil      ENUM('admin','locador','locatario') NOT NULL DEFAULT 'locatario',
+  tipo_documento ENUM('cpf','cnpj') NOT NULL DEFAULT 'cpf',
+  documento   VARCHAR(20) NOT NULL,
   ativo       TINYINT(1) NOT NULL DEFAULT 1,
   criado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -227,11 +229,11 @@ CREATE TABLE IF NOT EXISTS despesas_receitas (
 -- Dados iniciais: usuário administrador
 -- Senhas: admin@sislove.com=admin123 | locador@sislove.com=locador123 | locatario@sislove.com=locatario123
 -- ----------------------------------------------------------------
-INSERT INTO usuarios (nome, email, senha_hash, perfil) VALUES
+INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento) VALUES
   ('Administrador', 'admin@sislove.com',
-   '$2b$10$JoAN9u6AzGI4vD7ikmTsJuGyDQ1oZkhIyo7RkWUoPLWZbhwuUyWa6', 'admin'),
+  '$2b$10$JoAN9u6AzGI4vD7ikmTsJuGyDQ1oZkhIyo7RkWUoPLWZbhwuUyWa6', 'admin', 'cpf', '11122233344'),
   ('Locador Demo',  'locador@sislove.com',
-   '$2b$10$qZUFMmLRPJvplePl5Rmo6urlxA7ck0cxs4TyN0oQG3OCTZ6GgrhfO', 'locador'),
+  '$2b$10$qZUFMmLRPJvplePl5Rmo6urlxA7ck0cxs4TyN0oQG3OCTZ6GgrhfO', 'locador', 'cpf', '22233344455'),
   ('Locatário Demo','locatario@sislove.com',
-   '$2b$10$ch1Fi5BwQHKSQrn5LRQHC.1Xhq5Wvja4r7k0n115e8VuRMr45WEgu', 'locatario')
+  '$2b$10$ch1Fi5BwQHKSQrn5LRQHC.1Xhq5Wvja4r7k0n115e8VuRMr45WEgu', 'locatario', 'cpf', '33344455566')
 ON DUPLICATE KEY UPDATE id=id;

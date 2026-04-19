@@ -261,6 +261,7 @@ export function locacaoToApi(f) {
         condicoes: f.condicoes || f.observacoes,
         periodicidade: f.periodicidade || null,
         quantidade_periodos: f.quantidadePeriodos || null,
+        contrato: f.contrato || null,
     };
 }
 
@@ -282,6 +283,8 @@ export function locacaoFromApi(r) {
         placa: r.placa,
         nomeLocatario: r.nome_locatario,
         celularLocatario: r.celular_locatario,
+        contratoEmailStatus: r.contrato_email_status || null,
+        contratoEmailMensagem: r.contrato_email_mensagem || null,
     });
 }
 
@@ -292,6 +295,8 @@ export function usuarioFromApi(r) {
         nome: r.nome || '',
         email: r.email || '',
         perfil: r.perfil || 'locador',
+        tipoDocumento: r.tipo_documento || 'cpf',
+        documento: r.documento || '',
         ativo: r.ativo ?? 1,
     });
 }

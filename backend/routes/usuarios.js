@@ -42,7 +42,7 @@ async function ensureProfileRecord(conn, perfil, nome, email) {
 router.get('/', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            'SELECT id, nome, email, perfil, ativo, criado_em FROM usuarios ORDER BY nome'
+            'SELECT id, nome, email, perfil, tipo_documento, documento, ativo, criado_em FROM usuarios ORDER BY nome'
         );
         res.json(rows);
     } catch (err) {
@@ -53,11 +53,13 @@ router.get('/', async (req, res) => {
 
 // POST /api/usuarios
 router.post('/', async (req, res) => {
-    const { nome, email, senha, perfil } = req.body;
+    const { nome, email, senha, perfil, tipoDocumento, documento } = req.body;
     const perfilNormalizado = normalizePerfil(perfil);
+    const tipoDoc = (tipoDocumento === 'cnpj') ? 'cnpj' : 'cpf';
+    const doc = String(documento || '').replace(/\D/g, '');
 
-    if (!nome || !email || !senha || !perfilNormalizado) {
-        return res.status(400).json({ erro: 'Nome, email, senha e perfil são obrigatórios.' });
+    if (!nome || !email || !senha || !perfilNormalizado || !tipoDoc || !doc) {
+        return res.status(400).json({ erro: 'Nome, email, senha, perfil, tipo de documento e documento são obrigatórios.' });
     }
 
     if (!['admin', 'locador', 'locatario'].includes(perfilNormalizado)) {
@@ -70,8 +72,8 @@ router.post('/', async (req, res) => {
 
         const hash = await bcrypt.hash(senha, 10);
         const [result] = await conn.query(
-            'INSERT INTO usuarios (nome, email, senha_hash, perfil) VALUES (?,?,?,?)',
-            [nome, email, hash, perfilNormalizado]
+            'INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento) VALUES (?,?,?,?,?,?)',
+            [nome, email, hash, perfilNormalizado, tipoDoc, doc]
         );
 
         await ensureProfileRecord(conn, perfilNormalizado, nome, email);
@@ -79,7 +81,7 @@ router.post('/', async (req, res) => {
         await conn.commit();
 
         const [novo] = await pool.query(
-            'SELECT id, nome, email, perfil, ativo, criado_em FROM usuarios WHERE id = ?',
+            'SELECT id, nome, email, perfil, tipo_documento, documento, ativo, criado_em FROM usuarios WHERE id = ?',
             [result.insertId]
         );
         res.status(201).json(novo[0]);
@@ -97,23 +99,25 @@ router.post('/', async (req, res) => {
 
 // PUT /api/usuarios/:id
 router.put('/:id', async (req, res) => {
-    const { nome, email, perfil, ativo, senha } = req.body;
+    const { nome, email, perfil, ativo, senha, tipoDocumento, documento } = req.body;
 
     try {
         let query, params;
+        const tipoDoc = (tipoDocumento === 'cnpj') ? 'cnpj' : 'cpf';
+        const doc = String(documento || '').replace(/\D/g, '');
         if (senha) {
             const hash = await bcrypt.hash(senha, 10);
-            query = 'UPDATE usuarios SET nome=?, email=?, perfil=?, ativo=?, senha_hash=? WHERE id=?';
-            params = [nome, email, perfil, ativo !== undefined ? ativo : true, hash, req.params.id];
+            query = 'UPDATE usuarios SET nome=?, email=?, perfil=?, ativo=?, senha_hash=?, tipo_documento=?, documento=? WHERE id=?';
+            params = [nome, email, perfil, ativo !== undefined ? ativo : true, hash, tipoDoc, doc, req.params.id];
         } else {
-            query = 'UPDATE usuarios SET nome=?, email=?, perfil=?, ativo=? WHERE id=?';
-            params = [nome, email, perfil, ativo !== undefined ? ativo : true, req.params.id];
+            query = 'UPDATE usuarios SET nome=?, email=?, perfil=?, ativo=?, tipo_documento=?, documento=? WHERE id=?';
+            params = [nome, email, perfil, ativo !== undefined ? ativo : true, tipoDoc, doc, req.params.id];
         }
 
         const [result] = await pool.query(query, params);
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Usuário não encontrado.' });
         const [atualizado] = await pool.query(
-            'SELECT id, nome, email, perfil, ativo, criado_em FROM usuarios WHERE id = ?',
+            'SELECT id, nome, email, perfil, tipo_documento, documento, ativo, criado_em FROM usuarios WHERE id = ?',
             [req.params.id]
         );
         res.json(atualizado[0]);

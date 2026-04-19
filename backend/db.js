@@ -32,6 +32,8 @@ const demoUsers = [
         email: 'admin@sislove.com',
         senha_hash: '$2b$10$JoAN9u6AzGI4vD7ikmTsJuGyDQ1oZkhIyo7RkWUoPLWZbhwuUyWa6',
         perfil: 'admin',
+        tipo_documento: 'cpf',
+        documento: '11122233344',
         ativo: 1,
     },
     {
@@ -40,6 +42,8 @@ const demoUsers = [
         email: 'locador@sislove.com',
         senha_hash: '$2b$10$qZUFMmLRPJvplePl5Rmo6urlxA7ck0cxs4TyN0oQG3OCTZ6GgrhfO',
         perfil: 'locador',
+        tipo_documento: 'cpf',
+        documento: '22233344455',
         ativo: 1,
     },
     {
@@ -48,11 +52,15 @@ const demoUsers = [
         email: 'locatario@sislove.com',
         senha_hash: '$2b$10$ch1Fi5BwQHKSQrn5LRQHC.1Xhq5Wvja4r7k0n115e8VuRMr45WEgu',
         perfil: 'locatario',
+        tipo_documento: 'cpf',
+        documento: '33344455566',
         ativo: 1,
     }
 ];
 
 const demoLocadores = [
+    // Locador Wilson para testes
+    { id: 99, tipo: 'fisica', nome: 'Wilson da Silva', cpf: '123.456.789-00', rg: '12.345.678-9', data_nascimento: '1980-01-01', razao_social: null, cnpj: null, insc_estadual: null, email: 'wilson@email.com', telefone: '(11)99999-0000', celular: '(11)98888-0000', cep: '01000-000', endereco: 'Rua Teste', numero: '100', complemento: '', bairro: 'Centro', cidade: 'São Paulo', estado: 'SP', banco: 'Itaú', agencia: '1234', conta: '56789-0', tipo_conta: 'corrente', pix_chave: '123.456.789-00', observacoes: 'Locador Wilson para testes' },
     { id: 1, tipo: 'fisica', nome: 'Carlos Eduardo Mendes', cpf: '321.654.987-01', rg: '12.345.678-9', data_nascimento: '1975-03-14', razao_social: null, cnpj: null, insc_estadual: null, email: 'carlos.mendes@email.com', telefone: '(11)3245-6789', celular: '(11)98745-1234', cep: '01310-100', endereco: 'Av. Paulista', numero: '1500', complemento: '', bairro: 'Bela Vista', cidade: 'São Paulo', estado: 'SP', banco: 'Bradesco', agencia: '0023', conta: '12345-6', tipo_conta: 'corrente', pix_chave: '321.654.987-01', observacoes: 'Cadastro demo' },
     { id: 2, tipo: 'fisica', nome: 'Ana Paula Ferreira', cpf: '456.789.123-02', rg: '23.456.789-0', data_nascimento: '1982-07-22', razao_social: null, cnpj: null, insc_estadual: null, email: 'ana.ferreira@email.com', telefone: '(21)3567-8901', celular: '(21)99123-4567', cep: '20040-020', endereco: 'Rua da Assembleia', numero: '120', complemento: '', bairro: 'Centro', cidade: 'Rio de Janeiro', estado: 'RJ', banco: 'Itaú', agencia: '0741', conta: '98765-4', tipo_conta: 'corrente', pix_chave: 'ana.ferreira@email.com', observacoes: 'Cadastro demo' },
     { id: 3, tipo: 'fisica', nome: 'Roberto Silva Santos', cpf: '789.012.345-03', rg: '34.567.890-1', data_nascimento: '1969-11-05', razao_social: null, cnpj: null, insc_estadual: null, email: 'roberto.santos@email.com', telefone: '(31)3678-9012', celular: '(31)98234-5678', cep: '30130-010', endereco: 'Av. Afonso Pena', numero: '800', complemento: '', bairro: 'Centro', cidade: 'Belo Horizonte', estado: 'MG', banco: 'Caixa', agencia: '0162', conta: '56789-0', tipo_conta: 'poupanca', pix_chave: '(31)98234-5678', observacoes: 'Cadastro demo' },
@@ -79,6 +87,10 @@ const demoLocatarios = [
 ];
 
 const demoVeiculos = [
+    // Veículos do locador Wilson (id: 99)
+    { id: 101, placa: 'WIL1A23', renavam: '00999999999', chassi: '9BWZZZ999WT000001', marca: 'Fiat', modelo: 'Uno', ano_fabricacao: 2018, ano_modelo: 2019, cor: 'Prata', combustivel: 'Flex', transmissao: 'Manual', nr_portas: 4, capacidade: 5, km_atual: 50000, km_compra: 20000, km_troca_oleo: 48000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2019-01-10', valor_compra: 25000.00, valor_fipe: 27000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 99, foto: '', observacoes: 'Demo Wilson' },
+    { id: 102, placa: 'WIL2B34', renavam: '00999999998', chassi: '9BWZZZ999WT000002', marca: 'Volkswagen', modelo: 'Gol', ano_fabricacao: 2020, ano_modelo: 2021, cor: 'Branco', combustivel: 'Flex', transmissao: 'Manual', nr_portas: 4, capacidade: 5, km_atual: 30000, km_compra: 10000, km_troca_oleo: 28000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2021-02-15', valor_compra: 35000.00, valor_fipe: 37000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 99, foto: '', observacoes: 'Demo Wilson' },
+    { id: 103, placa: 'WIL3C45', renavam: '00999999997', chassi: '9BWZZZ999WT000003', marca: 'Chevrolet', modelo: 'Onix', ano_fabricacao: 2022, ano_modelo: 2022, cor: 'Preto', combustivel: 'Flex', transmissao: 'Automático', nr_portas: 4, capacidade: 5, km_atual: 15000, km_compra: 0, km_troca_oleo: 14000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2022-08-20', valor_compra: 60000.00, valor_fipe: 62000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 99, foto: '', observacoes: 'Demo Wilson' },
     { id: 1, placa: 'ABC1D23', renavam: '00123456789', chassi: '9BWZZZ377VT004251', marca: 'Hyundai', modelo: 'HB20 Sense', ano_fabricacao: 2022, ano_modelo: 2023, cor: 'Branco', combustivel: 'Flex', transmissao: 'Manual', nr_portas: 4, capacidade: 5, km_atual: 41200, km_compra: 15000, km_troca_oleo: 40000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2022-03-10', valor_compra: 62000.00, valor_fipe: 65000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 1, foto: '', observacoes: 'Cadastro demo' },
     { id: 2, placa: 'DEF2E34', renavam: '00234567891', chassi: '9BGKS48U0HG123456', marca: 'Chevrolet', modelo: 'Onix Plus LT', ano_fabricacao: 2021, ano_modelo: 2022, cor: 'Prata', combustivel: 'Flex', transmissao: 'Automático', nr_portas: 4, capacidade: 5, km_atual: 66300, km_compra: 42000, km_troca_oleo: 65000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2021-06-15', valor_compra: 72000.00, valor_fipe: 75000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 2, foto: '', observacoes: 'Cadastro demo' },
     { id: 3, placa: 'GHI3F45', renavam: '00345678902', chassi: '9C2JC4110ER123789', marca: 'Fiat', modelo: 'Cronos Drive', ano_fabricacao: 2023, ano_modelo: 2023, cor: 'Preto', combustivel: 'Flex', transmissao: 'Manual', nr_portas: 4, capacidade: 5, km_atual: 18200, km_compra: 8000, km_troca_oleo: 30000, km_troca_correia: null, km_troca_pneu: null, data_compra: '2023-01-20', valor_compra: 82000.00, valor_fipe: 85000.00, seguradora: '', nr_apolice: '', vencimento_seguro: null, data_licenciamento: null, data_vistoria: null, bloqueador: '', nr_bloqueador: '', locador_id: 3, foto: '', observacoes: 'Cadastro demo' },
@@ -149,6 +161,8 @@ function getFallbackRows(sql, params = []) {
                 nome: usuario.nome,
                 email: usuario.email,
                 perfil: usuario.perfil,
+                tipo_documento: usuario.tipo_documento,
+                documento: usuario.documento,
                 ativo: usuario.ativo,
             };
         });

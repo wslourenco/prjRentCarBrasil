@@ -30,11 +30,13 @@ function buildJwtToken(usuario) {
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
-    const { nome, email, senha, perfil } = req.body;
+    const { nome, email, senha, perfil, tipoDocumento, documento } = req.body;
     const perfilEscolhido = sanitizeProfile(perfil);
+    const tipoDoc = (tipoDocumento === 'cnpj') ? 'cnpj' : 'cpf';
+    const doc = String(documento || '').replace(/\D/g, '');
 
-    if (!nome || !email || !senha || !perfilEscolhido) {
-        return res.status(400).json({ erro: 'Nome, email, senha e perfil (locador ou locatário) são obrigatórios.' });
+    if (!nome || !email || !senha || !perfilEscolhido || !tipoDoc || !doc) {
+        return res.status(400).json({ erro: 'Nome, email, senha, perfil, tipo de documento e documento são obrigatórios.' });
     }
 
     const conn = await pool.getConnection();
@@ -49,8 +51,8 @@ router.post('/register', async (req, res) => {
 
         const hash = await bcrypt.hash(senha, 10);
         const [result] = await conn.query(
-            'INSERT INTO usuarios (nome, email, senha_hash, perfil) VALUES (?,?,?,?)',
-            [nome, email, hash, perfilEscolhido]
+            'INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento) VALUES (?,?,?,?,?,?)',
+            [nome, email, hash, perfilEscolhido, tipoDoc, doc]
         );
 
         if (perfilEscolhido === 'locador') {
@@ -67,7 +69,7 @@ router.post('/register', async (req, res) => {
 
         await conn.commit();
 
-        const usuario = { id: result.insertId, nome, email, perfil: perfilEscolhido };
+        const usuario = { id: result.insertId, nome, email, perfil: perfilEscolhido, tipo_documento: tipoDoc, documento: doc };
         const token = buildJwtToken(usuario);
         return res.status(201).json({ token, usuario });
     } catch (err) {
@@ -105,7 +107,14 @@ router.post('/login', async (req, res) => {
 
         res.json({
             token,
-            usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil }
+            usuario: {
+                id: usuario.id,
+                nome: usuario.nome,
+                email: usuario.email,
+                perfil: usuario.perfil,
+                tipo_documento: usuario.tipo_documento,
+                documento: usuario.documento
+            }
         });
     } catch (err) {
         console.error(err);
@@ -123,7 +132,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
     try {
         const [rows] = await pool.query(
-            'SELECT id, nome, email, perfil FROM usuarios WHERE id = ? AND ativo = TRUE',
+            'SELECT id, nome, email, perfil, tipo_documento, documento FROM usuarios WHERE id = ? AND ativo = TRUE',
             [req.usuario.id]
         );
         if (rows.length === 0) return res.status(404).json({ erro: 'Usuário não encontrado.' });
