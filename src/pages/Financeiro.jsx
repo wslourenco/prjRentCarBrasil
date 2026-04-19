@@ -350,18 +350,29 @@ export default function Financeiro() {
   }, [veiculosCatalogoPorId]);
 
   const montadorasDisponiveis = useMemo(() => {
+    // Para locatário, mostrar apenas montadoras dos veículos que ele tem locados
+    if (usuarioLogado?.perfil === 'locatario') {
+      // Veículos que o locatário já locou (ativos ou históricos)
+      const veiculosLocados = locacoesEscopo
+        .filter(loc => String(loc.locatarioId) === String(usuarioLogado.id))
+        .map(loc => String(loc.veiculoId));
+      const setVeiculosLocados = new Set(veiculosLocados);
+      const montadoras = veiculosCatalogo
+        .filter(v => setVeiculosLocados.has(String(v.id)))
+        .map(v => String(v.marca || '').trim())
+        .filter(Boolean);
+      return Array.from(new Set(montadoras)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+    }
+    // Para outros perfis, mantém comportamento anterior
     const montadorasVeiculos = veiculosCatalogo
       .map(v => String(v.marca || '').trim())
       .filter(Boolean);
-
     const montadorasFinanceiro = despesasReceitas
       .map(d => String(d.marcaVeiculo || '').trim())
       .filter(Boolean);
-
     const montadoras = [...montadorasVeiculos, ...montadorasFinanceiro];
-
     return Array.from(new Set(montadoras)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [veiculosCatalogo, despesasReceitas]);
+  }, [veiculosCatalogo, despesasReceitas, locacoesEscopo, usuarioLogado]);
 
   const idsVeiculosEscopoLocador = useMemo(
     () => new Set(veiculos.map(v => String(v.id))),
