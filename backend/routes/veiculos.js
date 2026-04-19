@@ -67,17 +67,10 @@ router.get('/', async (req, res) => {
             if (!locatarioId) return res.json([]);
 
             sql += `
-                WHERE (
-                    NOT EXISTS (
-                        SELECT 1
-                        FROM locacoes la
-                        WHERE la.veiculo_id = v.id AND la.status = 'ativa'
-                    )
-                    OR EXISTS (
-                        SELECT 1
-                        FROM locacoes ll
-                        WHERE ll.veiculo_id = v.id AND ll.locatario_id = ?
-                    )
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM locacoes ll
+                    WHERE ll.veiculo_id = v.id AND ll.locatario_id = ?
                 )
             `;
             params.push(locatarioId);
@@ -115,17 +108,10 @@ router.get('/:id', async (req, res) => {
             if (!locatarioId) return res.status(404).json({ erro: 'Veículo não encontrado.' });
 
             sql += `
-                AND (
-                    NOT EXISTS (
-                        SELECT 1
-                        FROM locacoes la
-                        WHERE la.veiculo_id = v.id AND la.status = 'ativa'
-                    )
-                    OR EXISTS (
-                        SELECT 1
-                        FROM locacoes ll
-                        WHERE ll.veiculo_id = v.id AND ll.locatario_id = ?
-                    )
+                AND EXISTS (
+                    SELECT 1
+                    FROM locacoes ll
+                    WHERE ll.veiculo_id = v.id AND ll.locatario_id = ?
                 )
             `;
             params.push(locatarioId);

@@ -30,27 +30,24 @@ export default function Sidebar() {
 
       <nav className="sidebar-nav">
         <span className="sidebar-section-title">Principal</span>
-        <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'active' : ''}>
-          <LayoutDashboard size={16} /> Dashboard
-        </NavLink>
-        {(isAdmin || isLocatario) && (
+        {!isLocatario && (
+          <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'active' : ''}>
+            <LayoutDashboard size={16} /> Dashboard
+          </NavLink>
+        )}
+        {isAdmin && (
           <NavLink to="/painel" className={({ isActive }) => isActive ? 'active' : ''}>
             <ChevronRight size={16} /> Painel de Controle
           </NavLink>
         )}
 
         <span className="sidebar-section-title">Cadastros</span>
-        {(isAdmin || isLocador) && (
+        {(isAdmin || isLocador || isLocatario) && (
           <>
             <NavLink to="/veiculos" className={({ isActive }) => isActive ? 'active' : ''}>
               <Car size={16} /> Veículos
             </NavLink>
           </>
-        )}
-        {isLocatario && (
-          <NavLink to="/veiculos" className={({ isActive }) => isActive ? 'active' : ''}>
-            <Car size={16} /> Veículos Disponíveis
-          </NavLink>
         )}
         {isAdmin && (
           <>
@@ -66,7 +63,7 @@ export default function Sidebar() {
           </>
         )}
 
-        {(isAdmin || isLocador) && (
+        {(isAdmin || isLocador || isLocatario) && (
           <>
             <span className="sidebar-section-title">Financeiro</span>
             <NavLink to="/financeiro" className={({ isActive }) => isActive ? 'active' : ''}>
