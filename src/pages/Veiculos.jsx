@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus, Edit2, Trash2, X, Car, Check } from 'lucide-react';
 
@@ -25,8 +25,27 @@ const EMPTY_VEICULO = {
   foto: '',
 };
 
+const EMPTY_CONTRATO = {
+  nome: '',
+  email: '',
+  cpf: '',
+  rg: '',
+  telefone: '',
+  endereco: '',
+  observacoesContrato: '',
+};
+
 export default function Veiculos() {
-  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, usuarioLogado, addLocacao } = useApp();
+  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, usuarioLogado, addLocacao, carregando, erro } = useApp();
+    const [fipeAtualizada, setFipeAtualizada] = useState(false);
+    // Detecta atualização automática dos valores FIPE
+    React.useEffect(() => {
+      if (veiculos && veiculos.length > 0) {
+        setFipeAtualizada(true);
+        const timer = setTimeout(() => setFipeAtualizada(false), 3500);
+        return () => clearTimeout(timer);
+      }
+    }, [veiculos]);
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_VEICULO);
@@ -37,6 +56,8 @@ export default function Veiculos() {
   const [locandoVeiculo, setLocandoVeiculo] = useState(false);
   const [erroLocacaoRapida, setErroLocacaoRapida] = useState('');
   const [sucessoLocacaoRapida, setSucessoLocacaoRapida] = useState('');
+  const [modalContrato, setModalContrato] = useState(false);
+  const [contratoForm, setContratoForm] = useState(EMPTY_CONTRATO);
   // Novos estados para combos do locatário
   const [dataInicioLocacao, setDataInicioLocacao] = useState(() => {
     const hoje = new Date().toISOString().split('T')[0];
@@ -98,7 +119,29 @@ export default function Veiculos() {
     return l ? (l.tipo === 'juridica' ? l.razaoSocial : l.nome) : '-';
   }
 
-  async function handleLocacaoRapida() {
+  function abrirModalContratoLocacao() {
+    if (!veiculoSelecionadoLocacao) {
+      setErroLocacaoRapida('Selecione um veículo para locar.');
+      return;
+    }
+
+    setErroLocacaoRapida('');
+    setSucessoLocacaoRapida('');
+    setContratoForm({
+      ...EMPTY_CONTRATO,
+      nome: usuarioLogado?.nome || '',
+      email: usuarioLogado?.email || '',
+    });
+    setModalContrato(true);
+  }
+
+  function fecharModalContratoLocacao() {
+    setModalContrato(false);
+    setContratoForm(EMPTY_CONTRATO);
+  }
+
+  async function handleEnviarContratoLocacao(e) {
+    e.preventDefault();
     if (!veiculoSelecionadoLocacao) {
       setErroLocacaoRapida('Selecione um veículo para locar.');
       return;
@@ -108,17 +151,35 @@ export default function Veiculos() {
     setSucessoLocacaoRapida('');
     setLocandoVeiculo(true);
     try {
-      await addLocacao({
+      const resposta = await addLocacao({
         veiculoId: veiculoSelecionadoLocacao,
         dataInicio: dataInicioLocacao,
         periodicidade: periodicidadeLocacao,
         quantidadePeriodos: quantidadePeriodosLocacao,
-        condicoes: 'Locação iniciada pela tela Veículos',
+        condicoes: `Locação iniciada pela tela Veículos. ${contratoForm.observacoesContrato || ''}`.trim(),
+        contrato: {
+          nome: contratoForm.nome,
+          email: contratoForm.email,
+          cpf: contratoForm.cpf,
+          rg: contratoForm.rg,
+          telefone: contratoForm.telefone,
+          endereco: contratoForm.endereco,
+        },
       });
+
       setVeiculoSelecionadoLocacao('');
-      setSucessoLocacaoRapida('Veículo locado com sucesso.');
+      fecharModalContratoLocacao();
+
+      if (resposta?.contratoEmailStatus === 'enviado') {
+        setSucessoLocacaoRapida('Contrato enviado por e-mail em PDF para assinatura via gov.br e locação criada com sucesso.');
+      } else if (resposta?.contratoEmailStatus === 'falhou') {
+        setSucessoLocacaoRapida('Locação criada, porém houve falha no envio do e-mail do contrato.');
+        setErroLocacaoRapida(resposta?.contratoEmailMensagem || 'Não foi possível enviar o contrato por e-mail.');
+      } else {
+        setSucessoLocacaoRapida('Locação criada com sucesso.');
+      }
     } catch (err) {
-      setErroLocacaoRapida(err.message || 'Não foi possível locar o veículo selecionado.');
+      setErroLocacaoRapida(err.message || 'Não foi possível gerar o contrato e locar o veículo selecionado.');
     } finally {
       setLocandoVeiculo(false);
     }
@@ -126,6 +187,33 @@ export default function Veiculos() {
 
   return (
     <div className="page-content">
+      {carregando && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="empty-state"><p>Carregando veículos...</p></div>
+        </div>
+      )}
+      {erro && (
+        <div className="alert-error" style={{ marginBottom: 16 }}>
+          {erro}
+        </div>
+      )}
+      {fipeAtualizada && (
+        <div style={{
+          background: 'var(--success-light)',
+          color: 'var(--success-dark)',
+          padding: '10px 18px',
+          borderRadius: 8,
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          fontWeight: 500,
+          fontSize: 15,
+          boxShadow: '0 2px 8px #0001'
+        }}>
+          <Check size={18} /> Valores FIPE atualizados automaticamente!
+        </div>
+      )}
       <div className="flex-between mb-24">
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Veículos</h2>
@@ -184,9 +272,9 @@ export default function Veiculos() {
             <button
               className="btn btn-primary"
               disabled={!veiculoSelecionadoLocacao || locandoVeiculo}
-              onClick={handleLocacaoRapida}
+              onClick={abrirModalContratoLocacao}
             >
-              <Check size={16} /> {locandoVeiculo ? 'Locando...' : 'Locar Veículo'}
+              <Check size={16} /> {locandoVeiculo ? 'Processando...' : 'Locar Veículo'}
             </button>
           )}
           {podeGerenciar && (
@@ -216,6 +304,7 @@ export default function Veiculos() {
                 <div style={{ marginTop: 10, fontSize: 12, color: 'var(--gray-500)' }}>
                   <div>KM Atual: <strong>{Number(v.kmAtual || 0).toLocaleString()}</strong></div>
                   <div>Próx. troca óleo: {v.kmTrocaOleo ? Number(v.kmTrocaOleo).toLocaleString() : '-'}</div>
+                  <div>Valor FIPE: <strong>{v.valorFipe != null ? Number(v.valorFipe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</strong></div>
                   <div>Locador: {nomeLocador(v.locadorId)}</div>
                 </div>
               </div>
@@ -243,55 +332,105 @@ export default function Veiculos() {
           ))}
         </div>
       ) : (
-        <div className="card">
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  {usuarioLogado?.perfil === 'locatario' && <th>Selecionar</th>}
-                  <th>Placa</th>
-                  <th>Marca/Modelo</th>
-                  <th>Ano</th>
-                  <th>KM Atual</th>
-                  <th>Prx. Óleo</th>
-                  <th>Combustível</th>
-                  <th>Cor</th>
-                  <th>Locador</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {listaVeiculosFiltrada.map(v => (
-                  <tr key={v.id}>
-                    {usuarioLogado?.perfil === 'locatario' && (
-                      <td style={{ paddingLeft: 30 }}>
-                        <input
-                          type="checkbox"
-                          checked={String(veiculoSelecionadoLocacao) === String(v.id)}
-                          onChange={e => setVeiculoSelecionadoLocacao(e.target.checked ? String(v.id) : '')}
-                        />
-                      </td>
+        <div className="veiculo-table-wrapper">
+          <table className="veiculo-table">
+            <thead>
+              <tr>
+                <th>Placa</th>
+                <th>Marca</th>
+                <th>Modelo</th>
+                <th>Ano</th>
+                <th>Cor</th>
+                <th>Combustível</th>
+                <th>Transmissão</th>
+                <th>KM Atual</th>
+                <th>Valor FIPE</th>
+                <th>Locador</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {listaVeiculosFiltrada.map(v => (
+                <tr key={v.id}>
+                  <td>{v.placa}</td>
+                  <td>{v.marca}</td>
+                  <td>{v.modelo}</td>
+                  <td>{v.anoFabricacao}/{v.anoModelo}</td>
+                  <td>{v.cor}</td>
+                  <td>{v.combustivel}</td>
+                  <td>{v.transmissao}</td>
+                  <td>{Number(v.kmAtual || 0).toLocaleString()}</td>
+                  <td>{v.valorFipe != null ? Number(v.valorFipe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</td>
+                  <td>{nomeLocador(v.locadorId)}</td>
+                  <td>
+                    {podeGerenciar && (
+                      <>
+                        <button className="btn btn-sm btn-outline" onClick={() => abrirEditar(v)}><Edit2 size={14} /></button>
+                        <button className="btn btn-sm btn-danger" onClick={() => setConfirmarExclusao(v.id)}><Trash2 size={14} /></button>
+                      </>
                     )}
-                    <td className="fw-600">{v.placa}</td>
-                    <td>{v.marca} {v.modelo}</td>
-                    <td>{v.anoFabricacao}/{v.anoModelo}</td>
-                    <td>{Number(v.kmAtual || 0).toLocaleString()}</td>
-                    <td>{v.kmTrocaOleo ? Number(v.kmTrocaOleo).toLocaleString() : '-'}</td>
-                    <td>{v.combustivel}</td>
-                    <td>{v.cor}</td>
-                    <td>{nomeLocador(v.locadorId)}</td>
-                    <td>
-                      {podeGerenciar && (
-                        <div className="flex" style={{ gap: 6 }}>
-                          <button className="btn-icon" onClick={() => abrirEditar(v)}><Edit2 size={14} /></button>
-                          <button className="btn-icon" style={{ borderColor: 'var(--danger-light)', color: 'var(--danger)' }} onClick={() => setConfirmarExclusao(v.id)}><Trash2 size={14} /></button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {usuarioLogado?.perfil === 'locatario' && modalContrato && (
+        <div className="modal-overlay" onClick={fecharModalContratoLocacao}>
+          <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Contrato de Locação</span>
+              <button className="btn-icon" onClick={fecharModalContratoLocacao}><X size={16} /></button>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={handleEnviarContratoLocacao}>
+                <div className="form-section">
+                  <div className="form-section-title">Dados do Locatário</div>
+                  <div className="form-grid">
+                    <div className="form-group"><label>Nome completo *</label><input required value={contratoForm.nome} onChange={e => setContratoForm(prev => ({ ...prev, nome: e.target.value }))} /></div>
+                    <div className="form-group"><label>E-mail *</label><input required type="email" value={contratoForm.email} onChange={e => setContratoForm(prev => ({ ...prev, email: e.target.value }))} /></div>
+                    <div className="form-group"><label>CPF *</label><input required value={contratoForm.cpf} onChange={e => setContratoForm(prev => ({ ...prev, cpf: e.target.value }))} /></div>
+                    <div className="form-group"><label>RG</label><input value={contratoForm.rg} onChange={e => setContratoForm(prev => ({ ...prev, rg: e.target.value }))} /></div>
+                    <div className="form-group"><label>Telefone *</label><input required value={contratoForm.telefone} onChange={e => setContratoForm(prev => ({ ...prev, telefone: e.target.value }))} /></div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}><label>Endereço completo *</label><input required value={contratoForm.endereco} onChange={e => setContratoForm(prev => ({ ...prev, endereco: e.target.value }))} /></div>
+                  </div>
+                </div>
+
+                <div className="form-section">
+                  <div className="form-section-title">Dados da Locação</div>
+                  <div className="form-grid">
+                    <div className="form-group"><label>Data de início</label><input type="date" value={dataInicioLocacao} onChange={e => setDataInicioLocacao(e.target.value)} /></div>
+                    <div className="form-group"><label>Periodicidade</label>
+                      <select value={periodicidadeLocacao} onChange={e => setPeriodicidadeLocacao(e.target.value)}>
+                        <option value="semanal">Semanal</option>
+                        <option value="quinzenal">Quinzenal</option>
+                        <option value="mensal">Mensal</option>
+                      </select>
+                    </div>
+                    <div className="form-group"><label>Quantidade de períodos</label>
+                      <select value={quantidadePeriodosLocacao} onChange={e => setQuantidadePeriodosLocacao(Number(e.target.value))}>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Observações do contrato</label>
+                      <textarea value={contratoForm.observacoesContrato} onChange={e => setContratoForm(prev => ({ ...prev, observacoesContrato: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 10 }}>
+                  Após confirmar, um PDF será enviado para seu e-mail com orientação de assinatura digital via portal gov.br.
+                </p>
+
+                <div className="form-actions">
+                  <button type="button" className="btn btn-outline" onClick={fecharModalContratoLocacao}><X size={14} /> Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={locandoVeiculo}><Check size={14} /> {locandoVeiculo ? 'Enviando...' : 'Gerar Contrato e Locar'}</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

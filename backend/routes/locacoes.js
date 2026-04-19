@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authMiddleware, requireProfiles } = require('../middleware/auth');
+const nodemailer = require('nodemailer');
+const PDFDocument = require('pdfkit');
 
 router.use(authMiddleware);
 
@@ -50,6 +52,108 @@ function estimateWeeklyValue(veiculo) {
         return Number((fipe * 0.01).toFixed(2));
     }
     return 900;
+}
+
+function formatCurrency(value) {
+    const numero = Number(value || 0);
+    return numero.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatDateBR(value) {
+    if (!value) return '-';
+    try {
+        const data = new Date(`${value}T00:00:00`);
+        return data.toLocaleDateString('pt-BR');
+    } catch {
+        return value;
+    }
+}
+
+async function gerarContratoPdfBuffer(dados) {
+    return new Promise((resolve, reject) => {
+        const doc = new PDFDocument({ margin: 42 });
+        const chunks = [];
+
+        doc.on('data', chunk => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
+
+        doc.fontSize(16).text('Contrato de Locacao de Veiculo', { align: 'center' });
+        doc.moveDown(1.2);
+
+        doc.fontSize(12).text(`Locatario: ${dados.locatario.nome || '-'}`);
+        doc.text(`CPF: ${dados.locatario.cpf || '-'} | RG: ${dados.locatario.rg || '-'}`);
+        doc.text(`E-mail: ${dados.locatario.email || '-'} | Telefone: ${dados.locatario.telefone || '-'}`);
+        doc.text(`Endereco: ${dados.locatario.endereco || '-'}`);
+        doc.moveDown();
+
+        doc.text(`Veiculo: ${dados.veiculo.descricao || '-'} (${dados.veiculo.placa || '-'})`);
+        doc.text(`Valor semanal: ${formatCurrency(dados.locacao.valorSemanal)}`);
+        doc.text(`Caucao: ${formatCurrency(dados.locacao.caucao)}`);
+        doc.text(`Inicio: ${formatDateBR(dados.locacao.dataInicio)}`);
+        doc.text(`Previsao de termino: ${formatDateBR(dados.locacao.dataPrevisaoFim)}`);
+        doc.text(`Periodicidade: ${dados.locacao.periodicidade || '-'}`);
+        doc.text(`Quantidade de periodos: ${dados.locacao.quantidadePeriodos || '-'}`);
+        doc.moveDown();
+
+        doc.text('Condicoes e clausulas:', { underline: true });
+        doc.moveDown(0.4);
+        doc.text(dados.locacao.condicoes || 'Locacao conforme termos acordados entre as partes.');
+        doc.moveDown();
+
+        doc.text('Assinatura digital:', { underline: true });
+        doc.moveDown(0.3);
+        doc.text('Para assinar digitalmente, acesse o gov.br e utilize o portal Assinador ITI:');
+        doc.fillColor('blue').text('https://assinador.iti.br', { link: 'https://assinador.iti.br', underline: true });
+        doc.fillColor('black');
+        doc.moveDown();
+
+        doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}.`);
+
+        doc.end();
+    });
+}
+
+function criarTransporter() {
+    const host = String(process.env.SMTP_HOST || '').trim();
+    const user = String(process.env.SMTP_USER || '').trim();
+    const pass = String(process.env.SMTP_PASS || '').trim();
+    const port = Number(process.env.SMTP_PORT || 587);
+    const secure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || port === 465;
+
+    if (!host || !user || !pass) return null;
+
+    return nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: { user, pass },
+    });
+}
+
+async function enviarContratoPorEmail({ para, nomeLocatario, pdfBuffer, nomeArquivo }) {
+    const transporter = criarTransporter();
+    if (!transporter) {
+        throw new Error('SMTP nao configurado. Defina SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASS.');
+    }
+
+    const from = process.env.MAIL_FROM || process.env.SMTP_USER;
+    const info = await transporter.sendMail({
+        from,
+        to: para,
+        subject: 'Contrato de locacao - assinatura digital gov.br',
+        text: `Ola ${nomeLocatario},\n\nSegue em anexo o contrato em PDF para assinatura digital.\n\nAcesse o portal oficial para assinatura com conta gov.br:\nhttps://assinador.iti.br\n\nAtenciosamente,\nEquipe SisLoVe`,
+        html: `<p>Ola ${nomeLocatario},</p><p>Segue em anexo o contrato em PDF para assinatura digital.</p><p>Acesse o portal oficial para assinatura com conta gov.br:<br/><a href="https://assinador.iti.br">https://assinador.iti.br</a></p><p>Atenciosamente,<br/>Equipe SisLoVe</p>`,
+        attachments: [
+            {
+                filename: nomeArquivo,
+                content: pdfBuffer,
+                contentType: 'application/pdf',
+            },
+        ],
+    });
+
+    return info;
 }
 
 // GET /api/locacoes
@@ -127,7 +231,7 @@ router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
     const {
         veiculo_id, locatario_id, data_inicio, data_previsao_fim,
         valor_semanal, caucao, km_entrada, condicoes,
-        periodicidade, quantidade_periodos
+        periodicidade, quantidade_periodos, contrato
     } = req.body;
 
     if (!veiculo_id || !data_inicio) {
@@ -144,7 +248,7 @@ router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
         let condicoesValue = condicoes || '';
 
         const [veiculoRows] = await conn.query(
-            'SELECT id, valor_fipe FROM veiculos WHERE id = ? LIMIT 1',
+            'SELECT id, placa, marca, modelo, valor_fipe FROM veiculos WHERE id = ? LIMIT 1',
             [veiculo_id]
         );
         if (veiculoRows.length === 0) {
@@ -218,7 +322,78 @@ router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
             LEFT JOIN locatarios lt ON lc.locatario_id = lt.id
             WHERE lc.id = ?
         `, [result.insertId]);
-        res.status(201).json(nova[0]);
+
+        let emailStatus = 'nao_enviado';
+        let emailMensagem = null;
+
+        if (req.usuario?.perfil === 'locatario') {
+            try {
+                const [locatarioRows] = await pool.query(
+                    `SELECT id, nome, email, cpf, rg, celular, endereco, numero, bairro, cidade, estado, cep
+                     FROM locatarios
+                     WHERE id = ?
+                     LIMIT 1`,
+                    [locatarioIdValue]
+                );
+
+                const locatario = locatarioRows[0] || {};
+                const veiculo = veiculoRows[0] || {};
+
+                const contratoPayload = {
+                    locatario: {
+                        nome: contrato?.nome || locatario.nome || req.usuario?.nome || '',
+                        email: contrato?.email || locatario.email || req.usuario?.email || '',
+                        cpf: contrato?.cpf || locatario.cpf || '',
+                        rg: contrato?.rg || locatario.rg || '',
+                        telefone: contrato?.telefone || locatario.celular || '',
+                        endereco: contrato?.endereco || [
+                            locatario.endereco,
+                            locatario.numero,
+                            locatario.bairro,
+                            locatario.cidade,
+                            locatario.estado,
+                            locatario.cep,
+                        ].filter(Boolean).join(', '),
+                    },
+                    veiculo: {
+                        descricao: `${veiculo.marca || ''} ${veiculo.modelo || ''}`.trim(),
+                        placa: veiculo.placa || '',
+                    },
+                    locacao: {
+                        valorSemanal: valorSemanalValue,
+                        caucao: caucao || 0,
+                        dataInicio: data_inicio,
+                        dataPrevisaoFim: dataPrevisaoFimValue,
+                        periodicidade: periodicidade || '',
+                        quantidadePeriodos: quantidade_periodos || '',
+                        condicoes: condicoesValue,
+                    },
+                };
+
+                const emailDestino = contratoPayload.locatario.email;
+                if (!emailDestino) {
+                    throw new Error('Locatario sem e-mail para envio do contrato.');
+                }
+
+                const pdfBuffer = await gerarContratoPdfBuffer(contratoPayload);
+                const nomeArquivo = `contrato-locacao-${result.insertId}.pdf`;
+
+                await enviarContratoPorEmail({
+                    para: emailDestino,
+                    nomeLocatario: contratoPayload.locatario.nome || 'Locatario',
+                    pdfBuffer,
+                    nomeArquivo,
+                });
+
+                emailStatus = 'enviado';
+            } catch (emailErr) {
+                console.error('Falha ao enviar contrato por e-mail:', emailErr);
+                emailStatus = 'falhou';
+                emailMensagem = emailErr?.message || 'Nao foi possivel enviar o e-mail do contrato.';
+            }
+        }
+
+        res.status(201).json({ ...nova[0], contrato_email_status: emailStatus, contrato_email_mensagem: emailMensagem });
     } catch (err) {
         await conn.rollback();
         console.error(err);
