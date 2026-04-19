@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus, Edit2, Trash2, X, Check, TrendingUp, TrendingDown, Download, FileSpreadsheet } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts';
@@ -272,31 +272,85 @@ export default function Financeiro() {
     });
   }
 
-  function valorOrdenacao(item, campo) {
-    if (campo === 'data') {
-      const ms = new Date(`${item.data || ''}T12:00:00`).getTime();
-      return Number.isNaN(ms) ? 0 : ms;
-    }
-    if (campo === 'tipo') return String(item.tipo || '').toLowerCase();
-    if (campo === 'categoria') return String(item.categoria || '').toLowerCase();
-    if (campo === 'descricao') return String(item.descricao || '').toLowerCase();
-    if (campo === 'veiculo') return String(nomeVeiculo(item.veiculoId) || '').toLowerCase();
-    if (campo === 'formaPagamento') return String(item.formaPagamento || '').toLowerCase();
-    if (campo === 'valor') return Number(item.valor || 0);
-    return '';
-  }
-
   function indicadorOrdenacao(campo) {
     if (ordenacao.campo !== campo) return ' -';
     return ordenacao.direcao === 'asc' ? ' ^' : ' v';
   }
 
+  const veiculosCatalogo = useMemo(() => {
+    const mapa = new Map();
+
+    const upsert = (id, dados) => {
+      const chave = String(id || '').trim();
+      if (!chave) return;
+
+      const atual = mapa.get(chave) || { id: chave, marca: '', modelo: '', placa: '', nome: '' };
+      const proximo = {
+        ...atual,
+        marca: String(dados?.marca || '').trim() || atual.marca,
+        modelo: String(dados?.modelo || '').trim() || atual.modelo,
+        placa: String(dados?.placa || '').trim() || atual.placa,
+        nome: String(dados?.nome || '').trim() || atual.nome,
+      };
+      mapa.set(chave, proximo);
+    };
+
+    veiculos.forEach((v) => {
+      upsert(v.id, {
+        marca: v.marca,
+        modelo: v.modelo,
+        placa: v.placa,
+        nome: `${v.marca || ''} ${v.modelo || ''}`.trim(),
+      });
+    });
+
+    locacoes.forEach((loc) => {
+      const nome = String(loc.nomeVeiculo || '').trim();
+      const partes = nome.split(' ').filter(Boolean);
+      upsert(loc.veiculoId, {
+        marca: partes[0] || '',
+        modelo: partes.slice(1).join(' '),
+        placa: loc.placa,
+        nome,
+      });
+    });
+
+    despesasReceitas.forEach((item) => {
+      const nome = String(item.nomeVeiculo || '').trim();
+      const partes = nome.split(' ').filter(Boolean);
+      upsert(item.veiculoId, {
+        marca: item.marcaVeiculo || partes[0] || '',
+        modelo: partes.slice(1).join(' '),
+        placa: item.placaVeiculo,
+        nome,
+      });
+    });
+
+    return Array.from(mapa.values()).sort((a, b) => {
+      const nomeA = `${a.marca || ''} ${a.modelo || ''} ${a.placa || ''}`.trim();
+      const nomeB = `${b.marca || ''} ${b.modelo || ''} ${b.placa || ''}`.trim();
+      return nomeA.localeCompare(nomeB, 'pt-BR', { sensitivity: 'base' });
+    });
+  }, [veiculos, locacoes, despesasReceitas]);
+
+  const veiculosCatalogoPorId = useMemo(
+    () => new Map(veiculosCatalogo.map(v => [String(v.id), v])),
+    [veiculosCatalogo]
+  );
+
   const marcaPorVeiculoId = useMemo(() => {
-    return new Map(veiculos.map(v => [String(v.id), String(v.marca || '').trim()]));
-  }, [veiculos]);
+    return new Map(veiculosCatalogo.map(v => [String(v.id), String(v.marca || '').trim()]));
+  }, [veiculosCatalogo]);
+
+  const nomeVeiculo = useCallback((id) => {
+    const v = veiculosCatalogoPorId.get(String(id));
+    if (!v) return '-';
+    const prefixo = `${v.marca || ''} ${v.modelo || ''}`.trim() || v.nome || 'Veículo';
+    return v.placa ? `${prefixo} – ${v.placa}` : prefixo;
+  }, [veiculosCatalogoPorId]);
 
   const montadorasDisponiveis = useMemo(() => {
-    const montadorasVeiculos = veiculos
+    const montadorasVeiculos = veiculosCatalogo
       .map(v => String(v.marca || '').trim())
       .filter(Boolean);
 
@@ -307,7 +361,7 @@ export default function Financeiro() {
     const montadoras = [...montadorasVeiculos, ...montadorasFinanceiro];
 
     return Array.from(new Set(montadoras)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [veiculos, despesasReceitas]);
+  }, [veiculosCatalogo, despesasReceitas]);
 
   const idsVeiculosEscopoLocador = useMemo(
     () => new Set(veiculos.map(v => String(v.id))),
@@ -325,6 +379,20 @@ export default function Financeiro() {
   }, [locacoes, idsVeiculosEscopoLocador, usuarioLogado?.perfil]);
 
   const lista = useMemo(() => {
+    const valorOrdenacao = (item, campo) => {
+      if (campo === 'data') {
+        const ms = new Date(`${item.data || ''}T12:00:00`).getTime();
+        return Number.isNaN(ms) ? 0 : ms;
+      }
+      if (campo === 'tipo') return String(item.tipo || '').toLowerCase();
+      if (campo === 'categoria') return String(item.categoria || '').toLowerCase();
+      if (campo === 'descricao') return String(item.descricao || '').toLowerCase();
+      if (campo === 'veiculo') return String(nomeVeiculo(item.veiculoId) || '').toLowerCase();
+      if (campo === 'formaPagamento') return String(item.formaPagamento || '').toLowerCase();
+      if (campo === 'valor') return Number(item.valor || 0);
+      return '';
+    };
+
     const filtrada = despesasReceitasEscopo.filter(d => {
       if (filtroTipo && d.tipo !== filtroTipo) return false;
       if (filtroVeiculo && String(d.veiculoId) !== String(filtroVeiculo)) return false;
@@ -351,7 +419,7 @@ export default function Financeiro() {
     });
 
     return ordenada;
-  }, [despesasReceitasEscopo, filtroTipo, filtroVeiculo, filtroMontadora, ordenacao, marcaPorVeiculoId]);
+  }, [despesasReceitasEscopo, filtroTipo, filtroVeiculo, filtroMontadora, ordenacao, marcaPorVeiculoId, nomeVeiculo]);
 
   const totalReceitas = lista.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
   const totalDespesas = lista.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
@@ -488,7 +556,7 @@ export default function Financeiro() {
     const periodoFim = graficoFim || 'fim-aberto';
     const status = graficoStatus || 'todos';
     const montadora = graficoMontadora || 'todas';
-    const veiculoSelecionado = veiculos.find((v) => String(v.id) === String(graficoVeiculo));
+    const veiculoSelecionado = veiculosCatalogo.find((v) => String(v.id) === String(graficoVeiculo));
     const veiculo = veiculoSelecionado?.placa || 'todos';
 
     return [
@@ -498,7 +566,7 @@ export default function Financeiro() {
       `montadora-${tokenArquivoSeguro(montadora)}`,
       `veiculo-${tokenArquivoSeguro(veiculo)}`,
     ].join('__');
-  }, [graficoInicio, graficoFim, graficoStatus, graficoMontadora, graficoVeiculo, veiculos]);
+  }, [graficoInicio, graficoFim, graficoStatus, graficoMontadora, graficoVeiculo, veiculosCatalogo]);
 
   function exportarGraficosCsv() {
     if (resumoPorLocacao.length === 0 && despesasDetalhadasCategoria.length === 0 && lucrosDetalhados.length === 0) {
@@ -814,11 +882,6 @@ export default function Financeiro() {
     paginaAtualGrafico * itensPorPaginaAtual
   );
 
-  function nomeVeiculo(id) {
-    const v = veiculos.find(v => String(v.id) === String(id));
-    return v ? `${v.marca} ${v.modelo} – ${v.placa}` : '-';
-  }
-
   return (
     <div className="page-content">
       <div className="flex-between mb-24">
@@ -903,7 +966,7 @@ export default function Financeiro() {
             <label>Veículo</label>
             <select value={graficoVeiculo} onChange={e => setGraficoVeiculo(e.target.value)}>
               <option value="">Todos os veículos</option>
-              {veiculos.map(v => <option key={v.id} value={v.id}>{v.marca} {v.modelo} – {v.placa}</option>)}
+              {veiculosCatalogo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ minWidth: 140 }}>
@@ -1058,7 +1121,7 @@ export default function Financeiro() {
           </select>
           <select value={filtroVeiculo} onChange={e => setFiltroVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, flex: 1, maxWidth: 280 }}>
             <option value="">Todos os veículos</option>
-            {veiculos.map(v => <option key={v.id} value={v.id}>{v.marca} {v.modelo} – {v.placa}</option>)}
+            {veiculosCatalogo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
           </select>
           <select value={filtroMontadora} onChange={e => atualizarFiltroMontadora(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, flex: 1, maxWidth: 260 }}>
             <option value="">Todas as montadoras</option>
@@ -1202,7 +1265,7 @@ export default function Financeiro() {
                     <div className="form-group form-full"><label>Veículo</label>
                       <select {...f('veiculoId')} required={usuarioLogado?.perfil === 'locador'}>
                         <option value="">Selecione {usuarioLogado?.perfil === 'locador' ? '(obrigatório para locador)' : '(opcional)'}</option>
-                        {veiculos.map(v => <option key={v.id} value={v.id}>{v.marca} {v.modelo} – {v.placa}</option>)}
+                        {veiculosCatalogo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
                       </select>
                     </div>
                     {form.tipo === 'receita' && (

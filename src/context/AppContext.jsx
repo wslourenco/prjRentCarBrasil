@@ -73,14 +73,15 @@ export function AppProvider({ children }) {
             }
 
             if (perfil === 'locatario') {
-                const [v, loc] = await Promise.all([
+                const [v, loc, fin] = await Promise.all([
                     api.get('/veiculos'),
                     api.get('/locacoes'),
+                    api.get('/financeiro'),
                 ]);
                 setLocadores([]);
                 setLocatarios([]);
                 setColaboradores([]);
-                setDespesasReceitas([]);
+                setDespesasReceitas(fin.map(financeiroFromApi));
                 setVeiculos(v.map(veiculoFromApi));
                 setLocacoes(loc.map(locacaoFromApi));
                 return;
