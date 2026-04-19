@@ -49,6 +49,14 @@ function tokenArquivoSeguro(texto) {
     .toLowerCase() || 'todos';
 }
 
+function normalizarMontadora(valor) {
+  return String(valor || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
 function normalizarTextoMojibake(valor) {
   if (typeof valor !== 'string') return valor;
   if (!/[ÃÂâ�├]/.test(valor)) return valor;
@@ -194,6 +202,11 @@ export default function Financeiro() {
   const [atualizandoPesquisa, setAtualizandoPesquisa] = useState(false);
   const primeiroRefreshFiltro = useRef(true);
 
+  function atualizarFiltroMontadora(valor) {
+    setFiltroMontadora(valor);
+    setGraficoMontadora(valor);
+  }
+
   function abrirNovo(tipoInicial = 'receita') {
     setForm({ ...EMPTY, tipo: tipoInicial, categoria: tipoInicial === 'receita' ? CATEGORIAS_RECEITA[0] : CATEGORIAS_DESPESA[0] });
     setEditId(null); setModal(true); setErroCrud('');
@@ -311,7 +324,7 @@ export default function Financeiro() {
       if (filtroVeiculo && String(d.veiculoId) !== String(filtroVeiculo)) return false;
       if (filtroMontadora) {
         const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || '';
-        if (montadora !== filtroMontadora) return false;
+        if (normalizarMontadora(montadora) !== normalizarMontadora(filtroMontadora)) return false;
       }
       return true;
     });
@@ -356,7 +369,7 @@ export default function Financeiro() {
       if (graficoVeiculo && String(loc.veiculoId) !== String(graficoVeiculo)) return false;
       if (graficoMontadora) {
         const montadora = marcaPorVeiculoId.get(String(loc.veiculoId || '')) || '';
-        if (montadora !== graficoMontadora) return false;
+        if (normalizarMontadora(montadora) !== normalizarMontadora(graficoMontadora)) return false;
       }
       return withinPeriodo(loc.dataInicio);
     });
@@ -366,7 +379,7 @@ export default function Financeiro() {
       .filter(d => {
         if (!graficoMontadora) return true;
         const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || '';
-        return montadora === graficoMontadora;
+        return normalizarMontadora(montadora) === normalizarMontadora(graficoMontadora);
       });
 
     return locacoesFiltradas.map(loc => {
@@ -408,7 +421,7 @@ export default function Financeiro() {
       if (graficoVeiculo && String(loc.veiculoId) !== String(graficoVeiculo)) return false;
       if (graficoMontadora) {
         const montadora = marcaPorVeiculoId.get(String(loc.veiculoId || '')) || '';
-        if (montadora !== graficoMontadora) return false;
+        if (normalizarMontadora(montadora) !== normalizarMontadora(graficoMontadora)) return false;
       }
       return withinPeriodo(loc.dataInicio);
     });
@@ -421,7 +434,7 @@ export default function Financeiro() {
         if (graficoVeiculo && String(d.veiculoId || '') !== String(graficoVeiculo)) return false;
         if (graficoMontadora) {
           const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || '';
-          if (montadora !== graficoMontadora) return false;
+          if (normalizarMontadora(montadora) !== normalizarMontadora(graficoMontadora)) return false;
         }
         if (graficoStatus && !veiculosComStatus.has(String(d.veiculoId || ''))) return false;
         return true;
@@ -875,7 +888,7 @@ export default function Financeiro() {
           </div>
           <div className="form-group" style={{ minWidth: 220, flex: 1 }}>
             <label>Montadora</label>
-            <select value={graficoMontadora} onChange={e => setGraficoMontadora(e.target.value)}>
+            <select value={graficoMontadora} onChange={e => atualizarFiltroMontadora(e.target.value)}>
               <option value="">Todas as montadoras</option>
               {montadorasDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
@@ -1041,7 +1054,7 @@ export default function Financeiro() {
             <option value="">Todos os veículos</option>
             {veiculos.map(v => <option key={v.id} value={v.id}>{v.marca} {v.modelo} – {v.placa}</option>)}
           </select>
-          <select value={filtroMontadora} onChange={e => setFiltroMontadora(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, flex: 1, maxWidth: 260 }}>
+          <select value={filtroMontadora} onChange={e => atualizarFiltroMontadora(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, flex: 1, maxWidth: 260 }}>
             <option value="">Todas as montadoras</option>
             {montadorasDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
