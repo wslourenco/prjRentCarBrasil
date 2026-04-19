@@ -9,6 +9,7 @@ import Locatarios from './pages/Locatarios';
 import Colaboradores from './pages/Colaboradores';
 import Veiculos from './pages/Veiculos';
 import Financeiro from './pages/Financeiro';
+import Aquisicoes from './pages/Aquisicoes';
 import Painel from './pages/Painel';
 import Admin from './pages/Admin';
 import './styles/global.css';
@@ -46,6 +47,7 @@ function App() {
             <Route path="colaboradores" element={<RoleRoute allowed={['admin']} element={<Colaboradores />} />} />
             <Route path="veiculos" element={<RoleRoute allowed={['admin', 'locador', 'locatario']} element={<Veiculos />} />} />
             <Route path="financeiro" element={<RoleRoute allowed={['admin', 'locador', 'locatario']} element={<Financeiro />} />} />
+            <Route path="aquisicoes" element={<RoleRoute allowed={['admin', 'locador']} element={<Aquisicoes />} />} />
             <Route path="admin" element={<RoleRoute allowed={['admin']} element={<Admin />} />} />
           </Route>
           <Route path="*" element={<HomeRedirect />} />

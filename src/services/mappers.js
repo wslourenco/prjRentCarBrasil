@@ -262,6 +262,7 @@ export function locacaoToApi(f) {
         periodicidade: f.periodicidade || null,
         quantidade_periodos: f.quantidadePeriodos || null,
         contrato: f.contrato || null,
+        contrato_envio: f.contratoEnvio || 'email',
     };
 }
 
@@ -285,6 +286,10 @@ export function locacaoFromApi(r) {
         celularLocatario: r.celular_locatario,
         contratoEmailStatus: r.contrato_email_status || null,
         contratoEmailMensagem: r.contrato_email_mensagem || null,
+        contratoPdfBase64: r.contrato_pdf_base64 || null,
+        contratoPdfNomeArquivo: r.contrato_pdf_nome_arquivo || null,
+        contratoPdfMimeType: r.contrato_pdf_mime_type || null,
+        contratoEnvio: r.contrato_envio || null,
     });
 }
 

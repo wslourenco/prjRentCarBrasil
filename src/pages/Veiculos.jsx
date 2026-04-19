@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { api } from '../services/api';
 import { Plus, Edit2, Trash2, X, Car, Check } from 'lucide-react';
 
 const COMBUSTIVEIS = ['Flex','Gasolina','Etanol','Diesel','GNV','Elétrico','Híbrido'];
@@ -58,6 +59,18 @@ export default function Veiculos() {
   const [sucessoLocacaoRapida, setSucessoLocacaoRapida] = useState('');
   const [modalContrato, setModalContrato] = useState(false);
   const [contratoForm, setContratoForm] = useState(EMPTY_CONTRATO);
+  const [contratoEnvio, setContratoEnvio] = useState('email');
+  const [modalSmtp, setModalSmtp] = useState(false);
+  const [salvandoSmtp, setSalvandoSmtp] = useState(false);
+  const [erroSmtp, setErroSmtp] = useState('');
+  const [smtpForm, setSmtpForm] = useState({
+    host: 'smtp.gmail.com',
+    port: '587',
+    secure: 'false',
+    user: '',
+    pass: '',
+    mailFrom: '',
+  });
   // Novos estados para combos do locatário
   const [dataInicioLocacao, setDataInicioLocacao] = useState(() => {
     const hoje = new Date().toISOString().split('T')[0];
@@ -138,6 +151,75 @@ export default function Veiculos() {
   function fecharModalContratoLocacao() {
     setModalContrato(false);
     setContratoForm(EMPTY_CONTRATO);
+    setContratoEnvio('email');
+  }
+
+  async function validarSmtpParaEnvioEmail() {
+    try {
+      const status = await api.get('/configuracoes/smtp/status');
+      if (status?.configurado) return true;
+
+      setSmtpForm(prev => ({
+        ...prev,
+        host: status?.smtp?.host || prev.host,
+        port: status?.smtp?.port || prev.port,
+        secure: status?.smtp?.secure || prev.secure,
+        user: status?.smtp?.user || prev.user,
+        mailFrom: status?.smtp?.mailFrom || prev.mailFrom,
+        pass: '',
+      }));
+      setErroSmtp('');
+      setModalSmtp(true);
+      return false;
+    } catch (err) {
+      setErroLocacaoRapida(err.message || 'Não foi possível validar configuração de e-mail.');
+      return false;
+    }
+  }
+
+  async function salvarConfiguracaoSmtp(e) {
+    e.preventDefault();
+    setErroSmtp('');
+    setSalvandoSmtp(true);
+    try {
+      await api.put('/configuracoes/smtp', {
+        host: smtpForm.host,
+        port: Number(smtpForm.port || 587),
+        secure: smtpForm.secure,
+        user: smtpForm.user,
+        pass: smtpForm.pass,
+        mailFrom: smtpForm.mailFrom,
+      });
+
+      setModalSmtp(false);
+      setSucessoLocacaoRapida('Configuração de e-mail salva. Clique novamente em "Gerar Contrato e Locar".');
+    } catch (err) {
+      setErroSmtp(err.message || 'Não foi possível salvar as configurações SMTP.');
+    } finally {
+      setSalvandoSmtp(false);
+    }
+  }
+
+  function baixarContratoPdf(base64, nomeArquivo = 'contrato-locacao.pdf', mimeType = 'application/pdf') {
+    if (!base64) return;
+
+    const binary = atob(base64);
+    const length = binary.length;
+    const bytes = new Uint8Array(length);
+
+    for (let i = 0; i < length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    const blob = new Blob([bytes], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nomeArquivo;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   async function handleEnviarContratoLocacao(e) {
@@ -145,6 +227,11 @@ export default function Veiculos() {
     if (!veiculoSelecionadoLocacao) {
       setErroLocacaoRapida('Selecione um veículo para locar.');
       return;
+    }
+
+    if (contratoEnvio === 'email') {
+      const smtpOk = await validarSmtpParaEnvioEmail();
+      if (!smtpOk) return;
     }
 
     setErroLocacaoRapida('');
@@ -156,6 +243,7 @@ export default function Veiculos() {
         dataInicio: dataInicioLocacao,
         periodicidade: periodicidadeLocacao,
         quantidadePeriodos: quantidadePeriodosLocacao,
+        contratoEnvio,
         condicoes: `Locação iniciada pela tela Veículos. ${contratoForm.observacoesContrato || ''}`.trim(),
         contrato: {
           nome: contratoForm.nome,
@@ -170,8 +258,20 @@ export default function Veiculos() {
       setVeiculoSelecionadoLocacao('');
       fecharModalContratoLocacao();
 
+      if (resposta?.contratoEnvio === 'download' && resposta?.contratoPdfBase64) {
+        baixarContratoPdf(
+          resposta.contratoPdfBase64,
+          resposta.contratoPdfNomeArquivo || `contrato-locacao-${resposta.id}.pdf`,
+          resposta.contratoPdfMimeType || 'application/pdf'
+        );
+        setSucessoLocacaoRapida('Locação criada com sucesso. O contrato em PDF foi baixado para assinatura via gov.br.');
+        return;
+      }
+
       if (resposta?.contratoEmailStatus === 'enviado') {
         setSucessoLocacaoRapida('Contrato enviado por e-mail em PDF para assinatura via gov.br e locação criada com sucesso.');
+      } else if (resposta?.contratoEmailStatus === 'download') {
+        setSucessoLocacaoRapida('Locação criada com sucesso. O contrato foi gerado para download.');
       } else if (resposta?.contratoEmailStatus === 'nao_configurado') {
         setSucessoLocacaoRapida('Locação criada com sucesso. O envio automático do contrato por e-mail está desativado (SMTP não configurado).');
       } else if (resposta?.contratoEmailStatus === 'falhou') {
@@ -278,6 +378,23 @@ export default function Veiculos() {
             >
               <Check size={16} /> {locandoVeiculo ? 'Processando...' : 'Locar Veículo'}
             </button>
+          )}
+          {usuarioLogado?.perfil === 'locatario' && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '6px 10px',
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 600,
+                border: '1px solid var(--gray-300)',
+                background: 'var(--gray-100)',
+                color: 'var(--gray-700)',
+              }}
+            >
+              Contrato: {contratoEnvio === 'download' ? 'Download PDF' : 'Enviar por e-mail'}
+            </span>
           )}
           {podeGerenciar && (
             <button className="btn btn-primary" onClick={abrirNovo}><Plus size={16} /> Novo Veículo</button>
@@ -392,7 +509,7 @@ export default function Veiculos() {
                   <div className="form-section-title">Dados do Locatário</div>
                   <div className="form-grid">
                     <div className="form-group"><label>Nome completo *</label><input required value={contratoForm.nome} onChange={e => setContratoForm(prev => ({ ...prev, nome: e.target.value }))} /></div>
-                    <div className="form-group"><label>E-mail *</label><input required type="email" value={contratoForm.email} onChange={e => setContratoForm(prev => ({ ...prev, email: e.target.value }))} /></div>
+                    <div className="form-group"><label>E-mail {contratoEnvio === 'email' ? '*' : ''}</label><input required={contratoEnvio === 'email'} type="email" value={contratoForm.email} onChange={e => setContratoForm(prev => ({ ...prev, email: e.target.value }))} /></div>
                     <div className="form-group"><label>CPF *</label><input required value={contratoForm.cpf} onChange={e => setContratoForm(prev => ({ ...prev, cpf: e.target.value }))} /></div>
                     <div className="form-group"><label>RG</label><input value={contratoForm.rg} onChange={e => setContratoForm(prev => ({ ...prev, rg: e.target.value }))} /></div>
                     <div className="form-group"><label>Telefone *</label><input required value={contratoForm.telefone} onChange={e => setContratoForm(prev => ({ ...prev, telefone: e.target.value }))} /></div>
@@ -416,6 +533,12 @@ export default function Veiculos() {
                         {Array.from({ length: 12 }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
                       </select>
                     </div>
+                    <div className="form-group"><label>Recebimento do contrato</label>
+                      <select value={contratoEnvio} onChange={e => setContratoEnvio(e.target.value)}>
+                        <option value="email">Enviar por e-mail</option>
+                        <option value="download">Baixar PDF agora</option>
+                      </select>
+                    </div>
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label>Observações do contrato</label>
                       <textarea value={contratoForm.observacoesContrato} onChange={e => setContratoForm(prev => ({ ...prev, observacoesContrato: e.target.value }))} />
@@ -424,12 +547,53 @@ export default function Veiculos() {
                 </div>
 
                 <p style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 10 }}>
-                  Após confirmar, um PDF será enviado para seu e-mail com orientação de assinatura digital via portal gov.br.
+                  {contratoEnvio === 'email'
+                    ? 'Após confirmar, um PDF será enviado para seu e-mail com orientação de assinatura digital via portal gov.br.'
+                    : 'Após confirmar, o PDF será baixado automaticamente para assinatura digital via portal gov.br.'}
                 </p>
 
                 <div className="form-actions">
                   <button type="button" className="btn btn-outline" onClick={fecharModalContratoLocacao}><X size={14} /> Cancelar</button>
                   <button type="submit" className="btn btn-primary" disabled={locandoVeiculo}><Check size={14} /> {locandoVeiculo ? 'Enviando...' : 'Gerar Contrato e Locar'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {usuarioLogado?.perfil === 'locatario' && modalSmtp && (
+        <div className="modal-overlay" onClick={() => setModalSmtp(false)}>
+          <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Configurar envio por e-mail (SMTP)</span>
+              <button className="btn-icon" onClick={() => setModalSmtp(false)}><X size={16} /></button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: 12, color: 'var(--gray-600)', marginBottom: 12 }}>
+                Para enviar o contrato por e-mail, preencha os parâmetros SMTP abaixo.
+              </p>
+
+              <form onSubmit={salvarConfiguracaoSmtp}>
+                <div className="form-grid">
+                  <div className="form-group"><label>SMTP_HOST *</label><input required value={smtpForm.host} onChange={e => setSmtpForm(prev => ({ ...prev, host: e.target.value }))} /></div>
+                  <div className="form-group"><label>SMTP_PORT *</label><input required type="number" value={smtpForm.port} onChange={e => setSmtpForm(prev => ({ ...prev, port: e.target.value }))} /></div>
+                  <div className="form-group"><label>SMTP_SECURE</label>
+                    <select value={smtpForm.secure} onChange={e => setSmtpForm(prev => ({ ...prev, secure: e.target.value }))}>
+                      <option value="false">false</option>
+                      <option value="true">true</option>
+                    </select>
+                  </div>
+                  <div className="form-group"><label>SMTP_USER *</label><input required type="email" value={smtpForm.user} onChange={e => setSmtpForm(prev => ({ ...prev, user: e.target.value }))} /></div>
+                  <div className="form-group"><label>SMTP_PASS *</label><input required type="password" value={smtpForm.pass} onChange={e => setSmtpForm(prev => ({ ...prev, pass: e.target.value }))} /></div>
+                  <div className="form-group"><label>MAIL_FROM (opcional)</label><input value={smtpForm.mailFrom} onChange={e => setSmtpForm(prev => ({ ...prev, mailFrom: e.target.value }))} /></div>
+                </div>
+
+                {erroSmtp && <p style={{ color: 'var(--danger)', fontSize: 12 }}>{erroSmtp}</p>}
+
+                <div className="form-actions">
+                  <button type="button" className="btn btn-outline" onClick={() => setModalSmtp(false)}><X size={14} /> Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={salvandoSmtp}><Check size={14} /> {salvandoSmtp ? 'Salvando...' : 'Salvar Configuração'}</button>
                 </div>
               </form>
             </div>

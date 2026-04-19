@@ -306,7 +306,7 @@ router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
     const {
         veiculo_id, locatario_id, data_inicio, data_previsao_fim,
         valor_semanal, caucao, km_entrada, condicoes,
-        periodicidade, quantidade_periodos, contrato
+        periodicidade, quantidade_periodos, contrato, contrato_envio
     } = req.body;
 
     if (!veiculo_id || !data_inicio) {
@@ -400,6 +400,9 @@ router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
 
         let emailStatus = 'nao_enviado';
         let emailMensagem = null;
+        let contratoPdfBase64 = null;
+        let contratoPdfNomeArquivo = null;
+        let contratoPdfMimeType = null;
 
         if (req.usuario?.perfil === 'locatario') {
             try {
@@ -446,21 +449,29 @@ router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
                 };
 
                 const emailDestino = contratoPayload.locatario.email;
-                if (!emailDestino) {
-                    throw new Error('Locatario sem e-mail para envio do contrato.');
-                }
-
                 const pdfBuffer = await gerarContratoPdfBuffer(contratoPayload);
                 const nomeArquivo = `contrato-locacao-${result.insertId}.pdf`;
+                const contratoEnvio = String(contrato_envio || 'email').trim().toLowerCase();
 
-                await enviarContratoPorEmail({
-                    para: emailDestino,
-                    nomeLocatario: contratoPayload.locatario.nome || 'Locatario',
-                    pdfBuffer,
-                    nomeArquivo,
-                });
+                if (contratoEnvio === 'download') {
+                    emailStatus = 'download';
+                    contratoPdfBase64 = pdfBuffer.toString('base64');
+                    contratoPdfNomeArquivo = nomeArquivo;
+                    contratoPdfMimeType = 'application/pdf';
+                } else {
+                    if (!emailDestino) {
+                        throw new Error('Locatario sem e-mail para envio do contrato.');
+                    }
 
-                emailStatus = 'enviado';
+                    await enviarContratoPorEmail({
+                        para: emailDestino,
+                        nomeLocatario: contratoPayload.locatario.nome || 'Locatario',
+                        pdfBuffer,
+                        nomeArquivo,
+                    });
+
+                    emailStatus = 'enviado';
+                }
             } catch (emailErr) {
                 console.error('Falha ao enviar contrato por e-mail:', emailErr);
                 if (emailErr?.code === 'SMTP_NOT_CONFIGURED') {
@@ -473,7 +484,15 @@ router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
             }
         }
 
-        res.status(201).json({ ...nova[0], contrato_email_status: emailStatus, contrato_email_mensagem: emailMensagem });
+        res.status(201).json({
+            ...nova[0],
+            contrato_email_status: emailStatus,
+            contrato_email_mensagem: emailMensagem,
+            contrato_pdf_base64: contratoPdfBase64,
+            contrato_pdf_nome_arquivo: contratoPdfNomeArquivo,
+            contrato_pdf_mime_type: contratoPdfMimeType,
+            contrato_envio: String(contrato_envio || 'email').trim().toLowerCase(),
+        });
     } catch (err) {
         await conn.rollback();
         console.error(err);

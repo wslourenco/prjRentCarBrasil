@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Car, Users, UserCheck, Briefcase,
-  DollarSign, Settings, LogOut, ChevronRight
+  DollarSign, Settings, LogOut, ChevronRight, CreditCard
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -69,6 +69,11 @@ export default function Sidebar() {
             <NavLink to="/financeiro" className={({ isActive }) => isActive ? 'active' : ''}>
               <DollarSign size={16} /> Despesas, Lucros e Gráficos
             </NavLink>
+            {(isAdmin || isLocador) && (
+              <NavLink to="/aquisicoes" className={({ isActive }) => isActive ? 'active' : ''}>
+                <CreditCard size={16} /> Aquisição de Veículos
+              </NavLink>
+            )}
           </>
         )}
 
