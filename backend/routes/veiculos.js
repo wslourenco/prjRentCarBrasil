@@ -27,14 +27,6 @@ async function getLocadorIdForUser(usuario) {
     return null;
 }
 
-async function getLocatarioIdByUserEmail(email) {
-    const [rows] = await pool.query(
-        'SELECT id FROM locatarios WHERE email = ? ORDER BY id ASC LIMIT 1',
-        [email]
-    );
-    return rows[0]?.id || null;
-}
-
 async function ensureLocadorContext(req, res) {
     if (req.usuario?.perfil !== 'locador') return null;
 
@@ -63,17 +55,14 @@ router.get('/', async (req, res) => {
             sql += ' WHERE v.locador_id = ?';
             params.push(locadorId);
         } else if (req.usuario?.perfil === 'locatario') {
-            const locatarioId = await getLocatarioIdByUserEmail(req.usuario.email);
-            if (!locatarioId) return res.json([]);
-
             sql += `
-                WHERE EXISTS (
-                    SELECT 1
-                    FROM locacoes ll
-                    WHERE ll.veiculo_id = v.id AND ll.locatario_id = ?
-                )
+                WHERE v.locador_id IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM locacoes ll
+                      WHERE ll.veiculo_id = v.id AND ll.status = 'ativa'
+                  )
             `;
-            params.push(locatarioId);
         }
 
         sql += ' ORDER BY v.placa';
@@ -104,17 +93,14 @@ router.get('/:id', async (req, res) => {
             sql += ' AND v.locador_id = ?';
             params.push(locadorId);
         } else if (req.usuario?.perfil === 'locatario') {
-            const locatarioId = await getLocatarioIdByUserEmail(req.usuario.email);
-            if (!locatarioId) return res.status(404).json({ erro: 'Veículo não encontrado.' });
-
             sql += `
-                AND EXISTS (
+                AND v.locador_id IS NOT NULL
+                AND NOT EXISTS (
                     SELECT 1
                     FROM locacoes ll
-                    WHERE ll.veiculo_id = v.id AND ll.locatario_id = ?
+                    WHERE ll.veiculo_id = v.id AND ll.status = 'ativa'
                 )
             `;
-            params.push(locatarioId);
         }
 
         const [rows] = await pool.query(sql, params);

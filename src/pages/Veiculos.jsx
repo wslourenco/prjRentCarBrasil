@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Plus, Edit2, Trash2, X, Car } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Car, Check } from 'lucide-react';
 
 const COMBUSTIVEIS = ['Flex','Gasolina','Etanol','Diesel','GNV','Elétrico','Híbrido'];
 const TRANSMISSOES = ['Manual','Automático','Semi-automático','CVT'];
@@ -64,7 +64,6 @@ export default function Veiculos() {
   }, [listaVeiculos, filtroCategoria]);
 
   const [erroCrud, setErroCrud] = useState('');
-  const podeCadastrarLocatario = usuarioLogado?.perfil === 'locatario';
 
   function abrirNovo() { setForm(EMPTY_VEICULO); setEditId(null); setModal(true); setErroCrud(''); }
   function abrirEditar(v) { setForm({ ...EMPTY_VEICULO, ...v }); setEditId(v.id); setModal(true); setErroCrud(''); }
@@ -109,14 +108,6 @@ export default function Veiculos() {
             <button type="button" className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')}>Cards</button>
             <button type="button" className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>Tabela</button>
           </div>
-          {podeCadastrarLocatario && (
-            <button
-              className="btn btn-primary"
-              onClick={abrirNovo}
-            >
-              <Plus size={16} /> Cadastrar veículo para locação
-            </button>
-          )}
           {podeGerenciar && (
             <button className="btn btn-primary" onClick={abrirNovo}><Plus size={16} /> Novo Veículo</button>
           )}
@@ -241,7 +232,7 @@ export default function Veiculos() {
         </div>
       )}
 
-      {(podeGerenciar || podeCadastrarLocatario) && modal && (
+      {podeGerenciar && modal && (
         <div className="modal-overlay" onClick={fecharModal}>
           <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
@@ -328,6 +319,18 @@ export default function Veiculos() {
 
                 {erroCrud && <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 8 }}>{erroCrud}</p>}
                 <div className="form-actions">
+                  {podeGerenciar && editId && (
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() => {
+                        setConfirmarExclusao(editId);
+                        fecharModal();
+                      }}
+                    >
+                      <Trash2 size={14} /> Excluir veículo
+                    </button>
+                  )}
                   <button type="button" className="btn btn-outline" onClick={fecharModal}><X size={14} /> Cancelar</button>
                   <button type="submit" className="btn btn-primary"><Check size={14} /> {editId ? 'Salvar' : 'Cadastrar'}</button>
                 </div>
