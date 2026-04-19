@@ -290,8 +290,23 @@ export default function Financeiro() {
     return Array.from(new Set(montadoras)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   }, [veiculos]);
 
+  const idsVeiculosEscopoLocador = useMemo(
+    () => new Set(veiculos.map(v => String(v.id))),
+    [veiculos]
+  );
+
+  const despesasReceitasEscopo = useMemo(() => {
+    if (usuarioLogado?.perfil !== 'locador') return despesasReceitas;
+    return despesasReceitas.filter(d => idsVeiculosEscopoLocador.has(String(d.veiculoId || '')));
+  }, [despesasReceitas, idsVeiculosEscopoLocador, usuarioLogado?.perfil]);
+
+  const locacoesEscopo = useMemo(() => {
+    if (usuarioLogado?.perfil !== 'locador') return locacoes;
+    return locacoes.filter(loc => idsVeiculosEscopoLocador.has(String(loc.veiculoId || '')));
+  }, [locacoes, idsVeiculosEscopoLocador, usuarioLogado?.perfil]);
+
   const lista = useMemo(() => {
-    const filtrada = despesasReceitas.filter(d => {
+    const filtrada = despesasReceitasEscopo.filter(d => {
       if (filtroTipo && d.tipo !== filtroTipo) return false;
       if (filtroVeiculo && String(d.veiculoId) !== String(filtroVeiculo)) return false;
       if (filtroMontadora) {
@@ -317,7 +332,7 @@ export default function Financeiro() {
     });
 
     return ordenada;
-  }, [despesasReceitas, filtroTipo, filtroVeiculo, filtroMontadora, ordenacao, marcaPorVeiculoId]);
+  }, [despesasReceitasEscopo, filtroTipo, filtroVeiculo, filtroMontadora, ordenacao, marcaPorVeiculoId]);
 
   const totalReceitas = lista.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
   const totalDespesas = lista.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
@@ -336,7 +351,7 @@ export default function Financeiro() {
       return true;
     };
 
-    const locacoesFiltradas = locacoes.filter(loc => {
+    const locacoesFiltradas = locacoesEscopo.filter(loc => {
       if (graficoStatus && loc.status !== graficoStatus) return false;
       if (graficoVeiculo && String(loc.veiculoId) !== String(graficoVeiculo)) return false;
       if (graficoMontadora) {
@@ -346,7 +361,7 @@ export default function Financeiro() {
       return withinPeriodo(loc.dataInicio);
     });
 
-    const movimentosFiltrados = despesasReceitas
+    const movimentosFiltrados = despesasReceitasEscopo
       .filter(d => withinPeriodo(d.data))
       .filter(d => {
         if (!graficoMontadora) return true;
@@ -372,7 +387,7 @@ export default function Financeiro() {
       };
     }).filter(item => item.receita > 0 || item.despesa > 0)
       .sort((a, b) => b.lucro - a.lucro);
-  }, [despesasReceitas, locacoes, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoMontadora, marcaPorVeiculoId]);
+  }, [despesasReceitasEscopo, locacoesEscopo, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoMontadora, marcaPorVeiculoId]);
 
   const despesasDetalhadasCategoria = useMemo(() => {
     const dataInicioMs = graficoInicio ? new Date(`${graficoInicio}T00:00:00`).getTime() : null;
@@ -387,7 +402,7 @@ export default function Financeiro() {
       return true;
     };
 
-    const locacoesFiltradasPorStatus = locacoes.filter(loc => {
+    const locacoesFiltradasPorStatus = locacoesEscopo.filter(loc => {
       if (!graficoStatus) return false;
       if (loc.status !== graficoStatus) return false;
       if (graficoVeiculo && String(loc.veiculoId) !== String(graficoVeiculo)) return false;
@@ -400,7 +415,7 @@ export default function Financeiro() {
 
     const veiculosComStatus = new Set(locacoesFiltradasPorStatus.map(loc => String(loc.veiculoId)));
 
-    const acumulado = despesasReceitas
+    const acumulado = despesasReceitasEscopo
       .filter(d => d.tipo === 'despesa' && withinPeriodo(d.data))
       .filter(d => {
         if (graficoVeiculo && String(d.veiculoId || '') !== String(graficoVeiculo)) return false;
@@ -428,7 +443,7 @@ export default function Financeiro() {
         ticketMedio: item.quantidade > 0 ? item.valor / item.quantidade : 0,
       }))
       .sort((a, b) => b.valor - a.valor);
-  }, [despesasReceitas, locacoes, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoMontadora, marcaPorVeiculoId]);
+  }, [despesasReceitasEscopo, locacoesEscopo, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoMontadora, marcaPorVeiculoId]);
 
   const lucrosDetalhados = useMemo(() => {
     return resumoPorLocacao
@@ -446,8 +461,8 @@ export default function Financeiro() {
   const lucrosDetalhadosGrafico = useMemo(() => lucrosDetalhados.slice(0, 12), [lucrosDetalhados]);
 
   const locacaoById = useMemo(() => {
-    return new Map(locacoes.map(loc => [String(loc.id), loc]));
-  }, [locacoes]);
+    return new Map(locacoesEscopo.map(loc => [String(loc.id), loc]));
+  }, [locacoesEscopo]);
 
   const sufixoExportacao = useMemo(() => {
     const periodoInicio = graficoInicio || 'inicio-aberto';

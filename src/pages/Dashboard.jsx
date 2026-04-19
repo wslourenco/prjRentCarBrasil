@@ -323,15 +323,30 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
   const [filtroCategoriaFinanceiro, setFiltroCategoriaFinanceiro] = useState('');
   const [filtroCategoriaVeiculo, setFiltroCategoriaVeiculo] = useState('');
 
+  const idsVeiculosLocador = useMemo(
+    () => new Set(veiculos.map(v => String(v.id))),
+    [veiculos]
+  );
+
+  const locacoesEscopo = useMemo(
+    () => locacoes.filter(l => idsVeiculosLocador.has(String(l.veiculoId || ''))),
+    [locacoes, idsVeiculosLocador]
+  );
+
+  const despesasReceitasEscopo = useMemo(
+    () => despesasReceitas.filter(d => idsVeiculosLocador.has(String(d.veiculoId || ''))),
+    [despesasReceitas, idsVeiculosLocador]
+  );
+
   const categoriasFinanceiras = useMemo(() => {
-    const categorias = despesasReceitas.map(categoriaLancamento);
+    const categorias = despesasReceitasEscopo.map(categoriaLancamento);
     return Array.from(new Set(categorias)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [despesasReceitas]);
+  }, [despesasReceitasEscopo]);
 
   const despesasReceitasFiltradas = useMemo(() => {
-    if (!filtroCategoriaFinanceiro) return despesasReceitas;
-    return despesasReceitas.filter((item) => categoriaLancamento(item) === filtroCategoriaFinanceiro);
-  }, [despesasReceitas, filtroCategoriaFinanceiro]);
+    if (!filtroCategoriaFinanceiro) return despesasReceitasEscopo;
+    return despesasReceitasEscopo.filter((item) => categoriaLancamento(item) === filtroCategoriaFinanceiro);
+  }, [despesasReceitasEscopo, filtroCategoriaFinanceiro]);
 
   const categoriasVeiculo = useMemo(() => {
     const categorias = veiculos
@@ -347,7 +362,7 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
 
   const idsVeiculosFiltrados = useMemo(() => new Set(veiculosFiltrados.map(v => String(v.id))), [veiculosFiltrados]);
 
-  const locacoesAtivas = locacoes.filter(l => l.status === 'ativa' && idsVeiculosFiltrados.has(String(l.veiculoId)));
+  const locacoesAtivas = locacoesEscopo.filter(l => l.status === 'ativa' && idsVeiculosFiltrados.has(String(l.veiculoId)));
   const totalReceitas = despesasReceitasFiltradas.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
   const totalDespesas = despesasReceitasFiltradas.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
   const lucro = totalReceitas - totalDespesas;

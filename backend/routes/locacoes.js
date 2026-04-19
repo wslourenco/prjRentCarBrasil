@@ -15,6 +15,15 @@ async function getLocadorIdForUser(usuario) {
         if (rowsByEmail[0]?.id) return rowsByEmail[0].id;
     }
 
+    const userId = Number(usuario?.id || 0);
+    if (Number.isInteger(userId) && userId > 0) {
+        const [rowsById] = await pool.query(
+            'SELECT id FROM locadores WHERE id = ? LIMIT 1',
+            [userId]
+        );
+        if (rowsById[0]?.id) return rowsById[0].id;
+    }
+
     return null;
 }
 
