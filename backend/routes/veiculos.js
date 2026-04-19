@@ -57,11 +57,6 @@ router.get('/', async (req, res) => {
         } else if (req.usuario?.perfil === 'locatario') {
             sql += `
                 WHERE v.locador_id IS NOT NULL
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM locacoes ll
-                      WHERE ll.veiculo_id = v.id AND ll.status = 'ativa'
-                  )
             `;
         }
 
@@ -95,11 +90,6 @@ router.get('/:id', async (req, res) => {
         } else if (req.usuario?.perfil === 'locatario') {
             sql += `
                 AND v.locador_id IS NOT NULL
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM locacoes ll
-                    WHERE ll.veiculo_id = v.id AND ll.status = 'ativa'
-                )
             `;
         }
 
