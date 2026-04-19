@@ -20,15 +20,38 @@ async function getLocadorIdForUser(usuario) {
     return null;
 }
 
-async function getLocatarioIdByUserEmail(email) {
+async function getLocatarioIdByUserEmail(email, db = pool) {
     const emailNormalizado = String(email || '').trim();
     if (!emailNormalizado) return null;
 
-    const [rows] = await pool.query(
+    const [rows] = await db.query(
         'SELECT id FROM locatarios WHERE LOWER(TRIM(email)) = LOWER(?) ORDER BY id ASC LIMIT 1',
         [emailNormalizado]
     );
     return rows[0]?.id || null;
+}
+
+async function ensureLocatarioForUser(conn, usuario) {
+    const email = String(usuario?.email || '').trim();
+    if (!email) return null;
+
+    const existente = await getLocatarioIdByUserEmail(email, conn);
+    if (existente) return existente;
+
+    const nome = String(usuario?.nome || '').trim() || 'Locatario';
+
+    try {
+        const [result] = await conn.query(
+            'INSERT INTO locatarios (tipo, nome, email, categoria_cnh, motorist_app) VALUES (?,?,?,?,?)',
+            ['fisica', nome, email, 'B', 0]
+        );
+        return result.insertId;
+    } catch (err) {
+        if (err?.code !== 'ER_DUP_ENTRY') throw err;
+
+        const afterDuplicate = await getLocatarioIdByUserEmail(email, conn);
+        return afterDuplicate || null;
+    }
 }
 
 function computeEndDate(dataInicio, periodicidade, quantidade) {
@@ -257,7 +280,7 @@ router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
         }
 
         if (req.usuario?.perfil === 'locatario') {
-            const locatarioIdByEmail = await getLocatarioIdByUserEmail(req.usuario.email);
+            const locatarioIdByEmail = await ensureLocatarioForUser(conn, req.usuario);
             if (!locatarioIdByEmail) {
                 await conn.rollback();
                 return res.status(403).json({ erro: 'Não foi encontrado cadastro de locatário vinculado a este usuário.' });
