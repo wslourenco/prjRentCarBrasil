@@ -37,6 +37,13 @@ export default function Veiculos() {
   const [locandoVeiculo, setLocandoVeiculo] = useState(false);
   const [erroLocacaoRapida, setErroLocacaoRapida] = useState('');
   const [sucessoLocacaoRapida, setSucessoLocacaoRapida] = useState('');
+  // Novos estados para combos do locatário
+  const [dataInicioLocacao, setDataInicioLocacao] = useState(() => {
+    const hoje = new Date().toISOString().split('T')[0];
+    return hoje;
+  });
+  const [periodicidadeLocacao, setPeriodicidadeLocacao] = useState('semanal');
+  const [quantidadePeriodosLocacao, setQuantidadePeriodosLocacao] = useState(1);
 
   const podeGerenciar = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador';
   const listaVeiculos = veiculos;
@@ -101,12 +108,11 @@ export default function Veiculos() {
     setSucessoLocacaoRapida('');
     setLocandoVeiculo(true);
     try {
-      const hoje = new Date().toISOString().split('T')[0];
       await addLocacao({
         veiculoId: veiculoSelecionadoLocacao,
-        dataInicio: hoje,
-        periodicidade: 'semanal',
-        quantidadePeriodos: 1,
+        dataInicio: dataInicioLocacao,
+        periodicidade: periodicidadeLocacao,
+        quantidadePeriodos: quantidadePeriodosLocacao,
         condicoes: 'Locação iniciada pela tela Veículos',
       });
       setVeiculoSelecionadoLocacao('');
@@ -134,6 +140,38 @@ export default function Veiculos() {
           )}
         </div>
         <div className="flex" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Combos extras para locatário */}
+          {usuarioLogado?.perfil === 'locatario' && (
+            <>
+              <input
+                type="date"
+                aria-label="Início da locação"
+                value={dataInicioLocacao}
+                onChange={e => setDataInicioLocacao(e.target.value)}
+                style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13 }}
+              />
+              <select
+                aria-label="Periodicidade"
+                value={periodicidadeLocacao}
+                onChange={e => setPeriodicidadeLocacao(e.target.value)}
+                style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13 }}
+              >
+                <option value="semanal">Semanal</option>
+                <option value="quinzenal">Quinzenal</option>
+                <option value="mensal">Mensal</option>
+              </select>
+              <select
+                aria-label="Quantidade de períodos"
+                value={quantidadePeriodosLocacao}
+                onChange={e => setQuantidadePeriodosLocacao(Number(e.target.value))}
+                style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13 }}
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
+                  <option key={n} value={n}>{n} {periodicidadeLocacao === 'semanal' ? 'semana(s)' : periodicidadeLocacao === 'quinzenal' ? 'quinzena(s)' : 'mês(es)'}</option>
+                ))}
+              </select>
+            </>
+          )}
           <select aria-label="Categoria do Veículo" value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
             <option value="">Todas as montadoras</option>
             {categoriasVeiculo.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
