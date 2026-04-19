@@ -219,6 +219,9 @@ export function AppProvider({ children }) {
     async function addLocacao(dados) {
         const nova = await api.post('/locacoes', locacaoToApi(dados));
         setLocacoes(prev => [...prev, locacaoFromApi(nova)]);
+        // Recarrega veículos para refletir disponibilidade atual após nova locação.
+        const listaVeiculosAtualizada = await api.get('/veiculos');
+        setVeiculos(listaVeiculosAtualizada.map(veiculoFromApi));
         const fin = await api.get('/financeiro');
         setDespesasReceitas(fin.map(financeiroFromApi));
         return locacaoFromApi(nova);
