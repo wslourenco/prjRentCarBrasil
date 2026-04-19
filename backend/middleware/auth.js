@@ -1,5 +1,18 @@
 const jwt = require('jsonwebtoken');
 
+function normalizeUserPayload(payload) {
+    const source = payload?.usuario && typeof payload.usuario === 'object'
+        ? payload.usuario
+        : payload;
+
+    return {
+        id: source?.id ?? payload?.id ?? null,
+        nome: source?.nome ?? payload?.nome ?? '',
+        email: source?.email ?? payload?.email ?? '',
+        perfil: source?.perfil ?? payload?.perfil ?? '',
+    };
+}
+
 function authMiddleware(req, res, next) {
     const header = req.headers['authorization'];
     if (!header) return res.status(401).json({ erro: 'Token não fornecido.' });
@@ -13,7 +26,7 @@ function authMiddleware(req, res, next) {
 
     try {
         const payload = jwt.verify(token, jwtSecret);
-        req.usuario = payload;
+        req.usuario = normalizeUserPayload(payload);
         next();
     } catch {
         return res.status(401).json({ erro: 'Token inválido ou expirado.' });

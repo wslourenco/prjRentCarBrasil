@@ -31,6 +31,18 @@ async function getLocatarioIdByUserEmail(email, db = pool) {
     return rows[0]?.id || null;
 }
 
+async function getLocatarioIdByUserId(userId, db = pool) {
+    const id = Number(userId || 0);
+    if (!id) return null;
+
+    const [rows] = await db.query(
+        'SELECT id FROM locatarios WHERE id = ? LIMIT 1',
+        [id]
+    );
+
+    return rows[0]?.id || null;
+}
+
 async function getUserIdentity(conn, usuario) {
     const identity = {
         id: Number(usuario?.id || 0) || null,
@@ -56,10 +68,13 @@ async function getUserIdentity(conn, usuario) {
 async function ensureLocatarioForUser(conn, usuario) {
     const identity = await getUserIdentity(conn, usuario);
     const email = identity.email;
-    if (!email) return null;
+    const existenteByEmail = email ? await getLocatarioIdByUserEmail(email, conn) : null;
+    if (existenteByEmail) return existenteByEmail;
 
-    const existente = await getLocatarioIdByUserEmail(email, conn);
-    if (existente) return existente;
+    const existenteById = identity.id ? await getLocatarioIdByUserId(identity.id, conn) : null;
+    if (existenteById) return existenteById;
+
+    if (!email) return null;
 
     const nome = identity.nome || 'Locatario';
 
