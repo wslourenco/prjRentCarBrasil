@@ -9,19 +9,10 @@ async function getLocadorIdForUser(usuario) {
     const email = String(usuario?.email || '').trim();
     if (email) {
         const [rowsByEmail] = await pool.query(
-            'SELECT id FROM locadores WHERE email = ? ORDER BY id ASC LIMIT 1',
+            'SELECT id FROM locadores WHERE LOWER(email) = LOWER(?) ORDER BY id ASC LIMIT 1',
             [email]
         );
         if (rowsByEmail[0]?.id) return rowsByEmail[0].id;
-    }
-
-    const userId = Number(usuario?.id || 0);
-    if (Number.isInteger(userId) && userId > 0) {
-        const [rowsById] = await pool.query(
-            'SELECT id FROM locadores WHERE id = ? LIMIT 1',
-            [userId]
-        );
-        if (rowsById[0]?.id) return rowsById[0].id;
     }
 
     return null;
