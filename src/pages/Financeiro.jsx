@@ -296,12 +296,18 @@ export default function Financeiro() {
   }, [veiculos]);
 
   const montadorasDisponiveis = useMemo(() => {
-    const montadoras = veiculos
+    const montadorasVeiculos = veiculos
       .map(v => String(v.marca || '').trim())
       .filter(Boolean);
 
+    const montadorasFinanceiro = despesasReceitas
+      .map(d => String(d.marcaVeiculo || '').trim())
+      .filter(Boolean);
+
+    const montadoras = [...montadorasVeiculos, ...montadorasFinanceiro];
+
     return Array.from(new Set(montadoras)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [veiculos]);
+  }, [veiculos, despesasReceitas]);
 
   const idsVeiculosEscopoLocador = useMemo(
     () => new Set(veiculos.map(v => String(v.id))),
@@ -323,7 +329,7 @@ export default function Financeiro() {
       if (filtroTipo && d.tipo !== filtroTipo) return false;
       if (filtroVeiculo && String(d.veiculoId) !== String(filtroVeiculo)) return false;
       if (filtroMontadora) {
-        const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || '';
+        const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || String(d.marcaVeiculo || '').trim();
         if (normalizarMontadora(montadora) !== normalizarMontadora(filtroMontadora)) return false;
       }
       return true;
@@ -378,7 +384,7 @@ export default function Financeiro() {
       .filter(d => withinPeriodo(d.data))
       .filter(d => {
         if (!graficoMontadora) return true;
-        const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || '';
+        const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || String(d.marcaVeiculo || '').trim();
         return normalizarMontadora(montadora) === normalizarMontadora(graficoMontadora);
       });
 
@@ -433,7 +439,7 @@ export default function Financeiro() {
       .filter(d => {
         if (graficoVeiculo && String(d.veiculoId || '') !== String(graficoVeiculo)) return false;
         if (graficoMontadora) {
-          const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || '';
+          const montadora = marcaPorVeiculoId.get(String(d.veiculoId || '')) || String(d.marcaVeiculo || '').trim();
           if (normalizarMontadora(montadora) !== normalizarMontadora(graficoMontadora)) return false;
         }
         if (graficoStatus && !veiculosComStatus.has(String(d.veiculoId || ''))) return false;

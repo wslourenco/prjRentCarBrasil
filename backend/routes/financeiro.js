@@ -43,6 +43,7 @@ router.get('/', async (req, res) => {
         let sql = `
             SELECT dr.*,
                    v.placa AS placa_veiculo,
+                 v.marca AS marca_veiculo,
                    CONCAT(v.marca, ' ', v.modelo) AS nome_veiculo,
                    lt.nome AS nome_locatario,
                    COALESCE(col.razao_social, col.nome) AS nome_colaborador

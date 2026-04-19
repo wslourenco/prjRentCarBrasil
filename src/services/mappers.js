@@ -241,6 +241,7 @@ export function financeiroFromApi(r) {
         colaboradorId: r.colaborador_id,
         observacoes: r.observacoes || '',
         placaVeiculo: r.placa_veiculo,
+        marcaVeiculo: r.marca_veiculo || '',
         nomeVeiculo: r.nome_veiculo,
         nomeLocatario: r.nome_locatario,
         nomeColaborador: r.nome_colaborador,
