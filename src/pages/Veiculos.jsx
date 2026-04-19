@@ -172,6 +172,8 @@ export default function Veiculos() {
 
       if (resposta?.contratoEmailStatus === 'enviado') {
         setSucessoLocacaoRapida('Contrato enviado por e-mail em PDF para assinatura via gov.br e locação criada com sucesso.');
+      } else if (resposta?.contratoEmailStatus === 'nao_configurado') {
+        setSucessoLocacaoRapida('Locação criada com sucesso. O envio automático do contrato por e-mail está desativado (SMTP não configurado).');
       } else if (resposta?.contratoEmailStatus === 'falhou') {
         setSucessoLocacaoRapida('Locação criada, porém houve falha no envio do e-mail do contrato.');
         setErroLocacaoRapida(resposta?.contratoEmailMensagem || 'Não foi possível enviar o contrato por e-mail.');

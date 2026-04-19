@@ -195,7 +195,9 @@ function criarTransporter() {
 async function enviarContratoPorEmail({ para, nomeLocatario, pdfBuffer, nomeArquivo }) {
     const transporter = criarTransporter();
     if (!transporter) {
-        throw new Error('SMTP nao configurado. Defina SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASS.');
+        const err = new Error('SMTP nao configurado. Defina SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASS.');
+        err.code = 'SMTP_NOT_CONFIGURED';
+        throw err;
     }
 
     const from = process.env.MAIL_FROM || process.env.SMTP_USER;
@@ -461,8 +463,13 @@ router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
                 emailStatus = 'enviado';
             } catch (emailErr) {
                 console.error('Falha ao enviar contrato por e-mail:', emailErr);
-                emailStatus = 'falhou';
-                emailMensagem = emailErr?.message || 'Nao foi possivel enviar o e-mail do contrato.';
+                if (emailErr?.code === 'SMTP_NOT_CONFIGURED') {
+                    emailStatus = 'nao_configurado';
+                    emailMensagem = 'E-mail do contrato não enviado porque o SMTP não está configurado.';
+                } else {
+                    emailStatus = 'falhou';
+                    emailMensagem = emailErr?.message || 'Nao foi possivel enviar o e-mail do contrato.';
+                }
             }
         }
 
