@@ -9,7 +9,17 @@ const cors = require('cors');
 
 const app = express();
 
-const defaultOrigins = ['http://localhost:5173', 'https://prjsislove-web.vercel.app'];
+const defaultOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'http://127.0.0.1:5175',
+    'http://127.0.0.1:5176',
+    'https://prjsislove-web.vercel.app'
+];
 const configuredOrigins = String(process.env.CORS_ORIGIN || '')
     .split(',')
     .map(v => v.trim())
@@ -47,6 +57,8 @@ app.use(cors((req, callback) => {
         if (!origin) return allow();
         if (allowedOrigins.includes(origin)) return allow();
         if (/^https:\/\/.*\.vercel\.app$/i.test(origin)) return allow();
+        // Permite qualquer porta do localhost ou 127.0.0.1 em desenvolvimento
+        if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return allow();
 
         if (allowSameHostOrigin) {
             const originHost = getOriginHost(origin);

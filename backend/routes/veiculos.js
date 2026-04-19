@@ -1,3 +1,4 @@
+const axios = require('axios');
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
@@ -16,6 +17,41 @@ async function getLocadorIdForUser(usuario) {
     }
 
     return null;
+}
+
+async function buscarValorFipe(marca, modelo, ano) {
+    try {
+        const marcasResp = await axios.get('https://fipe.parallelum.com.br/api/v2/cars/brands');
+        const marcaObj = marcasResp.data.find(m => m.name.toLowerCase() === String(marca).toLowerCase());
+        if (!marcaObj) return null;
+
+        const modelosResp = await axios.get(`https://fipe.parallelum.com.br/api/v2/cars/brands/${marcaObj.code}/models`);
+        const modeloObj = modelosResp.data.find(m => m.name.toLowerCase() === String(modelo).toLowerCase());
+        if (!modeloObj) return null;
+
+        const anosResp = await axios.get(`https://fipe.parallelum.com.br/api/v2/cars/brands/${marcaObj.code}/models/${modeloObj.code}/years`);
+        let anoObj = anosResp.data.find(a => String(a.code).includes(String(ano)));
+        if (!anoObj) anoObj = anosResp.data[0];
+        if (!anoObj) return null;
+
+        const valorResp = await axios.get(`https://fipe.parallelum.com.br/api/v2/cars/brands/${marcaObj.code}/models/${modeloObj.code}/years/${anoObj.code}`);
+        return valorResp.data.price || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function normalizarValorFipe(valor) {
+    if (typeof valor === 'number') return Number.isFinite(valor) ? valor : null;
+    if (typeof valor !== 'string') return null;
+
+    const limpo = valor
+        .replace(/[^\d,.-]/g, '')
+        .replace(/\.(?=\d{3}(\D|$))/g, '')
+        .replace(',', '.');
+
+    const numero = Number(limpo);
+    return Number.isFinite(numero) ? numero : null;
 }
 
 async function ensureLocadorContext(req, res) {
@@ -57,7 +93,27 @@ router.get('/', async (req, res) => {
 
         sql += ' ORDER BY v.placa';
 
+        // Busca todos os veículos
         const [rows] = await pool.query(sql, params);
+
+        // Atualiza valor FIPE de cada veículo
+        for (const v of rows) {
+            if (!v.marca || !v.modelo || !v.ano_modelo) continue;
+
+            try {
+                const valorFipeBruto = await buscarValorFipe(v.marca, v.modelo, v.ano_modelo);
+                const valorFipe = normalizarValorFipe(valorFipeBruto);
+                const valorAtual = normalizarValorFipe(v.valor_fipe);
+
+                if (valorFipe != null && valorFipe !== valorAtual) {
+                    await pool.query('UPDATE veiculos SET valor_fipe = ? WHERE id = ?', [valorFipe, v.id]);
+                    v.valor_fipe = valorFipe;
+                }
+            } catch (updateError) {
+                console.warn(`Falha ao atualizar FIPE do veículo ${v.id}:`, updateError?.message || updateError);
+            }
+        }
+
         return res.json(rows);
     } catch (err) {
         console.error(err);

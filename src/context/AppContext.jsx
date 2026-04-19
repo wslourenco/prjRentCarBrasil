@@ -12,6 +12,17 @@ import {
 
 const AppContext = createContext(null);
 
+function getSettledValue(result, mapper) {
+    if (result?.status !== 'fulfilled') return [];
+    const value = Array.isArray(result.value) ? result.value : [];
+    return mapper ? value.map(mapper) : value;
+}
+
+function getSettledError(...results) {
+    const rejected = results.find(result => result?.status === 'rejected');
+    return rejected?.reason?.message || null;
+}
+
 export function AppProvider({ children }) {
     const [usuarioLogado, setUsuarioLogado] = useState(() => {
         try {
@@ -40,7 +51,7 @@ export function AppProvider({ children }) {
             const perfil = usuarioLogado?.perfil;
 
             if (perfil === 'admin') {
-                const [l, lt, col, v, fin, loc] = await Promise.all([
+                const [l, lt, col, v, fin, loc] = await Promise.allSettled([
                     api.get('/locadores'),
                     api.get('/locatarios'),
                     api.get('/colaboradores'),
@@ -48,17 +59,18 @@ export function AppProvider({ children }) {
                     api.get('/financeiro'),
                     api.get('/locacoes'),
                 ]);
-                setLocadores(l.map(locadorFromApi));
-                setLocatarios(lt.map(locatarioFromApi));
-                setColaboradores(col.map(colaboradorFromApi));
-                setVeiculos(v.map(veiculoFromApi));
-                setDespesasReceitas(fin.map(financeiroFromApi));
-                setLocacoes(loc.map(locacaoFromApi));
+                setLocadores(getSettledValue(l, locadorFromApi));
+                setLocatarios(getSettledValue(lt, locatarioFromApi));
+                setColaboradores(getSettledValue(col, colaboradorFromApi));
+                setVeiculos(getSettledValue(v, veiculoFromApi));
+                setDespesasReceitas(getSettledValue(fin, financeiroFromApi));
+                setLocacoes(getSettledValue(loc, locacaoFromApi));
+                setErro(getSettledError(l, lt, col, v, fin, loc));
                 return;
             }
 
             if (perfil === 'locador') {
-                const [v, fin, loc] = await Promise.all([
+                const [v, fin, loc] = await Promise.allSettled([
                     api.get('/veiculos'),
                     api.get('/financeiro'),
                     api.get('/locacoes'),
@@ -66,14 +78,15 @@ export function AppProvider({ children }) {
                 setLocadores([]);
                 setLocatarios([]);
                 setColaboradores([]);
-                setVeiculos(v.map(veiculoFromApi));
-                setDespesasReceitas(fin.map(financeiroFromApi));
-                setLocacoes(loc.map(locacaoFromApi));
+                setVeiculos(getSettledValue(v, veiculoFromApi));
+                setDespesasReceitas(getSettledValue(fin, financeiroFromApi));
+                setLocacoes(getSettledValue(loc, locacaoFromApi));
+                setErro(getSettledError(v, fin, loc));
                 return;
             }
 
             if (perfil === 'locatario') {
-                const [v, loc, fin] = await Promise.all([
+                const [v, loc, fin] = await Promise.allSettled([
                     api.get('/veiculos'),
                     api.get('/locacoes'),
                     api.get('/financeiro'),
@@ -81,9 +94,10 @@ export function AppProvider({ children }) {
                 setLocadores([]);
                 setLocatarios([]);
                 setColaboradores([]);
-                setDespesasReceitas(fin.map(financeiroFromApi));
-                setVeiculos(v.map(veiculoFromApi));
-                setLocacoes(loc.map(locacaoFromApi));
+                setDespesasReceitas(getSettledValue(fin, financeiroFromApi));
+                setVeiculos(getSettledValue(v, veiculoFromApi));
+                setLocacoes(getSettledValue(loc, locacaoFromApi));
+                setErro(getSettledError(v, loc, fin));
                 return;
             }
 
@@ -114,8 +128,8 @@ export function AppProvider({ children }) {
         return usuarioNormalizado;
     }
 
-    async function register(nome, email, senha, perfil) {
-        const dados = await api.post('/auth/register', { nome, email, senha, perfil });
+    async function register(nome, email, senha, perfil, tipoDocumento, documento) {
+        const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento });
         const usuarioNormalizado = usuarioFromApi(dados.usuario || {});
         localStorage.setItem('sislove_token', dados.token);
         localStorage.setItem('sislove_usuario', JSON.stringify(usuarioNormalizado));
