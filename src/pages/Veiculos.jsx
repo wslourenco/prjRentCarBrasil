@@ -26,7 +26,7 @@ const EMPTY_VEICULO = {
 };
 
 export default function Veiculos() {
-  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, locacoes, usuarioLogado } = useApp();
+  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, locacoes, usuarioLogado, addLocacao } = useApp();
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_VEICULO);
@@ -34,6 +34,9 @@ export default function Veiculos() {
   const [view, setView] = useState('cards'); // 'cards' | 'table'
   const [filtroCategoria, setFiltroCategoria] = useState('');
   const [veiculoSelecionadoLocacao, setVeiculoSelecionadoLocacao] = useState('');
+  const [locandoVeiculo, setLocandoVeiculo] = useState(false);
+  const [erroLocacaoRapida, setErroLocacaoRapida] = useState('');
+  const [sucessoLocacaoRapida, setSucessoLocacaoRapida] = useState('');
 
   const podeGerenciar = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador';
   const listaVeiculos = veiculos;
@@ -88,6 +91,33 @@ export default function Veiculos() {
     return l ? (l.tipo === 'juridica' ? l.razaoSocial : l.nome) : '-';
   }
 
+  async function handleLocacaoRapida() {
+    if (!veiculoSelecionadoLocacao) {
+      setErroLocacaoRapida('Selecione um veículo para locar.');
+      return;
+    }
+
+    setErroLocacaoRapida('');
+    setSucessoLocacaoRapida('');
+    setLocandoVeiculo(true);
+    try {
+      const hoje = new Date().toISOString().split('T')[0];
+      await addLocacao({
+        veiculoId: veiculoSelecionadoLocacao,
+        dataInicio: hoje,
+        periodicidade: 'semanal',
+        quantidadePeriodos: 1,
+        condicoes: 'Locação iniciada pela tela Veículos',
+      });
+      setVeiculoSelecionadoLocacao('');
+      setSucessoLocacaoRapida('Veículo locado com sucesso.');
+    } catch (err) {
+      setErroLocacaoRapida(err.message || 'Não foi possível locar o veículo selecionado.');
+    } finally {
+      setLocandoVeiculo(false);
+    }
+  }
+
   return (
     <div className="page-content">
       <div className="flex-between mb-24">
@@ -96,6 +126,12 @@ export default function Veiculos() {
           <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>
             {listaVeiculosFiltrada.length} veículo(s) {usuarioLogado?.perfil === 'locatario' ? 'disponível(is) para locação' : 'cadastrado(s)'}
           </p>
+          {usuarioLogado?.perfil === 'locatario' && erroLocacaoRapida && (
+            <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 6 }}>{erroLocacaoRapida}</p>
+          )}
+          {usuarioLogado?.perfil === 'locatario' && sucessoLocacaoRapida && (
+            <p style={{ color: 'var(--success)', fontSize: 12, marginTop: 6 }}>{sucessoLocacaoRapida}</p>
+          )}
         </div>
         <div className="flex" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <select aria-label="Categoria do Veículo" value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
@@ -106,6 +142,15 @@ export default function Veiculos() {
             <button type="button" className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')}>Cards</button>
             <button type="button" className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>Tabela</button>
           </div>
+          {usuarioLogado?.perfil === 'locatario' && (
+            <button
+              className="btn btn-primary"
+              disabled={!veiculoSelecionadoLocacao || locandoVeiculo}
+              onClick={handleLocacaoRapida}
+            >
+              <Check size={16} /> {locandoVeiculo ? 'Locando...' : 'Locar Veículo'}
+            </button>
+          )}
           {podeGerenciar && (
             <button className="btn btn-primary" onClick={abrirNovo}><Plus size={16} /> Novo Veículo</button>
           )}
