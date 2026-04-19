@@ -26,7 +26,7 @@ const EMPTY_VEICULO = {
 };
 
 export default function Veiculos() {
-  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, locacoes, usuarioLogado, addLocacao } = useApp();
+  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, usuarioLogado, addLocacao } = useApp();
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_VEICULO);
