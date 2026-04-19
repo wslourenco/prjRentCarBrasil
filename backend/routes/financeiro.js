@@ -19,9 +19,12 @@ async function getLocadorIdForUser(usuario) {
 }
 
 async function getLocatarioIdByUserEmail(email) {
+    const emailNormalizado = String(email || '').trim();
+    if (!emailNormalizado) return null;
+
     const [rows] = await pool.query(
-        'SELECT id FROM locatarios WHERE email = ? ORDER BY id ASC LIMIT 1',
-        [email]
+        'SELECT id FROM locatarios WHERE LOWER(TRIM(email)) = LOWER(?) ORDER BY id ASC LIMIT 1',
+        [emailNormalizado]
     );
     return rows[0]?.id || null;
 }
