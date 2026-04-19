@@ -184,7 +184,7 @@ export default function Veiculos() {
               <div className="veiculo-card-footer">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   {usuarioLogado?.perfil === 'locatario' && (
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--gray-600)' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 12, fontSize: 12, color: 'var(--gray-600)' }}>
                       <input
                         type="checkbox"
                         checked={String(veiculoSelecionadoLocacao) === String(v.id)}
