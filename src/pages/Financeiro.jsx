@@ -484,6 +484,7 @@ export default function Financeiro() {
 
       return {
         id: loc.id,
+        veiculoId: loc.veiculoId,
         titulo: `${loc.nomeVeiculo || loc.placa || `Locação #${loc.id}`}`,
         receita: receitas,
         despesa: despesas,
@@ -508,6 +509,7 @@ export default function Financeiro() {
         if (!acc[chave]) {
           acc[chave] = {
             id: `veiculo-${String(mov.veiculoId || '')}-${String(mov.locatarioId || '0')}`,
+            veiculoId: mov.veiculoId,
             titulo: nomeVeiculo(mov.veiculoId),
             receita: 0,
             despesa: 0,
@@ -521,7 +523,29 @@ export default function Financeiro() {
         return acc;
       }, {});
 
-    return [...resumoBase, ...Object.values(resumoFallback)]
+    const resumoConsolidadoPorVeiculo = [...resumoBase, ...Object.values(resumoFallback)]
+      .reduce((acc, item) => {
+        const chave = String(item.veiculoId || item.id || '');
+        if (!chave) return acc;
+
+        if (!acc[chave]) {
+          acc[chave] = {
+            id: `veiculo-${chave}`,
+            veiculoId: item.veiculoId,
+            titulo: item.titulo,
+            receita: 0,
+            despesa: 0,
+            lucro: 0,
+          };
+        }
+
+        acc[chave].receita += Number(item.receita || 0);
+        acc[chave].despesa = Math.max(Number(acc[chave].despesa || 0), Number(item.despesa || 0));
+        acc[chave].lucro = acc[chave].receita - acc[chave].despesa;
+        return acc;
+      }, {});
+
+    return Object.values(resumoConsolidadoPorVeiculo)
       .filter(item => item.receita > 0 || item.despesa > 0)
       .sort((a, b) => b.lucro - a.lucro);
   }, [despesasReceitasEscopo, locacoesEscopo, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoMontadora, marcaPorVeiculoId, nomeVeiculo]);
