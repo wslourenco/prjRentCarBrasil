@@ -378,6 +378,23 @@ export default function Financeiro() {
     return locacoes.filter(loc => idsVeiculosEscopoLocador.has(String(loc.veiculoId || '')));
   }, [locacoes, idsVeiculosEscopoLocador, usuarioLogado?.perfil]);
 
+  const idsVeiculosLocatarioAtivos = useMemo(() => {
+    if (usuarioLogado?.perfil !== 'locatario') return null;
+
+    return new Set(
+      locacoesEscopo
+        .filter((loc) => String(loc.status || '').toLowerCase() === 'ativa')
+        .map((loc) => String(loc.veiculoId || ''))
+        .filter(Boolean)
+    );
+  }, [locacoesEscopo, usuarioLogado?.perfil]);
+
+  const veiculosCombo = useMemo(() => {
+    if (usuarioLogado?.perfil !== 'locatario') return veiculosCatalogo;
+    const ativos = idsVeiculosLocatarioAtivos || new Set();
+    return veiculosCatalogo.filter((v) => ativos.has(String(v.id || '')));
+  }, [veiculosCatalogo, usuarioLogado?.perfil, idsVeiculosLocatarioAtivos]);
+
   const lista = useMemo(() => {
     const valorOrdenacao = (item, campo) => {
       if (campo === 'data') {
@@ -886,6 +903,22 @@ export default function Financeiro() {
   }, [graficoVeiculo]);
 
   useEffect(() => {
+    const idsCombo = new Set(veiculosCombo.map((v) => String(v.id || '')));
+
+    if (filtroVeiculo && !idsCombo.has(String(filtroVeiculo))) {
+      setFiltroVeiculo('');
+    }
+
+    if (graficoVeiculo && !idsCombo.has(String(graficoVeiculo))) {
+      setGraficoVeiculo('');
+    }
+
+    if (form.veiculoId && !idsCombo.has(String(form.veiculoId))) {
+      setForm((prev) => ({ ...prev, veiculoId: '' }));
+    }
+  }, [veiculosCombo, filtroVeiculo, graficoVeiculo, form.veiculoId]);
+
+  useEffect(() => {
     if (primeiroRefreshFiltro.current) {
       primeiroRefreshFiltro.current = false;
       return;
@@ -999,7 +1032,7 @@ export default function Financeiro() {
             <label>Veículo</label>
             <select value={graficoVeiculo} onChange={e => setGraficoVeiculo(e.target.value)}>
               <option value="">Todos os veículos</option>
-              {veiculosCatalogo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
+              {veiculosCombo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ minWidth: 140 }}>
@@ -1154,7 +1187,7 @@ export default function Financeiro() {
           </select>
           <select value={filtroVeiculo} onChange={e => setFiltroVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, flex: 1, maxWidth: 280 }}>
             <option value="">Todos os veículos</option>
-            {veiculosCatalogo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
+            {veiculosCombo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
           </select>
           <select value={filtroMontadora} onChange={e => atualizarFiltroMontadora(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, flex: 1, maxWidth: 260 }}>
             <option value="">Todas as montadoras</option>
@@ -1298,7 +1331,7 @@ export default function Financeiro() {
                     <div className="form-group form-full"><label>Veículo</label>
                       <select {...f('veiculoId')} required={usuarioLogado?.perfil === 'locador'}>
                         <option value="">Selecione {usuarioLogado?.perfil === 'locador' ? '(obrigatório para locador)' : '(opcional)'}</option>
-                        {veiculosCatalogo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
+                        {veiculosCombo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
                       </select>
                     </div>
                     {form.tipo === 'receita' && (
