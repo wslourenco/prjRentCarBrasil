@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "npm run test:frontend && npm run test:backend",
+    "test:frontend": "node --test src/services/*.test.js",
+    "test:backend": "node --test backend/tests/*.test.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "build:prod": "vite build && cd backend && npm install --omit=dev"

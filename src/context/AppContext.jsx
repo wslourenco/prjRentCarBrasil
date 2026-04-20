@@ -121,16 +121,16 @@ export function AppProvider({ children }) {
     // ── Auth ──────────────────────────────────────────────
     async function login(email, senha) {
         const dados = await api.post('/auth/login', { email, senha });
-        const usuarioNormalizado = usuarioFromApi(dados.usuario || {});
+        const usuarioNormalizado = usuarioFromApi({ ...(dados.usuario || {}), locatario: dados.locatario || null });
         localStorage.setItem('sislove_token', dados.token);
         localStorage.setItem('sislove_usuario', JSON.stringify(usuarioNormalizado));
         setUsuarioLogado(usuarioNormalizado);
         return usuarioNormalizado;
     }
 
-    async function register(nome, email, senha, perfil, tipoDocumento, documento) {
-        const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento });
-        const usuarioNormalizado = usuarioFromApi(dados.usuario || {});
+    async function register(nome, email, senha, perfil, tipoDocumento, documento, rg) {
+        const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento, rg });
+        const usuarioNormalizado = usuarioFromApi({ ...(dados.usuario || {}), locatario: dados.locatario || null });
         localStorage.setItem('sislove_token', dados.token);
         localStorage.setItem('sislove_usuario', JSON.stringify(usuarioNormalizado));
         setUsuarioLogado(usuarioNormalizado);

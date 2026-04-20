@@ -4,8 +4,77 @@ const pool = require('../db');
 const { authMiddleware, requireProfiles } = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
+const AdmZip = require('adm-zip');
+const { buildContractClauses } = require('../utils/contract-clauses');
 
 router.use(authMiddleware);
+
+const DOCX_CANDIDATES = [
+    path.resolve(__dirname, '../../contrato_frota_estruturado.docx'),
+    path.resolve(__dirname, '../../SisLoVe.docx'),
+    path.resolve(__dirname, '../templates/contrato_frota_estruturado.docx'),
+];
+
+let clausulasContratoCache = null;
+let clausulasContratoCachePath = null;
+let clausulasContratoCacheMtime = null;
+
+function decodeXmlEntities(value) {
+    return String(value || '')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'");
+}
+
+function extractParagraphsFromDocx(docxPath) {
+    const zip = new AdmZip(docxPath);
+    const entry = zip.getEntry('word/document.xml');
+    if (!entry) return [];
+
+    const xml = entry.getData().toString('utf8');
+    const paragraphs = Array.from(xml.matchAll(/<w:p[\s\S]*?<\/w:p>/g));
+
+    return paragraphs
+        .map(match => {
+            const p = String(match[0] || '');
+            const withBreaks = p
+                .replace(/<w:tab\s*\/?>/g, '\t')
+                .replace(/<w:br\s*\/?>/g, '\n')
+                .replace(/<w:cr\s*\/?>/g, '\n');
+
+            const raw = withBreaks
+                .replace(/<[^>]+>/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            return decodeXmlEntities(raw);
+        })
+        .filter(Boolean);
+}
+
+function readContractClauses() {
+    const existingPath = DOCX_CANDIDATES.find(filePath => fs.existsSync(filePath));
+    if (!existingPath) return [];
+
+    const stats = fs.statSync(existingPath);
+    const changed =
+        clausulasContratoCachePath !== existingPath ||
+        clausulasContratoCacheMtime !== stats.mtimeMs;
+
+    if (!changed && Array.isArray(clausulasContratoCache)) {
+        return clausulasContratoCache;
+    }
+
+    const paragraphs = extractParagraphsFromDocx(existingPath);
+    clausulasContratoCache = paragraphs;
+    clausulasContratoCachePath = existingPath;
+    clausulasContratoCacheMtime = stats.mtimeMs;
+    return paragraphs;
+}
 
 async function getLocadorIdForUser(usuario) {
     const email = String(usuario?.email || '').trim();
@@ -134,6 +203,8 @@ async function gerarContratoPdfBuffer(dados) {
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({ margin: 42 });
         const chunks = [];
+        const clausulasComplementares = readContractClauses();
+        const clausulas = buildContractClauses(clausulasComplementares);
 
         doc.on('data', chunk => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -157,9 +228,39 @@ async function gerarContratoPdfBuffer(dados) {
         doc.text(`Quantidade de periodos: ${dados.locacao.quantidadePeriodos || '-'}`);
         doc.moveDown();
 
-        doc.text('Condicoes e clausulas:', { underline: true });
+        doc.text('Condicoes adicionais da locacao:', { underline: true });
         doc.moveDown(0.4);
-        doc.text(dados.locacao.condicoes || 'Locacao conforme termos acordados entre as partes.');
+        doc.text(dados.locacao.condicoes || 'Sem observacoes adicionais.');
+        doc.moveDown();
+
+        doc.text('Clausulas contratuais:', { underline: true });
+        doc.moveDown(0.4);
+
+        doc.fontSize(10);
+        clausulas.forEach((linha, idx) => {
+            if (!linha) {
+                doc.moveDown(0.35);
+                return;
+            }
+
+            const isCabecalho = /^CLAUSULA\s+\d+/i.test(linha);
+            const isItem = /^\d+(\.\d+)?\s/.test(linha);
+            const isBullet = /^-\s/.test(linha);
+
+            if (isCabecalho) {
+                doc.font('Helvetica-Bold');
+                doc.text(linha, { align: 'left' });
+                doc.font('Helvetica');
+            } else if (isItem || isBullet) {
+                doc.text(linha, { align: 'justify' });
+            } else {
+                const prefixo = `${idx + 1}. `;
+                doc.text(`${prefixo}${linha}`, { align: 'justify' });
+            }
+
+            doc.moveDown(0.25);
+        });
+        doc.fontSize(12);
         doc.moveDown();
 
         doc.text('Assinatura digital:', { underline: true });

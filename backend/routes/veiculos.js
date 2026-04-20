@@ -86,8 +86,7 @@ router.get('/', async (req, res) => {
                 LEFT JOIN locacoes lc_ativa
                   ON lc_ativa.veiculo_id = v.id
                  AND lc_ativa.status = 'ativa'
-                WHERE v.locador_id IS NOT NULL
-                  AND lc_ativa.id IS NULL
+                WHERE lc_ativa.id IS NULL
             `;
         }
 
@@ -140,7 +139,6 @@ router.get('/:id', async (req, res) => {
             params.push(locadorId);
         } else if (req.usuario?.perfil === 'locatario') {
             sql += `
-                AND v.locador_id IS NOT NULL
                 AND NOT EXISTS (
                     SELECT 1
                     FROM locacoes lc_ativa

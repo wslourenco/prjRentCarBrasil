@@ -36,6 +36,26 @@ const EMPTY_CONTRATO = {
   observacoesContrato: '',
 };
 
+function montarEnderecoLocatario(locatario = {}) {
+  const partesRua = [locatario.endereco, locatario.numero]
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+    .join(', ');
+
+  const partesComplemento = [locatario.complemento, locatario.bairro]
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+    .join(' - ');
+
+  const partesCidade = [locatario.cidade, locatario.estado]
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+    .join('/');
+
+  const partes = [partesRua, partesComplemento, partesCidade, String(locatario.cep || '').trim()].filter(Boolean);
+  return partes.join(' | ');
+}
+
 export default function Veiculos() {
   const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, usuarioLogado, addLocacao, carregando, erro } = useApp();
     const [fipeAtualizada, setFipeAtualizada] = useState(false);
@@ -140,13 +160,48 @@ export default function Veiculos() {
 
     setErroLocacaoRapida('');
     setSucessoLocacaoRapida('');
+    const dadosLocatario = usuarioLogado?.locatario || null;
     setContratoForm({
       ...EMPTY_CONTRATO,
-      nome: usuarioLogado?.nome || '',
-      email: usuarioLogado?.email || '',
+      nome: dadosLocatario?.nome || usuarioLogado?.nome || '',
+      email: dadosLocatario?.email || usuarioLogado?.email || '',
+      cpf: dadosLocatario?.cpf || (usuarioLogado?.tipoDocumento === 'cpf' ? usuarioLogado?.documento : '') || '',
+      rg: dadosLocatario?.rg || usuarioLogado?.rg || '',
+      telefone: dadosLocatario?.celular || dadosLocatario?.telefone || '',
+      endereco: montarEnderecoLocatario(dadosLocatario || {}),
     });
     setModalContrato(true);
   }
+
+  React.useEffect(() => {
+    if (!modalContrato || usuarioLogado?.perfil !== 'locatario') return;
+
+    let cancelado = false;
+
+    (async () => {
+      try {
+        const me = await api.get('/auth/me');
+        if (cancelado) return;
+
+        const locatario = me?.locatario || null;
+        setContratoForm(prev => ({
+          ...prev,
+          nome: (locatario?.nome || me?.nome || prev.nome || '').trim(),
+          email: (locatario?.email || me?.email || prev.email || '').trim(),
+          cpf: (locatario?.cpf || (me?.tipo_documento === 'cpf' ? me?.documento : '') || prev.cpf || '').trim(),
+          rg: (locatario?.rg || me?.rg || prev.rg || '').trim(),
+          telefone: (locatario?.celular || locatario?.telefone || prev.telefone || '').trim(),
+          endereco: montarEnderecoLocatario(locatario || {}) || prev.endereco || '',
+        }));
+      } catch {
+        // Mantém os dados já preenchidos localmente caso a atualização remota falhe.
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [modalContrato, usuarioLogado?.perfil]);
 
   function fecharModalContratoLocacao() {
     setModalContrato(false);
@@ -380,21 +435,25 @@ export default function Veiculos() {
             </button>
           )}
           {usuarioLogado?.perfil === 'locatario' && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '6px 10px',
-                borderRadius: 999,
-                fontSize: 12,
-                fontWeight: 600,
-                border: '1px solid var(--gray-300)',
-                background: 'var(--gray-100)',
-                color: 'var(--gray-700)',
-              }}
-            >
-              Contrato: {contratoEnvio === 'download' ? 'Download PDF' : 'Enviar por e-mail'}
-            </span>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 12, color: 'var(--gray-600)', fontWeight: 600 }}>
+                Contrato:
+              </label>
+              <select
+                value={contratoEnvio}
+                onChange={e => setContratoEnvio(e.target.value)}
+                style={{
+                  padding: '7px 12px',
+                  border: '1.5px solid var(--gray-300)',
+                  borderRadius: 'var(--radius)',
+                  fontSize: 13,
+                  minWidth: 190,
+                }}
+              >
+                <option value="email">Enviar por e-mail</option>
+                <option value="download">Baixar PDF</option>
+              </select>
+            </div>
           )}
           {podeGerenciar && (
             <button className="btn btn-primary" onClick={abrirNovo}><Plus size={16} /> Novo Veículo</button>

@@ -29,6 +29,27 @@ async function getLocatarioIdByUserEmail(email) {
     return rows[0]?.id || null;
 }
 
+async function getLocatarioIdByUserId(userId) {
+    const id = Number(userId || 0);
+    if (!id) return null;
+
+    const [rows] = await pool.query(
+        'SELECT id FROM locatarios WHERE id = ? LIMIT 1',
+        [id]
+    );
+    return rows[0]?.id || null;
+}
+
+async function getLocatarioIdFromUsuario(usuario) {
+    const byEmail = await getLocatarioIdByUserEmail(usuario?.email);
+    if (byEmail) return byEmail;
+
+    const byUserId = await getLocatarioIdByUserId(usuario?.id);
+    if (byUserId) return byUserId;
+
+    return null;
+}
+
 async function ensureLocadorContext(req, res) {
     if (req.usuario?.perfil !== 'locador') return null;
 
@@ -63,7 +84,7 @@ router.get('/', async (req, res) => {
             sql += ' WHERE v.locador_id = ?';
             params.push(locadorId);
         } else if (req.usuario?.perfil === 'locatario') {
-            const locatarioId = await getLocatarioIdByUserEmail(req.usuario.email);
+            const locatarioId = await getLocatarioIdFromUsuario(req.usuario);
             if (!locatarioId) return res.json([]);
 
             sql += `
@@ -107,7 +128,7 @@ router.get('/:id', async (req, res) => {
             `;
             params.push(locadorId);
         } else if (req.usuario?.perfil === 'locatario') {
-            const locatarioId = await getLocatarioIdByUserEmail(req.usuario.email);
+            const locatarioId = await getLocatarioIdFromUsuario(req.usuario);
             if (!locatarioId) return res.status(404).json({ erro: 'Lançamento não encontrado.' });
 
             sql = `

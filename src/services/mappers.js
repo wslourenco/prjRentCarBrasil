@@ -302,6 +302,25 @@ export function usuarioFromApi(r) {
         perfil: r.perfil || 'locador',
         tipoDocumento: r.tipo_documento || 'cpf',
         documento: r.documento || '',
+        rg: r.rg || '',
+        locatario: r.locatario
+            ? {
+                id: r.locatario.id || null,
+                nome: r.locatario.nome || '',
+                email: r.locatario.email || '',
+                cpf: r.locatario.cpf || '',
+                rg: r.locatario.rg || '',
+                telefone: r.locatario.telefone || '',
+                celular: r.locatario.celular || '',
+                endereco: r.locatario.endereco || '',
+                numero: r.locatario.numero || '',
+                complemento: r.locatario.complemento || '',
+                bairro: r.locatario.bairro || '',
+                cidade: r.locatario.cidade || '',
+                estado: r.locatario.estado || '',
+                cep: r.locatario.cep || '',
+            }
+            : null,
         ativo: r.ativo ?? 1,
     });
 }

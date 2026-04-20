@@ -4,11 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const { authMiddleware } = require('../middleware/auth');
-
-function sanitizeProfile(profile) {
-    const normalized = String(profile || '').trim().toLowerCase();
-    return ['locador', 'locatario'].includes(normalized) ? normalized : '';
-}
+const { sanitizeProfile, normalizeDocumento, requiresRg } = require('../utils/auth-utils');
 
 function buildTokenPayload(usuario) {
     return { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil };
@@ -28,15 +24,55 @@ function buildJwtToken(usuario) {
     return jwt.sign(buildTokenPayload(usuario), jwtSecret, { expiresIn });
 }
 
+async function getLocatarioProfileForUser(db, usuario) {
+    const perfil = String(usuario?.perfil || '').toLowerCase();
+    if (perfil !== 'locatario') return null;
+
+    const email = String(usuario?.email || '').trim();
+    const userId = Number(usuario?.id || 0);
+
+    let rows = [];
+    if (email) {
+        const [byEmail] = await db.query(
+            `SELECT id, nome, email, cpf, rg, telefone, celular, endereco, numero, complemento, bairro, cidade, estado, cep
+             FROM locatarios
+             WHERE LOWER(TRIM(email)) = LOWER(?)
+             ORDER BY id ASC
+             LIMIT 1`,
+            [email]
+        );
+        rows = byEmail;
+    }
+
+    if ((!rows || rows.length === 0) && userId) {
+        const [byId] = await db.query(
+            `SELECT id, nome, email, cpf, rg, telefone, celular, endereco, numero, complemento, bairro, cidade, estado, cep
+             FROM locatarios
+             WHERE id = ?
+             LIMIT 1`,
+            [userId]
+        );
+        rows = byId;
+    }
+
+    if (!rows || rows.length === 0) return null;
+    return rows[0];
+}
+
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
-    const { nome, email, senha, perfil, tipoDocumento, documento } = req.body;
+    const { nome, email, senha, perfil, tipoDocumento, documento, rg } = req.body;
     const perfilEscolhido = sanitizeProfile(perfil);
     const tipoDoc = (tipoDocumento === 'cnpj') ? 'cnpj' : 'cpf';
-    const doc = String(documento || '').replace(/\D/g, '');
+    const doc = normalizeDocumento(documento);
+    const rgLimpo = String(rg || '').trim();
 
     if (!nome || !email || !senha || !perfilEscolhido || !tipoDoc || !doc) {
         return res.status(400).json({ erro: 'Nome, email, senha, perfil, tipo de documento e documento são obrigatórios.' });
+    }
+
+    if (requiresRg(tipoDoc) && !rgLimpo) {
+        return res.status(400).json({ erro: 'RG é obrigatório para cadastro com CPF.' });
     }
 
     const conn = await pool.getConnection();
@@ -57,21 +93,30 @@ router.post('/register', async (req, res) => {
 
         if (perfilEscolhido === 'locador') {
             await conn.query(
-                'INSERT INTO locadores (tipo, nome, email) VALUES (?,?,?)',
-                ['fisica', nome, email]
+                'INSERT INTO locadores (tipo, nome, email, cpf, rg) VALUES (?,?,?,?,?)',
+                ['fisica', nome, email, tipoDoc === 'cpf' ? doc : null, rgLimpo || null]
             );
         } else {
             await conn.query(
-                'INSERT INTO locatarios (tipo, nome, email, categoria_cnh, motorist_app) VALUES (?,?,?,?,?)',
-                ['fisica', nome, email, 'B', 0]
+                'INSERT INTO locatarios (tipo, nome, email, cpf, rg, categoria_cnh, motorist_app) VALUES (?,?,?,?,?,?,?)',
+                ['fisica', nome, email, tipoDoc === 'cpf' ? doc : null, rgLimpo || null, 'B', 0]
             );
         }
 
         await conn.commit();
 
-        const usuario = { id: result.insertId, nome, email, perfil: perfilEscolhido, tipo_documento: tipoDoc, documento: doc };
+        const usuario = {
+            id: result.insertId,
+            nome,
+            email,
+            perfil: perfilEscolhido,
+            tipo_documento: tipoDoc,
+            documento: doc,
+            rg: rgLimpo || null,
+        };
         const token = buildJwtToken(usuario);
-        return res.status(201).json({ token, usuario });
+        const locatario = await getLocatarioProfileForUser(conn, usuario);
+        return res.status(201).json({ token, usuario, locatario });
     } catch (err) {
         await conn.rollback();
         console.error(err);
@@ -105,6 +150,8 @@ router.post('/login', async (req, res) => {
 
         const token = buildJwtToken(usuario);
 
+        const locatario = await getLocatarioProfileForUser(pool, usuario);
+
         res.json({
             token,
             usuario: {
@@ -113,8 +160,10 @@ router.post('/login', async (req, res) => {
                 email: usuario.email,
                 perfil: usuario.perfil,
                 tipo_documento: usuario.tipo_documento,
-                documento: usuario.documento
-            }
+                documento: usuario.documento,
+                rg: locatario?.rg || null,
+            },
+            locatario,
         });
     } catch (err) {
         console.error(err);
@@ -136,7 +185,13 @@ router.get('/me', authMiddleware, async (req, res) => {
             [req.usuario.id]
         );
         if (rows.length === 0) return res.status(404).json({ erro: 'Usuário não encontrado.' });
-        res.json(rows[0]);
+        const usuario = rows[0];
+        const locatario = await getLocatarioProfileForUser(pool, usuario);
+        res.json({
+            ...usuario,
+            rg: locatario?.rg || null,
+            locatario,
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ erro: 'Erro interno no servidor.' });

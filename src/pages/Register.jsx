@@ -6,7 +6,7 @@ import { Car, Eye, EyeOff, UserPlus } from 'lucide-react';
 export default function Register() {
   const { register } = useApp();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ nome: '', email: '', senha: '', perfil: 'locatario', tipoDocumento: 'cpf', documento: '' });
+  const [form, setForm] = useState({ nome: '', email: '', senha: '', perfil: 'locatario', tipoDocumento: 'cpf', documento: '', rg: '' });
   function maskDoc(value, tipo) {
     let v = value.replace(/\D/g, '');
     if (tipo === 'cpf') {
@@ -63,7 +63,7 @@ export default function Register() {
     setErro('');
     setCarregando(true);
     try {
-      const usuario = await register(form.nome, form.email, form.senha, form.perfil, form.tipoDocumento, form.documento);
+      const usuario = await register(form.nome, form.email, form.senha, form.perfil, form.tipoDocumento, form.documento, form.rg);
       navigate(usuario.perfil === 'locatario' ? '/painel' : '/dashboard');
     } catch (e) {
       setErro(e.message || 'Não foi possível criar sua conta.');
@@ -116,6 +116,19 @@ export default function Register() {
                         </span>
                       )}
                     </div>
+
+                    {form.tipoDocumento === 'cpf' && (
+                      <div className="form-group" style={{ marginBottom: 14 }}>
+                        <label>RG</label>
+                        <input
+                          type="text"
+                          placeholder="Digite o RG"
+                          value={form.rg}
+                          onChange={e => setForm({ ...form, rg: e.target.value })}
+                          required
+                        />
+                      </div>
+                    )}
           <div className="form-group" style={{ marginBottom: 14 }}>
             <label>Nome</label>
             <input
