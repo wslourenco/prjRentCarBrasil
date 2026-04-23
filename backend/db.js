@@ -3,10 +3,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
-const shouldLoadEnvLocal =
-    String(process.env.LOAD_ENV_LOCAL || '').toLowerCase() === 'true' ||
-    String(process.env.VERCEL || '').toLowerCase() === '1' ||
-    String(process.env.VERCEL || '').toLowerCase() === 'true';
+const shouldLoadEnvLocal = String(process.env.LOAD_ENV_LOCAL || '').toLowerCase() === 'true';
 
 if (shouldLoadEnvLocal) {
     dotenv.config({ path: path.join(__dirname, '.env.local') });

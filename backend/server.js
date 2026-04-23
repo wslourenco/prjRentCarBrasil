@@ -17,8 +17,7 @@ const defaultOrigins = [
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
     'http://127.0.0.1:5175',
-    'http://127.0.0.1:5176',
-    'https://prjsislove-web.vercel.app'
+    'http://127.0.0.1:5176'
 ];
 const configuredOrigins = String(process.env.CORS_ORIGIN || '')
     .split(',')
@@ -56,7 +55,6 @@ app.use(cors((req, callback) => {
         // Permite chamadas sem Origin (ex: health checks/server-to-server)
         if (!origin) return allow();
         if (allowedOrigins.includes(origin)) return allow();
-        if (/^https:\/\/.*\.vercel\.app$/i.test(origin)) return allow();
         // Permite qualquer porta do localhost ou 127.0.0.1 em desenvolvimento
         if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return allow();
 
@@ -90,11 +88,8 @@ app.use('/api/configuracoes', require('./routes/configuracoes'));
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
-// Servir frontend React (produção)
-// No Vercel, preferimos o build atual em dist para evitar artefatos estáticos antigos.
-const distDir = path.join(__dirname, '..', 'dist');
-const legacyPublicDir = path.join(__dirname, 'public');
-const publicDir = process.env.VERCEL ? distDir : legacyPublicDir;
+// Servir frontend React
+const publicDir = path.join(__dirname, 'public');
 app.use((req, res, next) => {
     if (!req.path.startsWith('/api') && (!path.extname(req.path) || req.path.endsWith('.html'))) {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -131,10 +126,8 @@ app.use((err, req, res, _next) => {
 
 const PORT = process.env.PORT || 3001;
 
-if (!process.env.VERCEL) {
-    app.listen(PORT, () => {
-        console.log(`SisLoVe API rodando na porta ${PORT}`);
-    });
-}
+app.listen(PORT, () => {
+    console.log(`SisLoVe API rodando na porta ${PORT}`);
+});
 
 module.exports = app;
