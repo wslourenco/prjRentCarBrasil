@@ -202,6 +202,8 @@ export default function Financeiro() {
   const [atualizandoPesquisa, setAtualizandoPesquisa] = useState(false);
   const primeiroRefreshFiltro = useRef(true);
 
+  const isAuxiliar = usuarioLogado?.perfil === 'auxiliar';
+
   function atualizarFiltroMontadora(valor) {
     setFiltroMontadora(valor);
     setGraficoMontadora(valor);
@@ -1025,6 +1027,8 @@ export default function Financeiro() {
         </div>
       </div>
 
+      {/* Gráficos - oculto para Auxiliar Administrativo */}
+      {!isAuxiliar && (
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <span className="card-title">Gráficos de Pizza 3D por Locação</span>
@@ -1103,6 +1107,7 @@ export default function Financeiro() {
           </>
         )}
       </div>
+      )} {/* fim !isAuxiliar gráficos pizza */}
 
       <div className="grafico-detalhes-grid" style={{ marginBottom: 16 }}>
         <div className="card grafico-detalhe-card">
@@ -1149,6 +1154,7 @@ export default function Financeiro() {
           )}
         </div>
 
+        {!isAuxiliar && (
         <div className="card grafico-detalhe-card">
           <div className="card-header">
             <span className="card-title">Lucros Detalhados por Locação</span>
@@ -1211,6 +1217,7 @@ export default function Financeiro() {
             </>
           )}
         </div>
+        )} {/* fim !isAuxiliar lucros detalhados */}
       </div>
 
       <div className="card">

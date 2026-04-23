@@ -17,10 +17,11 @@ CREATE TABLE IF NOT EXISTS usuarios (
   nome        VARCHAR(120) NOT NULL,
   email       VARCHAR(120) NOT NULL UNIQUE,
   senha_hash  VARCHAR(255) NOT NULL,
-  perfil      ENUM('admin','locador','locatario') NOT NULL DEFAULT 'locatario',
+  perfil      ENUM('admin','locador','locatario','auxiliar') NOT NULL DEFAULT 'locatario',
   tipo_documento ENUM('cpf','cnpj') NOT NULL DEFAULT 'cpf',
-  documento   VARCHAR(20) NOT NULL,
+  documento   VARCHAR(20) NOT NULL DEFAULT '',
   ativo       TINYINT(1) NOT NULL DEFAULT 1,
+  senha_deve_trocar TINYINT(1) NOT NULL DEFAULT 0,
   criado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -136,6 +137,7 @@ CREATE TABLE IF NOT EXISTS colaboradores (
   valor_contrato   DECIMAL(10,2),
   vencimento_contrato DATE,
   observacoes      TEXT,
+  auxiliares_json  TEXT,
   criado_em        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -224,6 +226,46 @@ CREATE TABLE IF NOT EXISTS despesas_receitas (
   CONSTRAINT fk_dr_locatario   FOREIGN KEY (locatario_id)   REFERENCES locatarios(id)    ON DELETE SET NULL,
   CONSTRAINT fk_dr_colaborador FOREIGN KEY (colaborador_id) REFERENCES colaboradores(id) ON DELETE SET NULL
 );
+
+-- ----------------------------------------------------------------
+-- Migrações incrementais (ambientes já existentes)
+-- ----------------------------------------------------------------
+ALTER TABLE usuarios
+  MODIFY COLUMN perfil ENUM('admin','locador','locatario','auxiliar') NOT NULL DEFAULT 'locatario';
+
+SET @sql_add_senha_troca = (
+  SELECT IF(
+    EXISTS (
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'usuarios'
+        AND COLUMN_NAME = 'senha_deve_trocar'
+    ),
+    'SELECT 1',
+    'ALTER TABLE usuarios ADD COLUMN senha_deve_trocar TINYINT(1) NOT NULL DEFAULT 0 AFTER ativo'
+  )
+);
+PREPARE stmt_add_senha_troca FROM @sql_add_senha_troca;
+EXECUTE stmt_add_senha_troca;
+DEALLOCATE PREPARE stmt_add_senha_troca;
+
+SET @sql_add_auxiliares = (
+  SELECT IF(
+    EXISTS (
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'colaboradores'
+        AND COLUMN_NAME = 'auxiliares_json'
+    ),
+    'SELECT 1',
+    'ALTER TABLE colaboradores ADD COLUMN auxiliares_json TEXT AFTER observacoes'
+  )
+);
+PREPARE stmt_add_auxiliares FROM @sql_add_auxiliares;
+EXECUTE stmt_add_auxiliares;
+DEALLOCATE PREPARE stmt_add_auxiliares;
 
 -- ----------------------------------------------------------------
 -- Dados iniciais: usuário administrador

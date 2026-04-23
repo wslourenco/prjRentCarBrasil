@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
-const PERFIL_LABEL = { admin: 'Administrador', locador: 'Locador', locatario: 'Locatário' };
+const PERFIL_LABEL = { admin: 'Administrador', locador: 'Locador', locatario: 'Locatário', auxiliar: 'Auxiliar Administrativo' };
 
 export default function Sidebar() {
   const { usuarioLogado, logout } = useApp();
@@ -20,6 +20,7 @@ export default function Sidebar() {
   const isAdmin = usuarioLogado?.perfil === 'admin';
   const isLocador = usuarioLogado?.perfil === 'locador';
   const isLocatario = usuarioLogado?.perfil === 'locatario';
+  const isAuxiliar = usuarioLogado?.perfil === 'auxiliar';
 
   return (
     <aside className="sidebar">
@@ -30,7 +31,7 @@ export default function Sidebar() {
 
       <nav className="sidebar-nav">
         <span className="sidebar-section-title">Principal</span>
-        {!isLocatario && (
+        {!isLocatario && !isAuxiliar && (
           <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'active' : ''}>
             <LayoutDashboard size={16} /> Dashboard
           </NavLink>
@@ -57,13 +58,15 @@ export default function Sidebar() {
             <NavLink to="/locatarios" className={({ isActive }) => isActive ? 'active' : ''}>
               <Users size={16} /> Locatários
             </NavLink>
-            <NavLink to="/colaboradores" className={({ isActive }) => isActive ? 'active' : ''}>
-              <Briefcase size={16} /> Colaboradores
-            </NavLink>
           </>
         )}
+        {(isAdmin || isLocador) && (
+          <NavLink to="/colaboradores" className={({ isActive }) => isActive ? 'active' : ''}>
+            <Briefcase size={16} /> Colaboradores
+          </NavLink>
+        )}
 
-        {(isAdmin || isLocador || isLocatario) && (
+        {(isAdmin || isLocador || isLocatario || isAuxiliar) && (
           <>
             <span className="sidebar-section-title">Financeiro</span>
             <NavLink to="/financeiro" className={({ isActive }) => isActive ? 'active' : ''}>

@@ -12,14 +12,16 @@ import Financeiro from './pages/Financeiro';
 import Aquisicoes from './pages/Aquisicoes';
 import Painel from './pages/Painel';
 import Admin from './pages/Admin';
+import TrocarSenha from './pages/TrocarSenha';
 import './styles/global.css';
 
 function RoleRoute({ allowed, element }) {
   const { usuarioLogado } = useApp();
   if (!usuarioLogado) return <Navigate to="/login" replace />;
   if (!allowed.includes(usuarioLogado.perfil)) {
-    const fallback = usuarioLogado.perfil === 'locatario' ? '/veiculos' : '/dashboard';
-    return <Navigate to={fallback} replace />;
+    if (usuarioLogado.perfil === 'locatario') return <Navigate to="/veiculos" replace />;
+    if (usuarioLogado.perfil === 'auxiliar') return <Navigate to="/financeiro" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
   return element;
 }
@@ -27,8 +29,9 @@ function RoleRoute({ allowed, element }) {
 function HomeRedirect() {
   const { usuarioLogado } = useApp();
   if (!usuarioLogado) return <Navigate to="/login" replace />;
-  const target = usuarioLogado.perfil === 'locatario' ? '/veiculos' : '/dashboard';
-  return <Navigate to={target} replace />;
+  if (usuarioLogado.perfil === 'locatario') return <Navigate to="/veiculos" replace />;
+  if (usuarioLogado.perfil === 'auxiliar') return <Navigate to="/financeiro" replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
 function App() {
@@ -38,15 +41,16 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/trocar-senha" element={<TrocarSenha />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<HomeRedirect />} />
             <Route path="dashboard" element={<RoleRoute allowed={['admin', 'locador']} element={<Dashboard />} />} />
             <Route path="painel" element={<RoleRoute allowed={['admin']} element={<Painel />} />} />
             <Route path="locadores" element={<RoleRoute allowed={['admin']} element={<Locadores />} />} />
             <Route path="locatarios" element={<RoleRoute allowed={['admin']} element={<Locatarios />} />} />
-            <Route path="colaboradores" element={<RoleRoute allowed={['admin']} element={<Colaboradores />} />} />
-            <Route path="veiculos" element={<RoleRoute allowed={['admin', 'locador', 'locatario']} element={<Veiculos />} />} />
-            <Route path="financeiro" element={<RoleRoute allowed={['admin', 'locador', 'locatario']} element={<Financeiro />} />} />
+            <Route path="colaboradores" element={<RoleRoute allowed={['admin', 'locador']} element={<Colaboradores />} />} />
+            <Route path="veiculos" element={<RoleRoute allowed={['admin', 'locador', 'locatario', 'auxiliar']} element={<Veiculos />} />} />
+            <Route path="financeiro" element={<RoleRoute allowed={['admin', 'locador', 'locatario', 'auxiliar']} element={<Financeiro />} />} />
             <Route path="aquisicoes" element={<RoleRoute allowed={['admin', 'locador']} element={<Aquisicoes />} />} />
             <Route path="admin" element={<RoleRoute allowed={['admin']} element={<Admin />} />} />
           </Route>

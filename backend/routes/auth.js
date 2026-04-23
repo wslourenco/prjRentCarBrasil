@@ -162,6 +162,7 @@ router.post('/login', async (req, res) => {
                 tipo_documento: usuario.tipo_documento,
                 documento: usuario.documento,
                 rg: locatario?.rg || null,
+                senha_deve_trocar: usuario.senha_deve_trocar ? true : false,
             },
             locatario,
         });
@@ -174,6 +175,26 @@ router.post('/login', async (req, res) => {
             });
         }
         res.status(500).json({ erro: 'Erro interno no servidor.' });
+    }
+});
+
+// PUT /api/auth/trocar-senha
+router.put('/trocar-senha', authMiddleware, async (req, res) => {
+    const { novaSenha } = req.body;
+    if (!novaSenha || String(novaSenha).length < 6) {
+        return res.status(400).json({ erro: 'A nova senha deve ter no mínimo 6 caracteres.' });
+    }
+    try {
+        const hash = await bcrypt.hash(novaSenha, 10);
+        const [result] = await pool.query(
+            'UPDATE usuarios SET senha_hash=?, senha_deve_trocar=0 WHERE id=?',
+            [hash, req.usuario.id]
+        );
+        if (result.affectedRows === 0) return res.status(404).json({ erro: 'Usuário não encontrado.' });
+        res.json({ mensagem: 'Senha alterada com sucesso.' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ erro: 'Erro ao alterar senha.' });
     }
 });
 

@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus, Edit2, Trash2, X, Check } from 'lucide-react';
 
-const CATEGORIAS = ['Seguradora', 'Bloqueador/Rastreador', 'Oficina Mecânica', 'Elétrica Automotiva', 'Borracharia', 'Funilaria/Pintura', 'Despachante', 'Financeira', 'Outro'];
+const CATEGORIAS = ['Seguradora', 'Bloqueador/Rastreador', 'Oficina Mecânica', 'Elétrica Automotiva', 'Borracharia', 'Funilaria/Pintura', 'Despachante', 'Financeira', 'Auxiliar Administrativo', 'Outro'];
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+
+const EMPTY_AUXILIAR = { nome: '', cargo: '', usuario: '', email: '', telefone: '', senha: '' };
 
 const EMPTY = {
   tipo: 'juridica',
@@ -16,6 +18,7 @@ const EMPTY = {
   banco: '', agencia: '', conta: '', pixChave: '',
   contrato: '', valorContrato: '', vencimentoContrato: '',
   observacoes: '',
+  auxiliares: [],
 };
 
 export default function Colaboradores() {
@@ -27,8 +30,14 @@ export default function Colaboradores() {
   const [filtroCategoria, setFiltroCategoria] = useState('');
 
   const [erroCrud, setErroCrud] = useState('');
+  const isAuxiliarCategoria = form.categoria === 'Auxiliar Administrativo';
 
-  function abrirNovo() { setForm(EMPTY); setEditId(null); setModal(true); setErroCrud(''); }
+  function abrirNovo() {
+    setForm({ ...EMPTY, categoria: filtroCategoria || EMPTY.categoria });
+    setEditId(null);
+    setModal(true);
+    setErroCrud('');
+  }
   function abrirEditar(col) { setForm({ ...EMPTY, ...col }); setEditId(col.id); setModal(true); setErroCrud(''); }
   function fecharModal() { setModal(false); setEditId(null); setErroCrud(''); }
 
@@ -46,6 +55,22 @@ export default function Colaboradores() {
 
   function f(field) {
     return { value: form[field] || '', onChange: e => setForm({ ...form, [field]: e.target.value }) };
+  }
+
+  function addAuxiliar() {
+    setForm({ ...form, auxiliares: [...(form.auxiliares || []), { ...EMPTY_AUXILIAR }] });
+  }
+
+  function removeAuxiliar(index) {
+    const lista = [...(form.auxiliares || [])];
+    lista.splice(index, 1);
+    setForm({ ...form, auxiliares: lista });
+  }
+
+  function updateAuxiliar(index, field, value) {
+    const lista = [...(form.auxiliares || [])];
+    lista[index] = { ...lista[index], [field]: value };
+    setForm({ ...form, auxiliares: lista });
   }
 
   const listaFiltrada = filtroCategoria ? colaboradores.filter(c => c.categoria === filtroCategoria) : colaboradores;
@@ -94,7 +119,7 @@ export default function Colaboradores() {
                     <td><span className="badge badge-purple">{c.categoria}</span></td>
                     <td><span className={`badge ${c.tipo === 'fisica' ? 'badge-blue' : 'badge-green'}`}>{c.tipo === 'fisica' ? 'Física' : 'Jurídica'}</span></td>
                     <td>{c.tipo === 'fisica' ? c.cpf : c.cnpj}</td>
-                    <td>{c.celular || c.telefone}</td>
+                    <td>{c.categoria === 'Auxiliar Administrativo' ? `${(c.auxiliares || []).length} auxiliar(es)` : (c.celular || c.telefone)}</td>
                     <td>{c.email}</td>
                     <td>{c.cidade}{c.estado ? `/${c.estado}` : ''}</td>
                     <td>
@@ -140,15 +165,31 @@ export default function Colaboradores() {
                 <div className="form-section">
                   <div className="form-section-title">Tipo e Categoria</div>
                   <div className="form-grid">
-                    <div className="form-group">
-                      <label>Tipo de Pessoa</label>
-                      <div className="toggle-group">
-                        <button type="button" className={form.tipo === 'fisica' ? 'active' : ''} onClick={() => setForm({ ...form, tipo: 'fisica' })}>Pessoa Física</button>
-                        <button type="button" className={form.tipo === 'juridica' ? 'active' : ''} onClick={() => setForm({ ...form, tipo: 'juridica' })}>Pessoa Jurídica</button>
+                    {!isAuxiliarCategoria && (
+                      <div className="form-group">
+                        <label>Tipo de Pessoa</label>
+                        <div className="toggle-group">
+                          <button type="button" className={form.tipo === 'fisica' ? 'active' : ''} onClick={() => setForm({ ...form, tipo: 'fisica' })}>Pessoa Física</button>
+                          <button type="button" className={form.tipo === 'juridica' ? 'active' : ''} onClick={() => setForm({ ...form, tipo: 'juridica' })}>Pessoa Jurídica</button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <div className="form-group"><label>Categoria *</label>
-                      <select required {...f('categoria')}>
+                      <select
+                        required
+                        value={form.categoria}
+                        onChange={e => {
+                          const categoria = e.target.value;
+                          setForm({
+                            ...form,
+                            categoria,
+                            tipo: categoria === 'Auxiliar Administrativo' ? 'fisica' : form.tipo,
+                            razaoSocial: categoria === 'Auxiliar Administrativo' ? '' : form.razaoSocial,
+                            cnpj: categoria === 'Auxiliar Administrativo' ? '' : form.cnpj,
+                            inscEstadual: categoria === 'Auxiliar Administrativo' ? '' : form.inscEstadual,
+                          });
+                        }}
+                      >
                         {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
@@ -156,8 +197,8 @@ export default function Colaboradores() {
                 </div>
 
                 <div className="form-section">
-                  <div className="form-section-title">{form.tipo === 'fisica' ? 'Dados Pessoais' : 'Dados Empresariais'}</div>
-                  {form.tipo === 'fisica' ? (
+                  <div className="form-section-title">{(form.tipo === 'fisica' || isAuxiliarCategoria) ? 'Dados Pessoais' : 'Dados Empresariais'}</div>
+                  {(form.tipo === 'fisica' || isAuxiliarCategoria) ? (
                     <div className="form-grid">
                       <div className="form-group form-full"><label>Nome *</label><input required {...f('nome')} /></div>
                       <div className="form-group"><label>CPF</label><input {...f('cpf')} /></div>
@@ -171,18 +212,84 @@ export default function Colaboradores() {
                   )}
                 </div>
 
-                <div className="form-section">
-                  <div className="form-section-title">Contato Principal</div>
-                  <div className="form-grid">
-                    <div className="form-group form-full"><label>Nome do Contato</label><input {...f('contatoNome')} /></div>
-                    <div className="form-group"><label>Cargo</label><input {...f('contatoCargo')} /></div>
-                    <div className="form-group"><label>Telefone do Contato</label><input {...f('contatoTelefone')} /></div>
-                    <div className="form-group"><label>E-mail *</label><input required type="email" {...f('email')} /></div>
-                    <div className="form-group"><label>Telefone</label><input {...f('telefone')} /></div>
-                    <div className="form-group"><label>Celular / WhatsApp</label><input {...f('whatsapp')} /></div>
-                    <div className="form-group"><label>Site</label><input type="url" {...f('site')} /></div>
+                {form.categoria !== 'Auxiliar Administrativo' && (
+                  <div className="form-section">
+                    <div className="form-section-title">Contato Principal</div>
+                    <div className="form-grid">
+                      <div className="form-group form-full"><label>Nome do Contato</label><input {...f('contatoNome')} /></div>
+                      <div className="form-group"><label>Cargo</label><input {...f('contatoCargo')} /></div>
+                      <div className="form-group"><label>Telefone do Contato</label><input {...f('contatoTelefone')} /></div>
+                      <div className="form-group"><label>E-mail *</label><input required type="email" {...f('email')} /></div>
+                      <div className="form-group"><label>Telefone</label><input {...f('telefone')} /></div>
+                      <div className="form-group"><label>Celular / WhatsApp</label><input {...f('whatsapp')} /></div>
+                      <div className="form-group"><label>Site</label><input type="url" {...f('site')} /></div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {form.categoria === 'Auxiliar Administrativo' && (
+                  <div className="form-section">
+                    <div className="form-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Auxiliares Administrativos</span>
+                      <button type="button" className="btn btn-primary" style={{ fontSize: 12, padding: '4px 12px' }} onClick={addAuxiliar}>
+                        <Plus size={13} /> Adicionar Auxiliar
+                      </button>
+                    </div>
+                    {(form.auxiliares || []).length === 0 && (
+                      <p style={{ color: 'var(--gray-400)', fontSize: 13, margin: '8px 0' }}>Nenhum auxiliar adicionado. Clique em "Adicionar Auxiliar" para começar.</p>
+                    )}
+                    {(form.auxiliares || []).map((aux, index) => (
+                      <div key={index} style={{ border: '1.5px solid var(--gray-200)', borderRadius: 'var(--radius)', padding: 14, marginBottom: 12, position: 'relative' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-600)' }}>Auxiliar #{index + 1}</span>
+                          <button type="button" className="btn-icon" style={{ borderColor: 'var(--danger-light)', color: 'var(--danger)' }} onClick={() => removeAuxiliar(index)}>
+                            <X size={13} />
+                          </button>
+                        </div>
+                        <div className="form-grid">
+                          <div className="form-group form-full">
+                            <label>Nome *</label>
+                            <input required value={aux.nome} onChange={e => updateAuxiliar(index, 'nome', e.target.value)} />
+                          </div>
+                          <div className="form-group">
+                            <label>Cargo</label>
+                            <input value={aux.cargo} onChange={e => updateAuxiliar(index, 'cargo', e.target.value)} />
+                          </div>
+                          <div className="form-group">
+                            <label>Usuário (login) *</label>
+                            <input
+                              type="email"
+                              required
+                              value={aux.usuario || aux.email || ''}
+                              onChange={e => {
+                                const valor = e.target.value;
+                                updateAuxiliar(index, 'usuario', valor);
+                                updateAuxiliar(index, 'email', valor);
+                              }}
+                              placeholder="ex: auxiliar@sislove.com"
+                              autoComplete="username"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Telefone / Celular</label>
+                            <input value={aux.telefone} onChange={e => updateAuxiliar(index, 'telefone', e.target.value)} />
+                          </div>
+                          <div className="form-group">
+                            <label>Senha de acesso {!editId ? '*' : '(deixe em branco para manter)'}</label>
+                            <input
+                              type="password"
+                              value={aux.senha}
+                              onChange={e => updateAuxiliar(index, 'senha', e.target.value)}
+                              required={!editId}
+                              autoComplete="new-password"
+                              placeholder={editId ? 'Deixe em branco para manter a atual' : ''}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="form-section">
                   <div className="form-section-title">Endereço</div>
@@ -202,18 +309,20 @@ export default function Colaboradores() {
                   </div>
                 </div>
 
-                <div className="form-section">
-                  <div className="form-section-title">Contrato / Dados Financeiros</div>
-                  <div className="form-grid">
-                    <div className="form-group"><label>Nº Contrato / Apólice</label><input {...f('contrato')} /></div>
-                    <div className="form-group"><label>Valor (R$)</label><input type="number" step="0.01" {...f('valorContrato')} /></div>
-                    <div className="form-group"><label>Vencimento</label><input type="date" {...f('vencimentoContrato')} /></div>
-                    <div className="form-group"><label>Banco</label><input {...f('banco')} /></div>
-                    <div className="form-group"><label>Agência</label><input {...f('agencia')} /></div>
-                    <div className="form-group"><label>Conta</label><input {...f('conta')} /></div>
-                    <div className="form-group"><label>Chave PIX</label><input {...f('pixChave')} /></div>
+                {!isAuxiliarCategoria && (
+                  <div className="form-section">
+                    <div className="form-section-title">Contrato / Dados Financeiros</div>
+                    <div className="form-grid">
+                      <div className="form-group"><label>Nº Contrato / Apólice</label><input {...f('contrato')} /></div>
+                      <div className="form-group"><label>Valor (R$)</label><input type="number" step="0.01" {...f('valorContrato')} /></div>
+                      <div className="form-group"><label>Vencimento</label><input type="date" {...f('vencimentoContrato')} /></div>
+                      <div className="form-group"><label>Banco</label><input {...f('banco')} /></div>
+                      <div className="form-group"><label>Agência</label><input {...f('agencia')} /></div>
+                      <div className="form-group"><label>Conta</label><input {...f('conta')} /></div>
+                      <div className="form-group"><label>Chave PIX</label><input {...f('pixChave')} /></div>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="form-section">
                   <div className="form-section-title">Observações</div>

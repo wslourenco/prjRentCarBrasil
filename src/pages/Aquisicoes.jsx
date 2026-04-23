@@ -41,6 +41,47 @@ function formatarMoeda(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function formatarFormaPagamento(formaPagamento) {
+  const mapa = {
+    boleto: 'Boleto',
+    pix: 'Pix',
+    debito: 'Débito',
+    credito: 'Cartão',
+    transferencia: 'Transferência',
+    dinheiro: 'Dinheiro',
+  };
+  return mapa[String(formaPagamento || '').toLowerCase()] || (formaPagamento || '-');
+}
+
+function formatarResumoPagamento(item) {
+  const parcela = parseParcelaInfo(item?.observacoes);
+  const atual = Number(parcela.atual || 0);
+  const total = Number(parcela.total || 0);
+  const forma = item?.categoria === 'Compra no Cartão'
+    ? 'Cartão'
+    : formatarFormaPagamento(item?.formaPagamento);
+
+  if (total > 1) {
+    if (atual > 0) return `${forma} • ${atual}/${total} parcelas`;
+    return `${forma} • ${total} parcelas`;
+  }
+
+  return `${forma} • à vista`;
+}
+
+function formatarResumoPagamentoFormulario(form) {
+  const forma = formatarFormaPagamento(form?.formaPagamento);
+  const atual = Number(form?.parcelaAtual || 0);
+  const total = Number(form?.totalParcelas || 0);
+
+  if (total > 1) {
+    if (atual > 0) return `${forma} • ${atual}/${total} parcelas`;
+    return `${forma} • ${total} parcelas`;
+  }
+
+  return `${forma} • à vista`;
+}
+
 export default function Aquisicoes() {
   const {
     usuarioLogado,
@@ -56,6 +97,8 @@ export default function Aquisicoes() {
   const [editId, setEditId] = useState(null);
   const [erro, setErro] = useState('');
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
+
+  const isCompraCartao = form.categoria === 'Compra no Cartão';
 
   const podeGerenciar = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador';
 
@@ -78,7 +121,7 @@ export default function Aquisicoes() {
   }
 
   function abrirNovo() {
-    setForm(EMPTY);
+    setForm({ ...EMPTY, formaPagamento: 'boleto' });
     setEditId(null);
     setErro('');
     setModal(true);
@@ -91,7 +134,7 @@ export default function Aquisicoes() {
       data: item.data || EMPTY.data,
       valor: item.valor || '',
       veiculoId: item.veiculoId || '',
-      formaPagamento: item.formaPagamento || 'boleto',
+      formaPagamento: item.categoria === 'Compra no Cartão' ? 'credito' : (item.formaPagamento || 'boleto'),
       parcelaAtual: parcela.atual,
       totalParcelas: parcela.total,
       descricao: item.descricao || '',
@@ -134,7 +177,7 @@ export default function Aquisicoes() {
       categoria: form.categoria,
       descricao: form.descricao || `Pagamento de ${form.categoria.toLowerCase()}`,
       veiculoId: form.veiculoId,
-      formaPagamento: form.formaPagamento,
+      formaPagamento: form.categoria === 'Compra no Cartão' ? 'credito' : form.formaPagamento,
       comprovante: '',
       observacoes: buildObservacoes(form.observacoes, form.parcelaAtual, form.totalParcelas),
     };
@@ -195,7 +238,7 @@ export default function Aquisicoes() {
                   <td>{item.categoria}</td>
                   <td>{nomeVeiculo(item.veiculoId)}</td>
                   <td>{formatarMoeda(item.valor)}</td>
-                  <td>{item.formaPagamento || '-'}</td>
+                  <td>{formatarResumoPagamento(item)}</td>
                   <td>{item.descricao || '-'}</td>
                   <td>
                     {podeGerenciar && (
@@ -228,7 +271,19 @@ export default function Aquisicoes() {
                 <div className="form-grid">
                   <div className="form-group">
                     <label>Modalidade *</label>
-                    <select value={form.categoria} onChange={e => setForm(prev => ({ ...prev, categoria: e.target.value }))}>
+                    <select
+                      value={form.categoria}
+                      onChange={e => {
+                        const categoria = e.target.value;
+                        setForm(prev => ({
+                          ...prev,
+                          categoria,
+                          formaPagamento: categoria === 'Compra no Cartão'
+                            ? 'credito'
+                            : (prev.formaPagamento === 'credito' ? 'boleto' : prev.formaPagamento),
+                        }));
+                      }}
+                    >
                       {CATEGORIAS_AQUISICAO.map(op => <option key={op.value} value={op.value}>{op.label}</option>)}
                     </select>
                   </div>
@@ -251,14 +306,23 @@ export default function Aquisicoes() {
                   </div>
                   <div className="form-group">
                     <label>Forma de pagamento</label>
-                    <select value={form.formaPagamento} onChange={e => setForm(prev => ({ ...prev, formaPagamento: e.target.value }))}>
+                    <select
+                      value={form.formaPagamento}
+                      onChange={e => setForm(prev => ({ ...prev, formaPagamento: e.target.value }))}
+                      disabled={isCompraCartao}
+                    >
                       <option value="boleto">Boleto</option>
-                      <option value="pix">Pix</option>
+                      {!isCompraCartao && <option value="pix">Pix</option>}
                       <option value="debito">Débito</option>
                       <option value="credito">Crédito</option>
                       <option value="transferencia">Transferência</option>
                       <option value="dinheiro">Dinheiro</option>
                     </select>
+                    {isCompraCartao && (
+                      <small style={{ color: 'var(--gray-500)', fontSize: 12 }}>
+                        Para compras no cartão, a forma de pagamento é Crédito.
+                      </small>
+                    )}
                   </div>
                   <div className="form-group">
                     <label>Parcela atual</label>
@@ -267,6 +331,21 @@ export default function Aquisicoes() {
                   <div className="form-group">
                     <label>Total de parcelas</label>
                     <input type="number" min="1" value={form.totalParcelas} onChange={e => setForm(prev => ({ ...prev, totalParcelas: e.target.value }))} />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label>Resumo da forma de pagamento</label>
+                    <div style={{
+                      minHeight: 40,
+                      border: '1px solid var(--gray-200)',
+                      borderRadius: 'var(--radius)',
+                      padding: '10px 12px',
+                      background: 'var(--gray-50)',
+                      color: 'var(--gray-700)',
+                      fontSize: 14,
+                      fontWeight: 600,
+                    }}>
+                      {formatarResumoPagamentoFormulario(form)}
+                    </div>
                   </div>
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                     <label>Descrição</label>

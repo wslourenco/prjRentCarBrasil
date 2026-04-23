@@ -6,6 +6,7 @@ const PERFIS = [
   { value: 'admin', label: 'Administrador', desc: 'Acesso total ao sistema' },
   { value: 'locador', label: 'Locador', desc: 'Gerencia seus veículos e locações' },
   { value: 'locatario', label: 'Locatário', desc: 'Visualiza apenas suas locações' },
+  { value: 'auxiliar', label: 'Auxiliar Administrativo', desc: 'Lança despesas e receitas, sem acesso à lucratividade' },
 ];
 
 const EMPTY = { nome: '', email: '', senha: '', perfil: 'locador', tipoDocumento: 'cpf', documento: '' };

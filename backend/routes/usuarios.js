@@ -62,8 +62,8 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ erro: 'Nome, email, senha, perfil, tipo de documento e documento são obrigatórios.' });
     }
 
-    if (!['admin', 'locador', 'locatario'].includes(perfilNormalizado)) {
-        return res.status(400).json({ erro: 'Perfil inválido. Use admin, locador ou locatario.' });
+    if (!['admin', 'locador', 'locatario', 'auxiliar'].includes(perfilNormalizado)) {
+        return res.status(400).json({ erro: 'Perfil inválido. Use admin, locador, locatario ou auxiliar.' });
     }
 
     const conn = await pool.getConnection();

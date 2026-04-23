@@ -17,7 +17,15 @@ export default function Login() {
     setCarregando(true);
     try {
       const usuario = await login(form.email, form.senha);
-      navigate(usuario.perfil === 'locatario' ? '/painel' : '/dashboard');
+      if (usuario.senhaDeveTrocar) {
+        navigate('/trocar-senha', { replace: true });
+      } else if (usuario.perfil === 'locatario') {
+        navigate('/painel');
+      } else if (usuario.perfil === 'auxiliar') {
+        navigate('/financeiro');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (e) {
       setErro(e.message || 'E-mail ou senha inválidos.');
     } finally {

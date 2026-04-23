@@ -139,10 +139,15 @@ export function colaboradorToApi(f) {
         contrato: f.contrato, valor_contrato: f.valorContrato || null,
         vencimento_contrato: f.vencimentoContrato || null,
         observacoes: f.observacoes,
+        auxiliares: Array.isArray(f.auxiliares) ? f.auxiliares : [],
     };
 }
 
 export function colaboradorFromApi(r) {
+    let auxiliares = [];
+    if (r.auxiliares_json) {
+        try { auxiliares = JSON.parse(r.auxiliares_json); } catch { auxiliares = []; }
+    }
     return normalizarStringsObjeto({
         id: r.id,
         tipo: r.tipo || 'juridica',
@@ -164,6 +169,7 @@ export function colaboradorFromApi(r) {
         contrato: r.contrato || '', valorContrato: r.valor_contrato || '',
         vencimentoContrato: r.vencimento_contrato,
         observacoes: r.observacoes || '',
+        auxiliares,
         nomeExibido: r.tipo === 'juridica' ? (r.razao_social || '') : (r.nome || ''),
     });
 }
@@ -303,6 +309,7 @@ export function usuarioFromApi(r) {
         tipoDocumento: r.tipo_documento || 'cpf',
         documento: r.documento || '',
         rg: r.rg || '',
+        senhaDeveTrocar: r.senha_deve_trocar ? true : false,
         locatario: r.locatario
             ? {
                 id: r.locatario.id || null,

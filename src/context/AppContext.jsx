@@ -101,6 +101,22 @@ export function AppProvider({ children }) {
                 return;
             }
 
+            if (perfil === 'auxiliar') {
+                const [v, fin, loc] = await Promise.allSettled([
+                    api.get('/veiculos'),
+                    api.get('/financeiro'),
+                    api.get('/locacoes'),
+                ]);
+                setLocadores([]);
+                setLocatarios([]);
+                setColaboradores([]);
+                setVeiculos(getSettledValue(v, veiculoFromApi));
+                setDespesasReceitas(getSettledValue(fin, financeiroFromApi));
+                setLocacoes(getSettledValue(loc, locacaoFromApi));
+                setErro(getSettledError(v, fin, loc));
+                return;
+            }
+
             setLocadores([]);
             setLocatarios([]);
             setColaboradores([]);
@@ -121,11 +137,22 @@ export function AppProvider({ children }) {
     // ── Auth ──────────────────────────────────────────────
     async function login(email, senha) {
         const dados = await api.post('/auth/login', { email, senha });
-        const usuarioNormalizado = usuarioFromApi({ ...(dados.usuario || {}), locatario: dados.locatario || null });
+        const usuarioNormalizado = usuarioFromApi({
+            ...(dados.usuario || {}),
+            locatario: dados.locatario || null,
+            senha_deve_trocar: dados.usuario?.senha_deve_trocar,
+        });
         localStorage.setItem('sislove_token', dados.token);
         localStorage.setItem('sislove_usuario', JSON.stringify(usuarioNormalizado));
         setUsuarioLogado(usuarioNormalizado);
         return usuarioNormalizado;
+    }
+
+    async function trocarSenha(novaSenha) {
+        await api.put('/auth/trocar-senha', { novaSenha });
+        const atualizado = { ...usuarioLogado, senhaDeveTrocar: false };
+        localStorage.setItem('sislove_usuario', JSON.stringify(atualizado));
+        setUsuarioLogado(atualizado);
     }
 
     async function register(nome, email, senha, perfil, tipoDocumento, documento, rg) {
@@ -283,7 +310,7 @@ export function AppProvider({ children }) {
 
     return (
         <AppContext.Provider value={{
-            usuarioLogado, login, register, logout,
+            usuarioLogado, login, register, logout, trocarSenha,
             locadores,        addLocador,        updateLocador,        removeLocador,
             locatarios,       addLocatario,       updateLocatario,       removeLocatario,
             colaboradores,    addColaborador,    updateColaborador,    removeColaborador,
