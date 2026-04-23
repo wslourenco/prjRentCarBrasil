@@ -49,10 +49,6 @@ export default function Painel() {
     setAbaDetalhe('info');
   }
 
-  function getLocacaoVeiculo(veiculoId) {
-    return locacoes.find(l => l.status === 'ativa' && String(l.veiculoId) === String(veiculoId));
-  }
-
   function getDespesasVeiculo(veiculoId) {
     return despesasReceitas.filter(d => d.tipo === 'despesa' && String(d.veiculoId) === String(veiculoId));
   }

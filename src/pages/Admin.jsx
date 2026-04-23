@@ -67,7 +67,7 @@ export default function Admin() {
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
   const [erroCrud, setErroCrud] = useState('');
 
-  useEffect(() => { carregarUsuarios(); }, []);
+  useEffect(() => { carregarUsuarios(); }, [carregarUsuarios]);
 
   function abrirNovo() { setForm(EMPTY); setEditId(null); setModal(true); setErroCrud(''); }
   function abrirEditar(u) { setForm({ ...EMPTY, ...u, senha: '', tipoDocumento: u.tipoDocumento || 'cpf', documento: u.documento || '' }); setEditId(u.id); setModal(true); setErroCrud(''); }

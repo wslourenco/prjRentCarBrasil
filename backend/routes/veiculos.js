@@ -45,7 +45,7 @@ async function buscarValorFipe(marca, modelo, ano) {
 
         const valorResp = await axios.get(`https://fipe.parallelum.com.br/api/v2/cars/brands/${marcaObj.code}/models/${modeloObj.code}/years/${anoObj.code}`);
         return valorResp.data.price || null;
-    } catch (e) {
+    } catch {
         return null;
     }
 }

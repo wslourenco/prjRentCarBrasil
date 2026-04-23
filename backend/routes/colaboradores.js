@@ -87,7 +87,7 @@ router.post('/', async (req, res) => {
 
     const auxiliaresArr = Array.isArray(auxiliares) ? auxiliares : [];
     const auxiliaresJson = auxiliaresArr.length > 0
-        ? JSON.stringify(auxiliaresArr.map(({ senha, ...rest }) => rest)) // não persiste senha
+        ? JSON.stringify(auxiliaresArr.map(({ senha: _senha, ...rest }) => rest)) // não persiste senha
         : null;
 
     const conn = await pool.getConnection();
@@ -144,7 +144,7 @@ router.put('/:id', async (req, res) => {
 
     const auxiliaresArr = Array.isArray(auxiliares) ? auxiliares : [];
     const auxiliaresJson = auxiliaresArr.length > 0
-        ? JSON.stringify(auxiliaresArr.map(({ senha, ...rest }) => rest))
+        ? JSON.stringify(auxiliaresArr.map(({ senha: _senha, ...rest }) => rest))
         : null;
 
     const conn = await pool.getConnection();
