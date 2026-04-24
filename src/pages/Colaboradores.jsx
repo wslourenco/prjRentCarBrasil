@@ -18,6 +18,7 @@ const EMPTY = {
   banco: '', agencia: '', conta: '', pixChave: '',
   contrato: '', valorContrato: '', vencimentoContrato: '',
   observacoes: '',
+  usuario: '', senha: '',
   auxiliares: [],
 };
 
@@ -202,6 +203,30 @@ export default function Colaboradores() {
                     <div className="form-grid">
                       <div className="form-group form-full"><label>Nome *</label><input required {...f('nome')} /></div>
                       <div className="form-group"><label>CPF</label><input {...f('cpf')} /></div>
+                      {isAuxiliarCategoria && (
+                        <>
+                          <div className="form-group">
+                            <label>E-mail / Usuário (login) *</label>
+                            <input
+                              required
+                              type="email"
+                              placeholder="ex: auxiliar@sislove.com"
+                              autoComplete="username"
+                              {...f('usuario')}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Senha de acesso {!editId ? '*' : '(deixe em branco para manter)'}</label>
+                            <input
+                              type="password"
+                              required={!editId}
+                              autoComplete="new-password"
+                              placeholder={editId ? 'Deixe em branco para manter a atual' : ''}
+                              {...f('senha')}
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="form-grid">
@@ -229,15 +254,7 @@ export default function Colaboradores() {
 
                 {form.categoria === 'Auxiliar Administrativo' && (
                   <div className="form-section">
-                    <div className="form-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>Auxiliares Administrativos</span>
-                      <button type="button" className="btn btn-primary" style={{ fontSize: 12, padding: '4px 12px' }} onClick={addAuxiliar}>
-                        <Plus size={13} /> Adicionar Auxiliar
-                      </button>
-                    </div>
-                    {(form.auxiliares || []).length === 0 && (
-                      <p style={{ color: 'var(--gray-400)', fontSize: 13, margin: '8px 0' }}>Nenhum auxiliar adicionado. Clique em "Adicionar Auxiliar" para começar.</p>
-                    )}
+                    {(form.auxiliares || []).length === 0 && null}
                     {(form.auxiliares || []).map((aux, index) => (
                       <div key={index} style={{ border: '1.5px solid var(--gray-200)', borderRadius: 'var(--radius)', padding: 14, marginBottom: 12, position: 'relative' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -326,7 +343,7 @@ export default function Colaboradores() {
 
                 <div className="form-section">
                   <div className="form-section-title">Observações</div>
-                  <div className="form-group"><label>Observações</label><textarea {...f('observacoes')} /></div>
+                  <div className="form-group"><textarea {...f('observacoes')} /></div>
                 </div>
 
                 {erroCrud && <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 8 }}>{erroCrud}</p>}
