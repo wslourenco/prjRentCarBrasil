@@ -34,21 +34,33 @@ export default function Colaboradores() {
   const [erroCrud, setErroCrud] = useState('');
   const isAuxiliarCategoria = form.categoria === 'Auxiliar Administrativo';
 
+  function normalizarAuxiliar(data) {
+    if (data.categoria !== 'Auxiliar Administrativo') return data;
+    return {
+      ...data,
+      tipo: 'fisica',
+      razaoSocial: '',
+      cnpj: '',
+      inscEstadual: '',
+    };
+  }
+
   function abrirNovo() {
-    setForm({ ...EMPTY, categoria: filtroCategoria || EMPTY.categoria });
+    setForm(normalizarAuxiliar({ ...EMPTY, categoria: filtroCategoria || EMPTY.categoria }));
     setEditId(null);
     setModal(true);
     setErroCrud('');
   }
-  function abrirEditar(col) { setForm({ ...EMPTY, ...col }); setEditId(col.id); setModal(true); setErroCrud(''); }
+  function abrirEditar(col) { setForm(normalizarAuxiliar({ ...EMPTY, ...col })); setEditId(col.id); setModal(true); setErroCrud(''); }
   function fecharModal() { setModal(false); setEditId(null); setErroCrud(''); }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setErroCrud('');
     try {
-      if (editId) await updateColaborador(editId, form);
-      else await addColaborador(form);
+      const payload = normalizarAuxiliar(form);
+      if (editId) await updateColaborador(editId, payload);
+      else await addColaborador(payload);
       fecharModal();
     } catch (err) {
       setErroCrud(err.message || 'Erro ao salvar. Tente novamente.');
@@ -61,12 +73,6 @@ export default function Colaboradores() {
 
   function addAuxiliar() {
     setForm({ ...form, auxiliares: [...(form.auxiliares || []), { ...EMPTY_AUXILIAR }] });
-  }
-
-  function removeAuxiliar(index) {
-    const lista = [...(form.auxiliares || [])];
-    lista.splice(index, 1);
-    setForm({ ...form, auxiliares: lista });
   }
 
   function updateAuxiliar(index, field, value) {
@@ -204,7 +210,7 @@ export default function Colaboradores() {
                     <div className="form-grid">
                       <div className="form-group form-full"><label>Nome *</label><input required {...f('nome')} /></div>
                       <div className="form-group"><label>CPF</label><input {...f('cpf')} /></div>
-                      {isAuxiliarCategoria && (
+                      {isAuxiliarCategoria && (form.auxiliares || []).length === 0 && (
                         <>
                           <div className="form-group">
                             <label>E-mail / Usuário (login) *</label>
@@ -243,7 +249,6 @@ export default function Colaboradores() {
                     <div className="form-section-title">Contato Principal</div>
                     <div className="form-grid">
                       <div className="form-group form-full"><label>Nome do Contato</label><input {...f('contatoNome')} /></div>
-                      <div className="form-group"><label>Cargo</label><input {...f('contatoCargo')} /></div>
                       <div className="form-group"><label>Telefone do Contato</label><input {...f('contatoTelefone')} /></div>
                       <div className="form-group"><label>E-mail *</label><input required type="email" {...f('email')} /></div>
                       <div className="form-group"><label>Telefone</label><input {...f('telefone')} /></div>
@@ -258,20 +263,10 @@ export default function Colaboradores() {
                     {(form.auxiliares || []).length === 0 && null}
                     {(form.auxiliares || []).map((aux, index) => (
                       <div key={index} style={{ border: '1.5px solid var(--gray-200)', borderRadius: 'var(--radius)', padding: 14, marginBottom: 12, position: 'relative' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-600)' }}>Auxiliar #{index + 1}</span>
-                          <button type="button" className="btn-icon" style={{ borderColor: 'var(--danger-light)', color: 'var(--danger)' }} onClick={() => removeAuxiliar(index)}>
-                            <X size={13} />
-                          </button>
-                        </div>
                         <div className="form-grid">
                           <div className="form-group form-full">
                             <label>Nome *</label>
                             <input required value={aux.nome} onChange={e => updateAuxiliar(index, 'nome', e.target.value)} />
-                          </div>
-                          <div className="form-group">
-                            <label>Cargo</label>
-                            <input value={aux.cargo} onChange={e => updateAuxiliar(index, 'cargo', e.target.value)} />
                           </div>
                           <div className="form-group">
                             <label>Usuário (login) *</label>

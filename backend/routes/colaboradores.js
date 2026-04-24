@@ -137,8 +137,8 @@ router.post('/', requireProfiles('admin', 'locador'), async (req, res) => {
     }
 });
 
-// PUT /api/colaboradores/:id — somente admin
-router.put('/:id', adminOnly, async (req, res) => {
+// PUT /api/colaboradores/:id — admin ou locador
+router.put('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
     const {
         tipo, categoria, nome, cpf, razao_social, cnpj, insc_estadual,
         email, telefone, celular, whatsapp, site,
