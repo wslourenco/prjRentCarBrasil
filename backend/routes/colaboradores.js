@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const pool = require('../db');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
+const { authMiddleware, adminOnly, requireProfiles } = require('../middleware/auth');
 
-router.use(authMiddleware, adminOnly);
+router.use(authMiddleware);
 
 /**
  * Para cada auxiliar com senha informada, cria ou atualiza o usuário no sistema
@@ -49,7 +49,7 @@ async function sincronizarUsuariosAuxiliares(conn, auxiliares) {
 }
 
 // GET /api/colaboradores
-router.get('/', async (req, res) => {
+router.get('/', requireProfiles('admin', 'locador'), async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM colaboradores ORDER BY nome');
         res.json(rows);
@@ -60,7 +60,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/colaboradores/:id
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM colaboradores WHERE id = ?', [req.params.id]);
         if (rows.length === 0) return res.status(404).json({ erro: 'Colaborador não encontrado.' });
@@ -72,7 +72,9 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/colaboradores
-router.post('/', async (req, res) => {
+router.post('/', requireProfiles('admin', 'locador'), async (req, res) => {
+    const perfil = req.usuario?.perfil;
+
     const {
         tipo, categoria, nome, cpf, razao_social, cnpj, insc_estadual,
         email, telefone, celular, whatsapp, site,
@@ -85,9 +87,14 @@ router.post('/', async (req, res) => {
 
     if (!categoria) return res.status(400).json({ erro: 'Categoria é obrigatória.' });
 
+    // Locador só pode cadastrar Auxiliar Administrativo
+    if (perfil === 'locador' && categoria !== 'Auxiliar Administrativo') {
+        return res.status(403).json({ erro: 'Locadores só podem cadastrar Auxiliares Administrativos.' });
+    }
+
     const auxiliaresArr = Array.isArray(auxiliares) ? auxiliares : [];
     const auxiliaresJson = auxiliaresArr.length > 0
-        ? JSON.stringify(auxiliaresArr.map(({ senha: _senha, ...rest }) => rest)) // não persiste senha
+        ? JSON.stringify(auxiliaresArr.map(({ senha: _senha, ...rest }) => rest))
         : null;
 
     const conn = await pool.getConnection();
@@ -130,8 +137,8 @@ router.post('/', async (req, res) => {
     }
 });
 
-// PUT /api/colaboradores/:id
-router.put('/:id', async (req, res) => {
+// PUT /api/colaboradores/:id — somente admin
+router.put('/:id', adminOnly, async (req, res) => {
     const {
         tipo, categoria, nome, cpf, razao_social, cnpj, insc_estadual,
         email, telefone, celular, whatsapp, site,
@@ -192,124 +199,8 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-// DELETE /api/colaboradores/:id
-router.delete('/:id', async (req, res) => {
-    try {
-        const [result] = await pool.query('DELETE FROM colaboradores WHERE id = ?', [req.params.id]);
-        if (result.affectedRows === 0) return res.status(404).json({ erro: 'Colaborador não encontrado.' });
-        res.json({ mensagem: 'Colaborador removido com sucesso.' });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ erro: 'Erro ao remover colaborador.' });
-    }
-});
-
-module.exports = router;
-
-
-// GET /api/colaboradores
-router.get('/', async (req, res) => {
-    try {
-        const [rows] = await pool.query('SELECT * FROM colaboradores ORDER BY nome');
-        res.json(rows);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ erro: 'Erro ao buscar colaboradores.' });
-    }
-});
-
-// GET /api/colaboradores/:id
-router.get('/:id', async (req, res) => {
-    try {
-        const [rows] = await pool.query('SELECT * FROM colaboradores WHERE id = ?', [req.params.id]);
-        if (rows.length === 0) return res.status(404).json({ erro: 'Colaborador não encontrado.' });
-        res.json(rows[0]);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ erro: 'Erro ao buscar colaborador.' });
-    }
-});
-
-// POST /api/colaboradores
-router.post('/', async (req, res) => {
-    const {
-        tipo, categoria, nome, cpf, razao_social, cnpj, insc_estadual,
-        email, telefone, celular, whatsapp, site,
-        contato_nome, contato_cargo, contato_telefone,
-        cep, endereco, numero, complemento, bairro, cidade, estado,
-        banco, agencia, conta, pix_chave,
-        contrato, valor_contrato, vencimento_contrato, observacoes
-    } = req.body;
-
-    if (!categoria) return res.status(400).json({ erro: 'Categoria é obrigatória.' });
-
-    try {
-        const [result] = await pool.query(
-            `INSERT INTO colaboradores
-            (tipo, categoria, nome, cpf, razao_social, cnpj, insc_estadual,
-             email, telefone, celular, whatsapp, site,
-             contato_nome, contato_cargo, contato_telefone,
-             cep, endereco, numero, complemento, bairro, cidade, estado,
-             banco, agencia, conta, pix_chave,
-             contrato, valor_contrato, vencimento_contrato, observacoes)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-            [tipo || 'juridica', categoria, nome || null, cpf || null,
-            razao_social || null, cnpj || null, insc_estadual || null,
-                email, telefone, celular, whatsapp, site,
-                contato_nome, contato_cargo, contato_telefone,
-                cep, endereco, numero, complemento, bairro, cidade, estado,
-                banco, agencia, conta, pix_chave,
-                contrato, valor_contrato || null, vencimento_contrato || null, observacoes]
-        );
-        const [novo] = await pool.query('SELECT * FROM colaboradores WHERE id = ?', [result.insertId]);
-        res.status(201).json(novo[0]);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ erro: 'Erro ao criar colaborador.' });
-    }
-});
-
-// PUT /api/colaboradores/:id
-router.put('/:id', async (req, res) => {
-    const {
-        tipo, categoria, nome, cpf, razao_social, cnpj, insc_estadual,
-        email, telefone, celular, whatsapp, site,
-        contato_nome, contato_cargo, contato_telefone,
-        cep, endereco, numero, complemento, bairro, cidade, estado,
-        banco, agencia, conta, pix_chave,
-        contrato, valor_contrato, vencimento_contrato, observacoes
-    } = req.body;
-
-    try {
-        const [result] = await pool.query(
-            `UPDATE colaboradores SET
-             tipo=?, categoria=?, nome=?, cpf=?, razao_social=?, cnpj=?, insc_estadual=?,
-             email=?, telefone=?, celular=?, whatsapp=?, site=?,
-             contato_nome=?, contato_cargo=?, contato_telefone=?,
-             cep=?, endereco=?, numero=?, complemento=?, bairro=?, cidade=?, estado=?,
-             banco=?, agencia=?, conta=?, pix_chave=?,
-             contrato=?, valor_contrato=?, vencimento_contrato=?, observacoes=?
-             WHERE id=?`,
-            [tipo || 'juridica', categoria, nome || null, cpf || null,
-            razao_social || null, cnpj || null, insc_estadual || null,
-                email, telefone, celular, whatsapp, site,
-                contato_nome, contato_cargo, contato_telefone,
-                cep, endereco, numero, complemento, bairro, cidade, estado,
-                banco, agencia, conta, pix_chave,
-                contrato, valor_contrato || null, vencimento_contrato || null, observacoes,
-            req.params.id]
-        );
-        if (result.affectedRows === 0) return res.status(404).json({ erro: 'Colaborador não encontrado.' });
-        const [atualizado] = await pool.query('SELECT * FROM colaboradores WHERE id = ?', [req.params.id]);
-        res.json(atualizado[0]);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ erro: 'Erro ao atualizar colaborador.' });
-    }
-});
-
-// DELETE /api/colaboradores/:id
-router.delete('/:id', async (req, res) => {
+// DELETE /api/colaboradores/:id — somente admin
+router.delete('/:id', adminOnly, async (req, res) => {
     try {
         const [result] = await pool.query('DELETE FROM colaboradores WHERE id = ?', [req.params.id]);
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Colaborador não encontrado.' });

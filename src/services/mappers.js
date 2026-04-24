@@ -122,6 +122,19 @@ export function locatarioFromApi(r) {
 
 // ── Colaboradores ──────────────────────────────────────────────────────────────
 export function colaboradorToApi(f) {
+    // Para Auxiliar Administrativo, os dados do usuário ficam no formulário principal
+    let auxiliares = Array.isArray(f.auxiliares) ? f.auxiliares : [];
+    if (f.categoria === 'Auxiliar Administrativo' && auxiliares.length === 0 && (f.usuario || f.email)) {
+        auxiliares = [{
+            nome: f.nome || '',
+            cargo: '',
+            usuario: f.usuario || f.email || '',
+            email: f.usuario || f.email || '',
+            telefone: f.telefone || f.celular || '',
+            senha: f.senha || '',
+        }];
+    }
+
     return {
         tipo: f.tipo,
         categoria: f.categoria,
@@ -139,7 +152,7 @@ export function colaboradorToApi(f) {
         contrato: f.contrato, valor_contrato: f.valorContrato || null,
         vencimento_contrato: f.vencimentoContrato || null,
         observacoes: f.observacoes,
-        auxiliares: Array.isArray(f.auxiliares) ? f.auxiliares : [],
+        auxiliares,
     };
 }
 
