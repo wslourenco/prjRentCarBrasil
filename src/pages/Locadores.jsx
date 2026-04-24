@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus, Edit2, Trash2, X, Check } from 'lucide-react';
+import { applyMask } from '../utils/masks';
 
 const EMPTY = {
   tipo: 'fisica',
@@ -41,7 +42,7 @@ export default function Locadores() {
   }
 
   function f(field) {
-    return { value: form[field] || '', onChange: e => setForm({ ...form, [field]: e.target.value }) };
+    return { value: form[field] || '', onChange: e => setForm({ ...form, [field]: applyMask(field, e.target.value) }) };
   }
 
   const nomeExibido = l => l.tipo === 'juridica' ? l.razaoSocial : l.nome;

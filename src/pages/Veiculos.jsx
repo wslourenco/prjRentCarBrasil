@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { Plus, Edit2, Trash2, X, Car, Check } from 'lucide-react';
+import { applyMask } from '../utils/masks';
 
 const COMBUSTIVEIS = ['Flex','Gasolina','Etanol','Diesel','GNV','Elétrico','Híbrido'];
 const TRANSMISSOES = ['Manual','Automático','Semi-automático','CVT'];
@@ -144,7 +145,7 @@ export default function Veiculos() {
   }
 
   function f(field) {
-    return { value: form[field] || '', onChange: e => setForm({ ...form, [field]: e.target.value }) };
+    return { value: form[field] || '', onChange: e => setForm({ ...form, [field]: applyMask(field, e.target.value) }) };
   }
 
   function nomeLocador(id) {

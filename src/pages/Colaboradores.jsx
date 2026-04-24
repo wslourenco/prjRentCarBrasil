@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus, Edit2, Trash2, X, Check } from 'lucide-react';
+import { applyMask } from '../utils/masks';
 
 const CATEGORIAS = ['Seguradora', 'Bloqueador/Rastreador', 'Oficina Mecânica', 'Elétrica Automotiva', 'Borracharia', 'Funilaria/Pintura', 'Despachante', 'Financeira', 'Auxiliar Administrativo', 'Outro'];
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
@@ -55,7 +56,7 @@ export default function Colaboradores() {
   }
 
   function f(field) {
-    return { value: form[field] || '', onChange: e => setForm({ ...form, [field]: e.target.value }) };
+    return { value: form[field] || '', onChange: e => setForm({ ...form, [field]: applyMask(field, e.target.value) }) };
   }
 
   function addAuxiliar() {
