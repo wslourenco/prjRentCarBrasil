@@ -31,7 +31,7 @@ export default function TrocarSenha() {
         try {
             await trocarSenha(form.novaSenha);
             const perfil = usuarioLogado?.perfil;
-            if (perfil === 'auxiliar') navigate('/financeiro', { replace: true });
+            if (perfil === 'auxiliar') navigate('/veiculos', { replace: true });
             else if (perfil === 'locatario') navigate('/painel', { replace: true });
             else navigate('/dashboard', { replace: true });
         } catch (err) {

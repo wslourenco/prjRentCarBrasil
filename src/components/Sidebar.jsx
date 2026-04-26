@@ -36,14 +36,14 @@ export default function Sidebar() {
             <LayoutDashboard size={16} /> Dashboard
           </NavLink>
         )}
-        {isAdmin && (
+        {(isAdmin || isAuxiliar) && (
           <NavLink to="/painel" className={({ isActive }) => isActive ? 'active' : ''}>
-            <ChevronRight size={16} /> Painel de Controle
+            <ChevronRight size={16} /> {isAuxiliar ? 'Painel de Locações' : 'Painel de Controle'}
           </NavLink>
         )}
 
         <span className="sidebar-section-title">Cadastros</span>
-        {(isAdmin || isLocador || isLocatario) && (
+        {(isAdmin || isLocador || isLocatario || isAuxiliar) && (
           <>
             <NavLink to="/veiculos" className={({ isActive }) => isActive ? 'active' : ''}>
               <Car size={16} /> Veículos

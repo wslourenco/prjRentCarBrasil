@@ -18,13 +18,16 @@ const EMPTY_LOCACAO = {
 };
 
 export default function Painel() {
-  const { locacoes, veiculos, locatarios, despesasReceitas, addLocacao, encerrarLocacao, updateVeiculo, usuarioLogado } = useApp();
+  const { locacoes, veiculos, locatarios, despesasReceitas, addLocacao, updateLocacao, removeLocacao, encerrarLocacao, updateVeiculo, usuarioLogado } = useApp();
   const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
   const [abaDetalhe, setAbaDetalhe] = useState('info');
   const [modalNovaLocacao, setModalNovaLocacao] = useState(false);
   const [formLocacao, setFormLocacao] = useState(EMPTY_LOCACAO);
+  const [locacaoEditandoId, setLocacaoEditandoId] = useState(null);
   const [confirmarEncerrar, setConfirmarEncerrar] = useState(null);
+  const [confirmarExcluir, setConfirmarExcluir] = useState(null);
   const [filtroCategoriaVeiculo, setFiltroCategoriaVeiculo] = useState('');
+  const podeEditarExcluir = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'auxiliar';
 
   const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
 
@@ -57,17 +60,62 @@ export default function Painel() {
     return despesasReceitas.filter(d => d.tipo === 'receita' && String(d.locatarioId) === String(locatarioId));
   }
 
+  function abrirModalNovaLocacao() {
+    setLocacaoEditandoId(null);
+    setFormLocacao(EMPTY_LOCACAO);
+    setModalNovaLocacao(true);
+  }
+
+  function abrirModalEditarLocacao(item) {
+    setLocacaoEditandoId(item.locacao.id);
+    setFormLocacao({
+      veiculoId: String(item.locacao.veiculoId || ''),
+      locatarioId: String(item.locacao.locatarioId || ''),
+      dataInicio: item.locacao.dataInicio || new Date().toISOString().split('T')[0],
+      dataPrevisaoFim: item.locacao.dataPrevisaoFim || '',
+      valorSemanal: item.locacao.valorSemanal || '',
+      caucao: item.locacao.caucao || '',
+      condicoes: item.locacao.condicoes || '',
+      kmEntrada: item.locacao.kmEntrada || '',
+      periodicidade: 'semanal',
+      quantidadePeriodos: '1',
+      dataEncerramento: item.locacao.dataEncerramento || null,
+      kmSaida: item.locacao.kmSaida || null,
+      status: item.locacao.status || 'ativa',
+    });
+    setModalNovaLocacao(true);
+  }
+
+  function fecharModalLocacao() {
+    setModalNovaLocacao(false);
+    setLocacaoEditandoId(null);
+    setFormLocacao(EMPTY_LOCACAO);
+  }
+
   async function handleNovaLocacao(e) {
     e.preventDefault();
     try {
-      await addLocacao(formLocacao);
+      if (locacaoEditandoId) {
+        await updateLocacao(locacaoEditandoId, {
+          ...formLocacao,
+          status: formLocacao.status || 'ativa',
+        });
+      } else {
+        await addLocacao(formLocacao);
+      }
       if (formLocacao.kmEntrada && formLocacao.veiculoId) {
         await updateVeiculo(Number(formLocacao.veiculoId), { kmAtual: formLocacao.kmEntrada });
       }
-      setModalNovaLocacao(false);
-      setFormLocacao(EMPTY_LOCACAO);
+      if (veiculoSelecionado?.locacao?.id && locacaoEditandoId === veiculoSelecionado.locacao.id) {
+        const locacaoAtualizada = locacoes.find(l => String(l.id) === String(locacaoEditandoId));
+        const locacaoFinal = locacaoAtualizada || { ...veiculoSelecionado.locacao, ...formLocacao, id: locacaoEditandoId };
+        const veiculoFinal = veiculos.find(v => String(v.id) === String(formLocacao.veiculoId)) || veiculoSelecionado.veiculo;
+        const locatarioFinal = locatarios.find(l => String(l.id) === String(formLocacao.locatarioId)) || veiculoSelecionado.locatario;
+        setVeiculoSelecionado({ locacao: locacaoFinal, veiculo: veiculoFinal, locatario: locatarioFinal });
+      }
+      fecharModalLocacao();
     } catch (err) {
-      alert(err.message || 'Erro ao registrar locação.');
+      alert(err.message || 'Erro ao salvar locação.');
     }
   }
 
@@ -81,12 +129,28 @@ export default function Painel() {
     }
   }
 
+  async function handleExcluir(locacaoId) {
+    try {
+      await removeLocacao(locacaoId);
+      if (String(veiculoSelecionado?.locacao?.id) === String(locacaoId)) {
+        setVeiculoSelecionado(null);
+      }
+      setConfirmarExcluir(null);
+    } catch (err) {
+      alert(err.message || 'Erro ao excluir locação.');
+    }
+  }
+
   function fLocacao(field) {
     return { value: formLocacao[field] || '', onChange: e => setFormLocacao({ ...formLocacao, [field]: e.target.value }) };
   }
 
   const veiculosDisponiveis = veiculos
-    .filter(v => !locacoesAtivas.find(l => String(l.veiculoId) === String(v.id)))
+    .filter(v => {
+      const estaLocado = locacoesAtivas.find(l => String(l.veiculoId) === String(v.id));
+      if (!estaLocado) return true;
+      return locacaoEditandoId && String(estaLocado.id) === String(locacaoEditandoId);
+    })
     .filter(v => {
       if (!filtroCategoriaVeiculo) return true;
       return (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoriaVeiculo;
@@ -106,7 +170,9 @@ export default function Painel() {
     <div className="page-content">
       <div className="flex-between mb-24">
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Painel de Controle</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>
+            {usuarioLogado?.perfil === 'auxiliar' ? 'Painel de Locações' : 'Painel de Controle'}
+          </h2>
           <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>{locacoesAtivas.length} locação(ões) ativa(s)</p>
         </div>
         <div className="flex" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -114,7 +180,7 @@ export default function Painel() {
             <option value="">Todas as montadoras</option>
             {categoriasVeiculo.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
           </select>
-          <button className="btn btn-primary" onClick={() => setModalNovaLocacao(true)}><Plus size={16} /> Nova Locação</button>
+          <button className="btn btn-primary" onClick={abrirModalNovaLocacao}><Plus size={16} /> Nova Locação</button>
         </div>
       </div>
 
@@ -181,12 +247,28 @@ export default function Painel() {
                 </div>
               </div>
               <div className="flex" style={{ gap: 8 }}>
+                {podeEditarExcluir && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => abrirModalEditarLocacao(veiculoSelecionado)}
+                  >
+                    <CalendarDays size={14} /> Editar Locação
+                  </button>
+                )}
                 <button
                   className="btn btn-danger btn-sm"
                   onClick={() => setConfirmarEncerrar(veiculoSelecionado.locacao.id)}
                 >
                   <CheckCircle size={14} /> Encerrar Locação
                 </button>
+                {podeEditarExcluir && (
+                  <button
+                    className="btn btn-outline btn-sm"
+                    onClick={() => setConfirmarExcluir(veiculoSelecionado.locacao.id)}
+                  >
+                    <X size={14} /> Excluir
+                  </button>
+                )}
                 <button className="btn-icon" onClick={() => setVeiculoSelecionado(null)}><X size={16} /></button>
               </div>
             </div>
@@ -263,13 +345,31 @@ export default function Painel() {
         </div>
       )}
 
+      {/* Modal Confirmar Exclusão */}
+      {confirmarExcluir && (
+        <div className="modal-overlay" onClick={() => setConfirmarExcluir(null)}>
+          <div className="modal" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><span className="modal-title">Excluir Locação</span></div>
+            <div className="modal-body">
+              <p style={{ marginBottom: 20 }}>Confirma a exclusão da locação? Esta ação não pode ser desfeita.</p>
+              <div className="flex" style={{ gap: 10, justifyContent: 'flex-end' }}>
+                <button className="btn btn-outline" onClick={() => setConfirmarExcluir(null)}>Cancelar</button>
+                <button className="btn btn-danger" onClick={() => handleExcluir(confirmarExcluir)}>
+                  <X size={14} /> Excluir
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Nova Locação */}
       {modalNovaLocacao && (
-        <div className="modal-overlay" onClick={() => setModalNovaLocacao(false)}>
+        <div className="modal-overlay" onClick={fecharModalLocacao}>
           <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">Nova Locação</span>
-              <button className="btn-icon" onClick={() => setModalNovaLocacao(false)}><X size={16} /></button>
+              <span className="modal-title">{locacaoEditandoId ? 'Editar Locação' : 'Nova Locação'}</span>
+              <button className="btn-icon" onClick={fecharModalLocacao}><X size={16} /></button>
             </div>
             <div className="modal-body">
               {veiculosDisponiveis.length === 0 ? (
@@ -299,8 +399,8 @@ export default function Painel() {
                     <div className="form-group form-full"><label>Condições / Observações</label><textarea {...fLocacao('condicoes')} /></div>
                   </div>
                   <div className="form-actions">
-                    <button type="button" className="btn btn-outline" onClick={() => setModalNovaLocacao(false)}><X size={14} /> Cancelar</button>
-                    <button type="submit" className="btn btn-primary"><Check size={14} /> Iniciar Locação</button>
+                    <button type="button" className="btn btn-outline" onClick={fecharModalLocacao}><X size={14} /> Cancelar</button>
+                    <button type="submit" className="btn btn-primary"><Check size={14} /> {locacaoEditandoId ? 'Salvar Alterações' : 'Iniciar Locação'}</button>
                   </div>
                 </form>
               )}

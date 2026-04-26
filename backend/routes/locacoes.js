@@ -89,6 +89,57 @@ async function getLocadorIdForUser(usuario) {
     return null;
 }
 
+async function getAuxiliarLocadorIdForUser(usuario) {
+    const emailUsuario = String(usuario?.email || '').trim().toLowerCase();
+    if (!emailUsuario) return null;
+
+    try {
+        const [rows] = await pool.query(
+            `SELECT c.id, c.locador_id, c.email, c.auxiliares_json
+             FROM colaboradores c
+             WHERE c.categoria = 'Auxiliar Administrativo'
+               AND c.auxiliares_json IS NOT NULL
+             ORDER BY c.atualizado_em DESC, c.id DESC`
+        );
+
+        for (const row of rows) {
+            let auxiliares = [];
+            try {
+                auxiliares = JSON.parse(row.auxiliares_json || '[]');
+            } catch {
+                auxiliares = [];
+            }
+
+            const possuiAuxiliar = Array.isArray(auxiliares) && auxiliares.some((aux) => {
+                const emailAux = String(aux?.email || aux?.usuario || '').trim().toLowerCase();
+                return emailAux && emailAux === emailUsuario;
+            });
+
+            if (!possuiAuxiliar) continue;
+
+            if (row.locador_id) {
+                return Number(row.locador_id);
+            }
+
+            const emailColaborador = String(row.email || '').trim();
+            if (emailColaborador) {
+                const [locadorByEmail] = await pool.query(
+                    'SELECT id FROM locadores WHERE LOWER(email) = LOWER(?) ORDER BY id ASC LIMIT 1',
+                    [emailColaborador]
+                );
+                if (locadorByEmail[0]?.id) return Number(locadorByEmail[0].id);
+            }
+        }
+    } catch (err) {
+        if (err?.code !== 'ER_BAD_FIELD_ERROR') throw err;
+    }
+
+    const [locadores] = await pool.query('SELECT id FROM locadores ORDER BY id ASC');
+    if (locadores.length === 1) return Number(locadores[0].id);
+
+    return null;
+}
+
 async function getLocatarioIdByUserEmail(email, db = pool) {
     const emailNormalizado = String(email || '').trim();
     if (!emailNormalizado) return null;
@@ -349,6 +400,11 @@ router.get('/', async (req, res) => {
             if (!locadorId) return res.json([]);
             sql += ' WHERE v.locador_id = ?';
             params.push(locadorId);
+        } else if (req.usuario?.perfil === 'auxiliar') {
+            const locadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!locadorId) return res.json([]);
+            sql += ' WHERE v.locador_id = ?';
+            params.push(locadorId);
         }
 
         sql += ' ORDER BY lc.data_inicio DESC';
@@ -391,6 +447,11 @@ router.get('/:id', async (req, res) => {
             if (!locadorId) return res.status(404).json({ erro: 'Locação não encontrada.' });
             sql += ' AND v.locador_id = ?';
             params.push(locadorId);
+        } else if (req.usuario?.perfil === 'auxiliar') {
+            const locadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!locadorId) return res.status(404).json({ erro: 'Locação não encontrada.' });
+            sql += ' AND v.locador_id = ?';
+            params.push(locadorId);
         }
 
         const [rows] = await pool.query(sql, params);
@@ -403,7 +464,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/locacoes
-router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
+router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, res) => {
     const {
         veiculo_id, locatario_id, data_inicio, data_previsao_fim,
         valor_semanal, caucao, km_entrada, condicoes,
@@ -452,6 +513,21 @@ router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
 
             dataPrevisaoFimValue = computeEndDate(data_inicio, periodicidadeNormalizada, quantidade);
             condicoesValue = `${condicoesValue ? `${condicoesValue} | ` : ''}Periodicidade: ${periodicidadeNormalizada}; Quantidade: ${quantidade}`;
+        } else if (req.usuario?.perfil === 'auxiliar') {
+            const locadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!locadorId) {
+                await conn.rollback();
+                return res.status(403).json({ erro: 'Não foi possível identificar o locador responsável por este auxiliar.' });
+            }
+
+            const [ownVehicle] = await conn.query(
+                'SELECT id FROM veiculos WHERE id = ? AND locador_id = ? LIMIT 1',
+                [veiculo_id, locadorId]
+            );
+            if (ownVehicle.length === 0) {
+                await conn.rollback();
+                return res.status(403).json({ erro: 'Auxiliar só pode cadastrar locações para veículos do seu locador.' });
+            }
         }
 
         if (!locatarioIdValue || !valorSemanalValue) {
@@ -604,13 +680,40 @@ router.post('/', requireProfiles('admin', 'locatario'), async (req, res) => {
 });
 
 // PUT /api/locacoes/:id
-router.put('/:id', requireProfiles('admin'), async (req, res) => {
+router.put('/:id', requireProfiles('admin', 'auxiliar'), async (req, res) => {
     const {
         veiculo_id, locatario_id, data_inicio, data_previsao_fim, data_encerramento,
         valor_semanal, caucao, km_entrada, km_saida, status, condicoes
     } = req.body;
 
     try {
+        if (req.usuario?.perfil === 'auxiliar') {
+            const locadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!locadorId) {
+                return res.status(403).json({ erro: 'Não foi possível identificar o locador responsável por este auxiliar.' });
+            }
+
+            const [currentOwnership] = await pool.query(
+                `SELECT lc.id
+                 FROM locacoes lc
+                 INNER JOIN veiculos v ON lc.veiculo_id = v.id
+                 WHERE lc.id = ? AND v.locador_id = ?
+                 LIMIT 1`,
+                [req.params.id, locadorId]
+            );
+            if (currentOwnership.length === 0) {
+                return res.status(403).json({ erro: 'Auxiliar só pode alterar locações de veículos do seu locador.' });
+            }
+
+            const [newVehicleOwnership] = await pool.query(
+                'SELECT id FROM veiculos WHERE id = ? AND locador_id = ? LIMIT 1',
+                [veiculo_id, locadorId]
+            );
+            if (newVehicleOwnership.length === 0) {
+                return res.status(403).json({ erro: 'Auxiliar só pode vincular locações a veículos do seu locador.' });
+            }
+        }
+
         const [result] = await pool.query(
             `UPDATE locacoes SET
              veiculo_id=?, locatario_id=?, data_inicio=?, data_previsao_fim=?, data_encerramento=?,
@@ -637,7 +740,7 @@ router.put('/:id', requireProfiles('admin'), async (req, res) => {
 });
 
 // PATCH /api/locacoes/:id/encerrar
-router.patch('/:id/encerrar', requireProfiles('admin', 'locador'), async (req, res) => {
+router.patch('/:id/encerrar', requireProfiles('admin', 'locador', 'auxiliar'), async (req, res) => {
     const { km_saida, data_encerramento } = req.body;
     const hoje = data_encerramento || new Date().toISOString().split('T')[0];
 
@@ -659,6 +762,23 @@ router.patch('/:id/encerrar', requireProfiles('admin', 'locador'), async (req, r
             if (ownership.length === 0) {
                 return res.status(403).json({ erro: 'Você só pode encerrar locações dos seus veículos.' });
             }
+        } else if (req.usuario?.perfil === 'auxiliar') {
+            const locadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!locadorId) {
+                return res.status(403).json({ erro: 'Não foi possível identificar o locador responsável por este auxiliar.' });
+            }
+
+            const [ownership] = await pool.query(
+                `SELECT lc.id
+                 FROM locacoes lc
+                 INNER JOIN veiculos v ON lc.veiculo_id = v.id
+                 WHERE lc.id = ? AND v.locador_id = ?
+                 LIMIT 1`,
+                [req.params.id, locadorId]
+            );
+            if (ownership.length === 0) {
+                return res.status(403).json({ erro: 'Auxiliar só pode encerrar locações de veículos do seu locador.' });
+            }
         }
 
         const [result] = await pool.query(
@@ -674,8 +794,27 @@ router.patch('/:id/encerrar', requireProfiles('admin', 'locador'), async (req, r
 });
 
 // DELETE /api/locacoes/:id
-router.delete('/:id', requireProfiles('admin'), async (req, res) => {
+router.delete('/:id', requireProfiles('admin', 'auxiliar'), async (req, res) => {
     try {
+        if (req.usuario?.perfil === 'auxiliar') {
+            const locadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!locadorId) {
+                return res.status(403).json({ erro: 'Não foi possível identificar o locador responsável por este auxiliar.' });
+            }
+
+            const [ownership] = await pool.query(
+                `SELECT lc.id
+                 FROM locacoes lc
+                 INNER JOIN veiculos v ON lc.veiculo_id = v.id
+                 WHERE lc.id = ? AND v.locador_id = ?
+                 LIMIT 1`,
+                [req.params.id, locadorId]
+            );
+            if (ownership.length === 0) {
+                return res.status(403).json({ erro: 'Auxiliar só pode remover locações de veículos do seu locador.' });
+            }
+        }
+
         const [result] = await pool.query('DELETE FROM locacoes WHERE id = ?', [req.params.id]);
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Locação não encontrada.' });
         res.json({ mensagem: 'Locação removida com sucesso.' });

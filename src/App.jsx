@@ -20,7 +20,7 @@ function RoleRoute({ allowed, element }) {
   if (!usuarioLogado) return <Navigate to="/login" replace />;
   if (!allowed.includes(usuarioLogado.perfil)) {
     if (usuarioLogado.perfil === 'locatario') return <Navigate to="/veiculos" replace />;
-    if (usuarioLogado.perfil === 'auxiliar') return <Navigate to="/financeiro" replace />;
+    if (usuarioLogado.perfil === 'auxiliar') return <Navigate to="/veiculos" replace />;
     return <Navigate to="/dashboard" replace />;
   }
   return element;
@@ -30,7 +30,7 @@ function HomeRedirect() {
   const { usuarioLogado } = useApp();
   if (!usuarioLogado) return <Navigate to="/login" replace />;
   if (usuarioLogado.perfil === 'locatario') return <Navigate to="/veiculos" replace />;
-  if (usuarioLogado.perfil === 'auxiliar') return <Navigate to="/financeiro" replace />;
+  if (usuarioLogado.perfil === 'auxiliar') return <Navigate to="/veiculos" replace />;
   return <Navigate to="/dashboard" replace />;
 }
 
@@ -45,7 +45,7 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<HomeRedirect />} />
             <Route path="dashboard" element={<RoleRoute allowed={['admin', 'locador']} element={<Dashboard />} />} />
-            <Route path="painel" element={<RoleRoute allowed={['admin']} element={<Painel />} />} />
+            <Route path="painel" element={<RoleRoute allowed={['admin', 'auxiliar']} element={<Painel />} />} />
             <Route path="locadores" element={<RoleRoute allowed={['admin']} element={<Locadores />} />} />
             <Route path="locatarios" element={<RoleRoute allowed={['admin']} element={<Locatarios />} />} />
             <Route path="colaboradores" element={<RoleRoute allowed={['admin', 'locador']} element={<Colaboradores />} />} />

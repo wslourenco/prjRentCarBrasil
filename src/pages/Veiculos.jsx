@@ -101,6 +101,7 @@ export default function Veiculos() {
   const [quantidadePeriodosLocacao, setQuantidadePeriodosLocacao] = useState(1);
 
   const podeGerenciar = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador';
+  const podeCadastrar = podeGerenciar || usuarioLogado?.perfil === 'auxiliar';
   const listaVeiculos = veiculos;
 
   const categoriasVeiculo = useMemo(() => {
@@ -456,7 +457,7 @@ export default function Veiculos() {
               </select>
             </div>
           )}
-          {podeGerenciar && (
+          {podeCadastrar && (
             <button className="btn btn-primary" onClick={abrirNovo}><Plus size={16} /> Novo Veículo</button>
           )}
         </div>
@@ -678,7 +679,7 @@ export default function Veiculos() {
         </div>
       )}
 
-      {podeGerenciar && modal && (
+      {podeCadastrar && modal && (
         <div className="modal-overlay" onClick={fecharModal}>
           <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
             <div className="modal-header">

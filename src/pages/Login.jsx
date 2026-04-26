@@ -22,7 +22,7 @@ export default function Login() {
       } else if (usuario.perfil === 'locatario') {
         navigate('/painel');
       } else if (usuario.perfil === 'auxiliar') {
-        navigate('/financeiro');
+        navigate('/veiculos');
       } else {
         navigate('/dashboard');
       }

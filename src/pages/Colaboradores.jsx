@@ -71,10 +71,6 @@ export default function Colaboradores() {
     return { value: form[field] || '', onChange: e => setForm({ ...form, [field]: applyMask(field, e.target.value) }) };
   }
 
-  function addAuxiliar() {
-    setForm({ ...form, auxiliares: [...(form.auxiliares || []), { ...EMPTY_AUXILIAR }] });
-  }
-
   function updateAuxiliar(index, field, value) {
     const lista = [...(form.auxiliares || [])];
     lista[index] = { ...lista[index], [field]: value };

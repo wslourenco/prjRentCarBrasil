@@ -403,11 +403,30 @@ export default function Financeiro() {
     );
   }, [locacoesEscopo, usuarioLogado?.perfil]);
 
+  const idsVeiculosAuxiliarAtivos = useMemo(() => {
+    if (usuarioLogado?.perfil !== 'auxiliar') return null;
+
+    return new Set(
+      locacoesEscopo
+        .filter((loc) => String(loc.status || '').toLowerCase() === 'ativa')
+        .map((loc) => String(loc.veiculoId || ''))
+        .filter(Boolean)
+    );
+  }, [locacoesEscopo, usuarioLogado?.perfil]);
+
   const veiculosCombo = useMemo(() => {
-    if (usuarioLogado?.perfil !== 'locatario') return veiculosCatalogo;
-    const ativos = idsVeiculosLocatarioAtivos || new Set();
-    return veiculosCatalogo.filter((v) => ativos.has(String(v.id || '')));
-  }, [veiculosCatalogo, usuarioLogado?.perfil, idsVeiculosLocatarioAtivos]);
+    if (usuarioLogado?.perfil === 'locatario') {
+      const ativosLocatario = idsVeiculosLocatarioAtivos || new Set();
+      return veiculosCatalogo.filter((v) => ativosLocatario.has(String(v.id || '')));
+    }
+
+    if (usuarioLogado?.perfil === 'auxiliar') {
+      const ativosAuxiliar = idsVeiculosAuxiliarAtivos || new Set();
+      return veiculosCatalogo.filter((v) => ativosAuxiliar.has(String(v.id || '')));
+    }
+
+    return veiculosCatalogo;
+  }, [veiculosCatalogo, usuarioLogado?.perfil, idsVeiculosLocatarioAtivos, idsVeiculosAuxiliarAtivos]);
 
   const lista = useMemo(() => {
     const valorOrdenacao = (item, campo) => {

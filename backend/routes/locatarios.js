@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
+const { authMiddleware, adminOnly, requireProfiles } = require('../middleware/auth');
 
-router.use(authMiddleware, adminOnly);
+router.use(authMiddleware);
 
 // GET /api/locatarios
-router.get('/', async (req, res) => {
+router.get('/', requireProfiles('admin', 'auxiliar'), async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM locatarios ORDER BY nome');
         res.json(rows);
@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/locatarios/:id
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireProfiles('admin', 'auxiliar'), async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM locatarios WHERE id = ?', [req.params.id]);
         if (rows.length === 0) return res.status(404).json({ erro: 'Locatário não encontrado.' });
@@ -29,7 +29,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/locatarios
-router.post('/', async (req, res) => {
+router.post('/', adminOnly, async (req, res) => {
     const {
         tipo, nome, cpf, rg, data_nascimento, razao_social, cnpj, insc_estadual,
         telefone, celular, email, whatsapp,
@@ -71,7 +71,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/locatarios/:id
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminOnly, async (req, res) => {
     const {
         tipo, nome, cpf, rg, data_nascimento, razao_social, cnpj, insc_estadual,
         telefone, celular, email, whatsapp,
@@ -113,7 +113,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/locatarios/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminOnly, async (req, res) => {
     try {
         const [result] = await pool.query('DELETE FROM locatarios WHERE id = ?', [req.params.id]);
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Locatário não encontrado.' });

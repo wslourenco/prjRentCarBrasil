@@ -103,18 +103,19 @@ export function AppProvider({ children }) {
             }
 
             if (perfil === 'auxiliar') {
-                const [v, fin, loc] = await Promise.allSettled([
+                const [lt, v, fin, loc] = await Promise.allSettled([
+                    api.get('/locatarios'),
                     api.get('/veiculos'),
                     api.get('/financeiro'),
                     api.get('/locacoes'),
                 ]);
                 setLocadores([]);
-                setLocatarios([]);
+                setLocatarios(getSettledValue(lt, locatarioFromApi));
                 setColaboradores([]);
                 setVeiculos(getSettledValue(v, veiculoFromApi));
                 setDespesasReceitas(getSettledValue(fin, financeiroFromApi));
                 setLocacoes(getSettledValue(loc, locacaoFromApi));
-                setErro(getSettledError(v, fin, loc));
+                setErro(getSettledError(lt, v, fin, loc));
                 return;
             }
 

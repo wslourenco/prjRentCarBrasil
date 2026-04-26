@@ -167,7 +167,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/veiculos
-router.post('/', requireProfiles('admin', 'locador'), async (req, res) => {
+router.post('/', requireProfiles('admin', 'locador', 'auxiliar'), async (req, res) => {
     const {
         placa, marca, modelo, ano_fabricacao, ano_modelo, cor, combustivel,
         transmissao, nr_portas, capacidade,
