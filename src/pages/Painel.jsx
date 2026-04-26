@@ -2,8 +2,53 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Car, User, Phone, Mail, DollarSign, Wrench, X, Plus, CheckCircle,
-  ChevronRight, MessageCircle, Bell, Check, CalendarDays
+  ChevronRight, MessageCircle, Bell, Check, CalendarDays, Star
 } from 'lucide-react';
+
+const AVALIACAO_QUESTOES = [
+  'Pontualidade na devolução do veículo',
+  'Cuidado com o estado geral do veículo',
+  'Cumprimento das condições do contrato',
+  'Comunicação durante o período da locação',
+  'Organização com documentação solicitada',
+  'Responsabilidade com quilometragem e uso',
+  'Zelo com limpeza e conservação interna',
+  'Transparência em ocorrências e imprevistos',
+  'Agilidade para resolver pendências',
+  'Confiabilidade geral do locatário',
+];
+
+function renderStarIcons(nota, size = 13) {
+  const safeNota = Number.isFinite(Number(nota)) ? Math.max(0, Math.min(5, Number(nota))) : 0;
+
+  return Array.from({ length: 5 }).map((_, i) => {
+    const preenchimento = Math.max(0, Math.min(1, safeNota - i));
+    const clipId = `star-fill-${size}-${i}-${Math.round(safeNota * 10)}`;
+
+    return (
+      <span key={clipId} style={{ position: 'relative', width: size, height: size, display: 'inline-flex' }}>
+        <Star size={size} fill="none" style={{ color: '#d1d5db', position: 'absolute', inset: 0 }} />
+        <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false">
+          <defs>
+            <clipPath id={clipId}>
+              <rect x="0" y="0" width={size * preenchimento} height={size} />
+            </clipPath>
+          </defs>
+        </svg>
+        <Star
+          size={size}
+          fill="currentColor"
+          style={{
+            color: '#f59e0b',
+            position: 'absolute',
+            inset: 0,
+            clipPath: `url(#${clipId})`,
+          }}
+        />
+      </span>
+    );
+  });
+}
 
 const EMPTY_LOCACAO = {
   veiculoId: '', locatarioId: '',
@@ -13,12 +58,12 @@ const EMPTY_LOCACAO = {
   caucao: '',
   condicoes: '',
   kmEntrada: '',
-  periodicidade: 'semanal',
+  periodicidade: 'semana',
   quantidadePeriodos: '1',
 };
 
 export default function Painel() {
-  const { locacoes, veiculos, locatarios, despesasReceitas, addLocacao, updateLocacao, removeLocacao, encerrarLocacao, updateVeiculo, usuarioLogado } = useApp();
+  const { locacoes, veiculos, locatarios, despesasReceitas, addLocacao, updateLocacao, removeLocacao, encerrarLocacao, usuarioLogado } = useApp();
   const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
   const [abaDetalhe, setAbaDetalhe] = useState('info');
   const [modalNovaLocacao, setModalNovaLocacao] = useState(false);
@@ -60,6 +105,73 @@ export default function Painel() {
     return despesasReceitas.filter(d => d.tipo === 'receita' && String(d.locatarioId) === String(locatarioId));
   }
 
+  function computeEndDate(dataInicio, periodicidade, quantidade) {
+    if (!dataInicio || !periodicidade || !quantidade) return '';
+    
+    const base = new Date(`${dataInicio}T00:00:00`);
+    if (Number.isNaN(base.getTime())) return '';
+
+    const total = Number(quantidade || 0);
+    if (!total || total <= 0) return '';
+
+    if (periodicidade === 'dia') {
+      base.setDate(base.getDate() + total);
+    } else if (periodicidade === 'semana') {
+      base.setDate(base.getDate() + (total * 7));
+    } else if (periodicidade === 'quinzenal') {
+      base.setDate(base.getDate() + (total * 14));
+    } else if (periodicidade === 'mensal') {
+      base.setMonth(base.getMonth() + total);
+    } else {
+      return '';
+    }
+
+    return base.toISOString().split('T')[0];
+  }
+
+  // Atualizar data final automaticamente quando periodicidade, quantidade ou data de início mudam
+  useEffect(() => {
+    if (modalNovaLocacao && formLocacao.dataInicio && formLocacao.periodicidade && formLocacao.quantidadePeriodos) {
+      const novaDataFim = computeEndDate(formLocacao.dataInicio, formLocacao.periodicidade, formLocacao.quantidadePeriodos);
+      if (novaDataFim && novaDataFim !== formLocacao.dataPrevisaoFim) {
+        setFormLocacao(prev => ({ ...prev, dataPrevisaoFim: novaDataFim }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalNovaLocacao, formLocacao.dataInicio, formLocacao.periodicidade, formLocacao.quantidadePeriodos]);
+
+  // Auto-preencher valor total e caução com base no valor diário do veículo selecionado
+  useEffect(() => {
+    if (!modalNovaLocacao) return;
+    const veiculo = veiculos.find(v => String(v.id) === String(formLocacao.veiculoId));
+    const valorDiario = Number(veiculo?.valorDiario || 0);
+    if (!valorDiario) {
+      setFormLocacao(prev => ({ ...prev, caucao: '' }));
+      return;
+    }
+    const qtd = Number(formLocacao.quantidadePeriodos || 1);
+    const per = formLocacao.periodicidade;
+    let diasTotal = qtd;
+    if (per === 'semana') diasTotal = qtd * 7;
+    else if (per === 'quinzenal') diasTotal = qtd * 14;
+    else if (per === 'mensal') diasTotal = qtd * 30;
+    const valorCalculado = (valorDiario * diasTotal).toFixed(2);
+    const caucaoCalculada = valorDiario.toFixed(2);
+    setFormLocacao(prev => ({ ...prev, valorSemanal: valorCalculado, caucao: caucaoCalculada }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalNovaLocacao, formLocacao.veiculoId, formLocacao.periodicidade, formLocacao.quantidadePeriodos]);
+
+  // Regra de negócio: caução deve sempre ser igual ao valor da locação.
+  useEffect(() => {
+    if (!modalNovaLocacao) return;
+
+    const valorLocacao = String(formLocacao.valorSemanal || '').trim();
+    if (formLocacao.caucao === valorLocacao) return;
+
+    setFormLocacao(prev => ({ ...prev, caucao: valorLocacao }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalNovaLocacao, formLocacao.valorSemanal]);
+
   function abrirModalNovaLocacao() {
     setLocacaoEditandoId(null);
     setFormLocacao(EMPTY_LOCACAO);
@@ -77,8 +189,8 @@ export default function Painel() {
       caucao: item.locacao.caucao || '',
       condicoes: item.locacao.condicoes || '',
       kmEntrada: item.locacao.kmEntrada || '',
-      periodicidade: 'semanal',
-      quantidadePeriodos: '1',
+      periodicidade: item.locacao.periodicidade || 'semana',
+      quantidadePeriodos: item.locacao.quantidadePeriodos ? String(item.locacao.quantidadePeriodos) : '1',
       dataEncerramento: item.locacao.dataEncerramento || null,
       kmSaida: item.locacao.kmSaida || null,
       status: item.locacao.status || 'ativa',
@@ -95,20 +207,23 @@ export default function Painel() {
   async function handleNovaLocacao(e) {
     e.preventDefault();
     try {
+      const payloadLocacao = {
+        ...formLocacao,
+        kmEntrada: kmAtualVeiculoSelecionado,
+      };
+
       if (locacaoEditandoId) {
         await updateLocacao(locacaoEditandoId, {
-          ...formLocacao,
+          ...payloadLocacao,
           status: formLocacao.status || 'ativa',
         });
       } else {
-        await addLocacao(formLocacao);
+        await addLocacao(payloadLocacao);
       }
-      if (formLocacao.kmEntrada && formLocacao.veiculoId) {
-        await updateVeiculo(Number(formLocacao.veiculoId), { kmAtual: formLocacao.kmEntrada });
-      }
+
       if (veiculoSelecionado?.locacao?.id && locacaoEditandoId === veiculoSelecionado.locacao.id) {
         const locacaoAtualizada = locacoes.find(l => String(l.id) === String(locacaoEditandoId));
-        const locacaoFinal = locacaoAtualizada || { ...veiculoSelecionado.locacao, ...formLocacao, id: locacaoEditandoId };
+        const locacaoFinal = locacaoAtualizada || { ...veiculoSelecionado.locacao, ...payloadLocacao, id: locacaoEditandoId };
         const veiculoFinal = veiculos.find(v => String(v.id) === String(formLocacao.veiculoId)) || veiculoSelecionado.veiculo;
         const locatarioFinal = locatarios.find(l => String(l.id) === String(formLocacao.locatarioId)) || veiculoSelecionado.locatario;
         setVeiculoSelecionado({ locacao: locacaoFinal, veiculo: veiculoFinal, locatario: locatarioFinal });
@@ -119,9 +234,63 @@ export default function Painel() {
     }
   }
 
-  async function handleEncerrar(locacaoId) {
+  async function fileToBase64DataUrl(file) {
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Não foi possível ler o arquivo de comprovante.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleEncerrar() {
+    if (!confirmarEncerrar?.id) return;
+
+    const kmSaidaNumero = Number(confirmarEncerrar.kmSaida);
+    if (!Number.isFinite(kmSaidaNumero) || kmSaidaNumero <= 0) {
+      alert('Informe a quilometragem final válida para encerrar a locação.');
+      return;
+    }
+
+    const arquivo = confirmarEncerrar.comprovanteArquivo || null;
+    if (!arquivo) {
+      alert('Anexe o comprovante do pagamento (PDF ou imagem).');
+      return;
+    }
+
+    const tiposPermitidos = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    const tipoArquivo = String(arquivo.type || '').toLowerCase();
+    if (!tiposPermitidos.includes(tipoArquivo)) {
+      alert('O comprovante deve ser um arquivo PDF ou imagem (JPG, PNG, WEBP ou GIF).');
+      return;
+    }
+
+    if (arquivo.size > 8 * 1024 * 1024) {
+      alert('O arquivo de comprovante deve ter no máximo 8MB.');
+      return;
+    }
+
+    const respostasLikert = Array.isArray(confirmarEncerrar.avaliacaoLikert)
+      ? confirmarEncerrar.avaliacaoLikert.map(v => Number(v))
+      : [];
+    const respostasInvalidas = respostasLikert.length !== 10 || respostasLikert.some(v => !Number.isInteger(v) || v < 1 || v > 5);
+    if (respostasInvalidas) {
+      alert('Preencha as 10 perguntas da avaliação do locatário com notas de 1 a 5.');
+      return;
+    }
+
     try {
-      await encerrarLocacao(locacaoId);
+      const comprovanteBase64 = await fileToBase64DataUrl(arquivo);
+
+      await encerrarLocacao(confirmarEncerrar.id, {
+        kmSaida: kmSaidaNumero,
+        avaliacaoLikert: respostasLikert,
+        comprovanteArquivo: {
+          nome: arquivo.name || 'comprovante',
+          tipo: arquivo.type || '',
+          conteudoBase64: comprovanteBase64,
+        },
+      });
       setVeiculoSelecionado(null);
       setConfirmarEncerrar(null);
     } catch (err) {
@@ -155,6 +324,9 @@ export default function Painel() {
       if (!filtroCategoriaVeiculo) return true;
       return (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoriaVeiculo;
     });
+
+  const veiculoSelecionadoForm = veiculos.find(v => String(v.id) === String(formLocacao.veiculoId));
+  const kmAtualVeiculoSelecionado = veiculoSelecionadoForm?.kmAtual ?? '';
 
   if (usuarioLogado?.perfil === 'locatario') {
     return (
@@ -245,6 +417,18 @@ export default function Painel() {
                 <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>
                   Locatário: {veiculoSelecionado.locatario ? (veiculoSelecionado.locatario.tipo === 'juridica' ? veiculoSelecionado.locatario.razaoSocial : veiculoSelecionado.locatario.nome) : '-'}
                 </div>
+                {!!veiculoSelecionado.locatario && (
+                  <div style={{ marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--gray-600)' }}>
+                    <span style={{ display: 'inline-flex', gap: 2, color: '#f59e0b' }}>
+                      {renderStarIcons(Number(veiculoSelecionado.locatario?.pontuacaoMedia || 0), 13)}
+                    </span>
+                    <span>
+                      {Number(veiculoSelecionado.locatario?.totalAvaliacoes || 0) > 0
+                        ? `${Number(veiculoSelecionado.locatario?.pontuacaoMedia || 0).toFixed(1)} (${Number(veiculoSelecionado.locatario?.totalAvaliacoes || 0)})`
+                        : 'Sem avaliação'}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="flex" style={{ gap: 8 }}>
                 {podeEditarExcluir && (
@@ -257,7 +441,12 @@ export default function Painel() {
                 )}
                 <button
                   className="btn btn-danger btn-sm"
-                  onClick={() => setConfirmarEncerrar(veiculoSelecionado.locacao.id)}
+                  onClick={() => setConfirmarEncerrar({
+                    id: veiculoSelecionado.locacao.id,
+                    kmSaida: veiculoSelecionado.veiculo?.kmAtual || '',
+                    comprovanteArquivo: null,
+                    avaliacaoLikert: Array.from({ length: 10 }, () => ''),
+                  })}
                 >
                   <CheckCircle size={14} /> Encerrar Locação
                 </button>
@@ -330,13 +519,75 @@ export default function Painel() {
       {/* Modal Confirmar Encerramento */}
       {confirmarEncerrar && (
         <div className="modal-overlay" onClick={() => setConfirmarEncerrar(null)}>
-          <div className="modal" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+          <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header"><span className="modal-title">Encerrar Locação</span></div>
             <div className="modal-body">
-              <p style={{ marginBottom: 20 }}>Confirma o encerramento da locação? Esta ação marcará o veículo como disponível.</p>
+              <p style={{ marginBottom: 12 }}>Para encerrar a locação, informe os dados obrigatórios abaixo.</p>
+              <div className="form-grid" style={{ marginBottom: 16 }}>
+                <div className="form-group form-full">
+                  <label>Quilometragem Final *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={confirmarEncerrar.kmSaida}
+                    onChange={(e) => setConfirmarEncerrar((prev) => ({ ...prev, kmSaida: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group form-full">
+                  <label>Comprovante do Pagamento *</label>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    required
+                    onChange={(e) => {
+                      const arquivo = e.target.files?.[0] || null;
+                      setConfirmarEncerrar((prev) => ({ ...prev, comprovanteArquivo: arquivo }));
+                    }}
+                  />
+                  <small style={{ color: 'var(--gray-500)' }}>
+                    Formatos aceitos: PDF, JPG, PNG, WEBP ou GIF (máx. 8MB).
+                  </small>
+                </div>
+                <div className="form-group form-full">
+                  <label>Avaliação do Locatário (Escala Likert 1 a 5) *</label>
+                  <div style={{ display: 'grid', gap: 8, maxHeight: 260, overflowY: 'auto', padding: 8, border: '1px solid var(--gray-200)', borderRadius: 8 }}>
+                    {AVALIACAO_QUESTOES.map((pergunta, index) => {
+                      const respostaAtual = confirmarEncerrar.avaliacaoLikert?.[index] || '';
+                      return (
+                        <div key={pergunta} style={{ display: 'grid', gap: 6, paddingBottom: 8, borderBottom: '1px solid var(--gray-100)' }}>
+                          <div style={{ fontSize: 13, color: 'var(--gray-700)' }}>{index + 1}. {pergunta}</div>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                            {[1, 2, 3, 4, 5].map(nota => (
+                              <label key={`${pergunta}-${nota}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--gray-600)' }}>
+                                <input
+                                  type="radio"
+                                  name={`avaliacao-${index}`}
+                                  checked={Number(respostaAtual) === nota}
+                                  onChange={() => {
+                                    setConfirmarEncerrar(prev => {
+                                      const respostas = Array.isArray(prev.avaliacaoLikert) ? [...prev.avaliacaoLikert] : Array.from({ length: 10 }, () => '');
+                                      respostas[index] = String(nota);
+                                      return { ...prev, avaliacaoLikert: respostas };
+                                    });
+                                  }}
+                                />
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                                  {Array.from({ length: nota }).map((_, i) => <Star key={i} size={12} fill="currentColor" />)}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <small style={{ color: 'var(--gray-500)' }}>1 = Muito ruim, 5 = Excelente.</small>
+                </div>
+              </div>
               <div className="flex" style={{ gap: 10, justifyContent: 'flex-end' }}>
                 <button className="btn btn-outline" onClick={() => setConfirmarEncerrar(null)}>Cancelar</button>
-                <button className="btn btn-danger" onClick={() => handleEncerrar(confirmarEncerrar)}>
+                <button className="btn btn-danger" onClick={handleEncerrar}>
                   <CheckCircle size={14} /> Confirmar
                 </button>
               </div>
@@ -393,9 +644,30 @@ export default function Painel() {
                     </div>
                     <div className="form-group"><label>Data de Início *</label><input required type="date" {...fLocacao('dataInicio')} /></div>
                     <div className="form-group"><label>Previsão de Fim</label><input type="date" {...fLocacao('dataPrevisaoFim')} /></div>
-                    <div className="form-group"><label>Valor Semanal (R$) *</label><input required type="number" step="0.01" {...fLocacao('valorSemanal')} /></div>
-                    <div className="form-group"><label>Caução (R$)</label><input type="number" step="0.01" {...fLocacao('caucao')} /></div>
-                    <div className="form-group"><label>KM na Entrega</label><input type="number" {...fLocacao('kmEntrada')} /></div>
+                    <div className="form-group">
+                      <label>Periodicidade *</label>
+                      <select required value={formLocacao.periodicidade} onChange={e => setFormLocacao({ ...formLocacao, periodicidade: e.target.value })}>
+                        <option value="dia">Dia</option>
+                        <option value="semana">Semana</option>
+                        <option value="quinzenal">Quinzenal</option>
+                        <option value="mensal">Mensal</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Quantidade de {formLocacao.periodicidade === 'dia' ? 'Dias' : formLocacao.periodicidade === 'semana' ? 'Semanas' : formLocacao.periodicidade === 'quinzenal' ? 'Quinzenas' : 'Meses'} *</label>
+                      <input required type="number" min="1" max="365" {...fLocacao('quantidadePeriodos')} />
+                    </div>
+                    <div className="form-group"><label>Valor Total da Locação (R$) *</label><input required type="number" step="0.01" {...fLocacao('valorSemanal')} /></div>
+                    <div className="form-group"><label>Caução (R$) (automática)</label><input type="number" step="0.01" {...fLocacao('caucao')} readOnly /></div>
+                    <div className="form-group">
+                      <label>KM Atual do Veículo (automático)</label>
+                      <input
+                        type="number"
+                        value={kmAtualVeiculoSelecionado}
+                        readOnly
+                        disabled
+                      />
+                    </div>
                     <div className="form-group form-full"><label>Condições / Observações</label><textarea {...fLocacao('condicoes')} /></div>
                   </div>
                   <div className="form-actions">
@@ -417,10 +689,11 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
   const [form, setForm] = useState({
     veiculoId: '',
     dataInicio: new Date().toISOString().split('T')[0],
-    periodicidade: 'semanal',
+    periodicidade: 'semana',
     quantidadePeriodos: '1',
     condicoes: '',
   });
+  const [dataFimCalculada, setDataFimCalculada] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -448,6 +721,28 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
       veiculoId: veiculosDisponiveis[0] ? String(veiculosDisponiveis[0].id) : '',
     }));
   }, [veiculosDisponiveis, form.veiculoId]);
+
+  // Calcular data final automaticamente quando dataInicio, periodicidade ou quantidadePeriodos mudam
+  useEffect(() => {
+    if (form.dataInicio && form.periodicidade && form.quantidadePeriodos) {
+      const base = new Date(`${form.dataInicio}T00:00:00`);
+      if (!Number.isNaN(base.getTime())) {
+        const total = Number(form.quantidadePeriodos || 0);
+        if (total > 0) {
+          if (form.periodicidade === 'dia') {
+            base.setDate(base.getDate() + total);
+          } else if (form.periodicidade === 'semana') {
+            base.setDate(base.getDate() + (total * 7));
+          } else if (form.periodicidade === 'quinzenal') {
+            base.setDate(base.getDate() + (total * 14));
+          } else if (form.periodicidade === 'mensal') {
+            base.setMonth(base.getMonth() + total);
+          }
+          setDataFimCalculada(base.toISOString().split('T')[0]);
+        }
+      }
+    }
+  }, [form.dataInicio, form.periodicidade, form.quantidadePeriodos]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -504,7 +799,8 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
                 <div className="form-group">
                   <label>Periodicidade *</label>
                   <select value={form.periodicidade} onChange={e => setForm({ ...form, periodicidade: e.target.value })}>
-                    <option value="semanal">Semanal</option>
+                    <option value="dia">Dia</option>
+                    <option value="semana">Semanal</option>
                     <option value="quinzenal">Quinzenal</option>
                     <option value="mensal">Mensal</option>
                   </select>
@@ -519,6 +815,16 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
                   required
                   value={form.quantidadePeriodos}
                   onChange={e => setForm({ ...form, quantidadePeriodos: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label>Data de término estimada</label>
+                <input
+                  type="date"
+                  disabled
+                  readOnly
+                  value={dataFimCalculada}
                 />
               </div>
 
@@ -575,6 +881,39 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
 
 function InfoLocacao({ item }) {
   const { veiculo, locatario, locacao } = item;
+
+  const apiBase = String(import.meta.env.VITE_API_URL ?? '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\/$/, '')
+    || (['localhost', '127.0.0.1'].includes(window.location.hostname)
+      ? 'http://localhost:3001'
+      : window.location.origin);
+
+  const comprovantePagamento = String(locacao.comprovantePagamento || '').trim();
+  const comprovanteUrl = (() => {
+    if (!comprovantePagamento) return '';
+    if (/^https?:\/\//i.test(comprovantePagamento)) return comprovantePagamento;
+    const caminho = comprovantePagamento.replace(/^\//, '');
+    return `${apiBase}/${caminho}`;
+  })();
+
+  const renderEstrelasLocatario = () => {
+    if (!locatario) return '-';
+    const nota = Number(locatario.pontuacaoMedia || 0);
+    const total = Number(locatario.totalAvaliacoes || 0);
+    if (total <= 0) return 'Sem avaliação';
+
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+        <span style={{ display: 'inline-flex', gap: 2, color: '#f59e0b' }}>
+          {renderStarIcons(nota, 13)}
+        </span>
+        <span>{`${nota.toFixed(1)} (${total})`}</span>
+      </span>
+    );
+  };
+
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
@@ -598,6 +937,7 @@ function InfoLocacao({ item }) {
               <InfoRow label="Validade CNH" value={locatario.validadeCnh || '-'} />
               <InfoRow label="Telefone" value={locatario.celular || locatario.telefone || '-'} />
               <InfoRow label="E-mail" value={locatario.email || '-'} />
+              <InfoRow label="Avaliação" value={renderEstrelasLocatario()} />
               <InfoRow label="Motorista App" value={locatario.motoristApp ? 'Sim' : 'Não'} />
               {locatario.motoristApp && <InfoRow label="Plataformas" value={locatario.plataformasApp || '-'} />}
             </>
@@ -609,10 +949,24 @@ function InfoLocacao({ item }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           <InfoRow label="Início" value={locacao.dataInicio} />
           <InfoRow label="Previsão Fim" value={locacao.dataPrevisaoFim || 'Indeterminado'} />
-          <InfoRow label="Valor Semanal" value={locacao.valorSemanal ? `R$ ${Number(locacao.valorSemanal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'} />
+          <InfoRow label="Valor da Locação" value={locacao.valorSemanal ? `R$ ${Number(locacao.valorSemanal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'} />
           <InfoRow label="Caução" value={locacao.caucao ? `R$ ${Number(locacao.caucao).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'} />
           <InfoRow label="KM Entrada" value={locacao.kmEntrada ? Number(locacao.kmEntrada).toLocaleString() : '-'} />
         </div>
+        <InfoRow label="KM Final" value={locacao.kmSaida ? Number(locacao.kmSaida).toLocaleString() : '-'} />
+        <InfoRow label="Comprovante" value={locacao.comprovantePagamento || '-'} />
+        {comprovanteUrl && (
+          <div style={{ marginTop: 10 }}>
+            <a
+              href={comprovanteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-outline btn-sm"
+            >
+              Abrir Comprovante
+            </a>
+          </div>
+        )}
         {locacao.condicoes && <InfoRow label="Condições" value={locacao.condicoes} />}
       </InfoSection>
     </div>

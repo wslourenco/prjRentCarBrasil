@@ -8,7 +8,16 @@ router.use(authMiddleware);
 // GET /api/locatarios
 router.get('/', requireProfiles('admin', 'auxiliar'), async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM locatarios ORDER BY nome');
+        const [rows] = await pool.query(
+            `SELECT lt.*, COALESCE(av.media_estrelas, 0) AS pontuacao_media, COALESCE(av.total_avaliacoes, 0) AS total_avaliacoes
+             FROM locatarios lt
+             LEFT JOIN (
+                SELECT locatario_id, ROUND(AVG(media_geral), 2) AS media_estrelas, COUNT(*) AS total_avaliacoes
+                FROM locatario_avaliacoes
+                GROUP BY locatario_id
+             ) av ON av.locatario_id = lt.id
+             ORDER BY lt.nome`
+        );
         res.json(rows);
     } catch (err) {
         console.error(err);
@@ -19,7 +28,17 @@ router.get('/', requireProfiles('admin', 'auxiliar'), async (req, res) => {
 // GET /api/locatarios/:id
 router.get('/:id', requireProfiles('admin', 'auxiliar'), async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM locatarios WHERE id = ?', [req.params.id]);
+        const [rows] = await pool.query(
+            `SELECT lt.*, COALESCE(av.media_estrelas, 0) AS pontuacao_media, COALESCE(av.total_avaliacoes, 0) AS total_avaliacoes
+             FROM locatarios lt
+             LEFT JOIN (
+                SELECT locatario_id, ROUND(AVG(media_geral), 2) AS media_estrelas, COUNT(*) AS total_avaliacoes
+                FROM locatario_avaliacoes
+                GROUP BY locatario_id
+             ) av ON av.locatario_id = lt.id
+             WHERE lt.id = ?`,
+            [req.params.id]
+        );
         if (rows.length === 0) return res.status(404).json({ erro: 'Locatário não encontrado.' });
         res.json(rows[0]);
     } catch (err) {

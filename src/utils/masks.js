@@ -48,6 +48,17 @@ export function maskRenavam(v) {
     return v.replace(/\D/g, '').slice(0, 11);
 }
 
+export function maskMoeda(v) {
+    const digits = String(v || '').replace(/\D/g, '');
+    if (!digits) return '';
+
+    const centavos = Number(digits);
+    return (centavos / 100).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
+
 const FIELD_MASKS = {
     cpf: maskCpf,
     cnpj: maskCnpj,
@@ -61,6 +72,7 @@ const FIELD_MASKS = {
     rg: maskRg,
     placa: maskPlaca,
     renavam: maskRenavam,
+    valorDiario: maskMoeda,
 };
 
 export function applyMask(field, value) {

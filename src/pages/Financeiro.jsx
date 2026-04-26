@@ -209,6 +209,16 @@ export default function Financeiro() {
     setGraficoMontadora(valor);
   }
 
+  function limparFiltrosRelatorios() {
+    setFiltroVeiculo('');
+    setFiltroMontadora('');
+    setGraficoVeiculo('');
+    setGraficoMontadora('');
+    setGraficoInicio('');
+    setGraficoFim('');
+    setGraficoStatus('');
+  }
+
   function abrirNovo(tipoInicial = 'receita') {
     setForm({ ...EMPTY, tipo: tipoInicial, categoria: tipoInicial === 'receita' ? CATEGORIAS_RECEITA[0] : CATEGORIAS_DESPESA[0] });
     setEditId(null); setModal(true); setErroCrud('');
@@ -676,6 +686,11 @@ export default function Financeiro() {
   }, [graficoInicio, graficoFim, graficoStatus, graficoMontadora, graficoVeiculo, veiculosCatalogo]);
 
   function exportarGraficosCsv() {
+    if (isAuxiliar) {
+      alert('Perfil auxiliar não possui permissão para exportar relatórios financeiros.');
+      return;
+    }
+
     if (resumoPorLocacao.length === 0 && despesasDetalhadasCategoria.length === 0 && lucrosDetalhados.length === 0) {
       alert('Não há dados filtrados para exportar.');
       return;
@@ -760,6 +775,11 @@ export default function Financeiro() {
   }
 
   async function exportarGraficosXlsx() {
+    if (isAuxiliar) {
+      alert('Perfil auxiliar não possui permissão para exportar relatórios financeiros.');
+      return;
+    }
+
     if (resumoPorLocacao.length === 0 && despesasDetalhadasCategoria.length === 0 && lucrosDetalhados.length === 0) {
       alert('Não há dados filtrados para exportar.');
       return;
@@ -1020,31 +1040,50 @@ export default function Financeiro() {
       </div>
 
       {/* Resumo */}
-      <div className="stat-grid" style={{ marginBottom: 20 }}>
-        <div className="stat-card">
-          <div className="stat-icon green"><TrendingUp size={20} /></div>
-          <div>
-            <div className="stat-label">Receitas (filtro)</div>
-            <div className="stat-value" style={{ fontSize: 18, color: 'var(--secondary)' }}>R$ {totalReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+      {!isAuxiliar && (
+        <div className="stat-grid" style={{ marginBottom: 20 }}>
+          <div className="stat-card">
+            <div className="stat-icon green"><TrendingUp size={20} /></div>
+            <div>
+              <div className="stat-label">Receitas (filtro)</div>
+              <div className="stat-value" style={{ fontSize: 18, color: 'var(--secondary)' }}>R$ {totalReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+            </div>
           </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon red"><TrendingDown size={20} /></div>
-          <div>
-            <div className="stat-label">Despesas (filtro)</div>
-            <div className="stat-value" style={{ fontSize: 18, color: 'var(--danger)' }}>R$ {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+          <div className="stat-card">
+            <div className="stat-icon red"><TrendingDown size={20} /></div>
+            <div>
+              <div className="stat-label">Despesas (filtro)</div>
+              <div className="stat-value" style={{ fontSize: 18, color: 'var(--danger)' }}>R$ {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+            </div>
           </div>
-        </div>
-        <div className="stat-card">
-          <div className={`stat-icon ${saldo >= 0 ? 'green' : 'red'}`}><Check size={20} /></div>
-          <div>
-            <div className="stat-label">Saldo (filtro)</div>
-            <div className="stat-value" style={{ fontSize: 18, color: saldo >= 0 ? 'var(--secondary)' : 'var(--danger)' }}>
-              R$ {saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          <div className="stat-card">
+            <div className={`stat-icon ${saldo >= 0 ? 'green' : 'red'}`}><Check size={20} /></div>
+            <div>
+              <div className="stat-label">Saldo (filtro)</div>
+              <div className="stat-value" style={{ fontSize: 18, color: saldo >= 0 ? 'var(--secondary)' : 'var(--danger)' }}>
+                R$ {saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {(usuarioLogado?.perfil === 'locador' || usuarioLogado?.perfil === 'auxiliar') && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap' }}>
+            <div className="form-group" style={{ minWidth: 280, flex: 1 }}>
+              <label>Veículo (Despesas, Lucros e Gráficos)</label>
+              <select value={graficoVeiculo} onChange={e => setGraficoVeiculo(e.target.value)}>
+                <option value="">Todos os veículos</option>
+                {veiculosCombo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
+              </select>
+            </div>
+            <button type="button" className="btn btn-outline" onClick={limparFiltrosRelatorios}>
+              Limpar filtros
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Gráficos - oculto para Auxiliar Administrativo */}
       {!isAuxiliar && (
@@ -1085,13 +1124,6 @@ export default function Financeiro() {
             <select value={graficoMontadora} onChange={e => atualizarFiltroMontadora(e.target.value)}>
               <option value="">Todas as montadoras</option>
               {montadorasDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-          <div className="form-group" style={{ minWidth: 220, flex: 1 }}>
-            <label>Veículo</label>
-            <select value={graficoVeiculo} onChange={e => setGraficoVeiculo(e.target.value)}>
-              <option value="">Todos os veículos</option>
-              {veiculosCombo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ minWidth: 140 }}>
@@ -1241,20 +1273,29 @@ export default function Financeiro() {
 
       <div className="card">
         {/* Filtros */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-          <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13 }}>
-            <option value="">Todos os tipos</option>
-            <option value="receita">Receitas</option>
-            <option value="despesa">Despesas</option>
-          </select>
-          <select value={filtroVeiculo} onChange={e => setFiltroVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, flex: 1, maxWidth: 280 }}>
-            <option value="">Todos os veículos</option>
-            {veiculosCombo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
-          </select>
-          <select value={filtroMontadora} onChange={e => atualizarFiltroMontadora(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, flex: 1, maxWidth: 260 }}>
-            <option value="">Todas as montadoras</option>
-            {montadorasDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'end' }}>
+          <div className="form-group" style={{ minWidth: 170 }}>
+            <label>Tipo</label>
+            <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
+              <option value="">Todos os tipos</option>
+              <option value="receita">Receitas</option>
+              <option value="despesa">Despesas</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ minWidth: 260, flex: 1 }}>
+            <label>Veículo</label>
+            <select value={filtroVeiculo} onChange={e => setFiltroVeiculo(e.target.value)}>
+              <option value="">Todos os veículos</option>
+              {veiculosCombo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{ minWidth: 220, flex: 1 }}>
+            <label>Montadora</label>
+            <select value={filtroMontadora} onChange={e => atualizarFiltroMontadora(e.target.value)}>
+              <option value="">Todas as montadoras</option>
+              {montadorasDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
         </div>
 
         {lista.length === 0 ? (

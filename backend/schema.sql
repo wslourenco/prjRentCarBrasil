@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS veiculos (
   bloqueador          VARCHAR(80),
   nr_bloqueador       VARCHAR(40),
   locador_id          INT UNSIGNED,
+  valor_diario        DECIMAL(10,2),
   foto                VARCHAR(255),
   observacoes         TEXT,
   criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -196,12 +197,51 @@ CREATE TABLE IF NOT EXISTS locacoes (
   caucao              DECIMAL(10,2),
   km_entrada          INT UNSIGNED,
   km_saida            INT UNSIGNED,
+  comprovante_pagamento VARCHAR(120),
+  periodicidade       ENUM('dia','semana','quinzenal','mensal') DEFAULT 'semanal',
+  quantidade_periodos INT UNSIGNED DEFAULT 1,
   status              ENUM('ativa','encerrada','cancelada') NOT NULL DEFAULT 'ativa',
   condicoes           TEXT,
   criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_locacao_veiculo   FOREIGN KEY (veiculo_id)   REFERENCES veiculos(id)   ON DELETE RESTRICT,
   CONSTRAINT fk_locacao_locatario FOREIGN KEY (locatario_id) REFERENCES locatarios(id) ON DELETE RESTRICT
+);
+
+-- ----------------------------------------------------------------
+-- Tabela: locatario_avaliacoes
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS locatario_avaliacoes (
+  id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  locacao_id          INT UNSIGNED NOT NULL,
+  locatario_id        INT UNSIGNED NOT NULL,
+  avaliador_usuario_id INT UNSIGNED NOT NULL,
+  pergunta_1          TINYINT UNSIGNED NOT NULL,
+  pergunta_2          TINYINT UNSIGNED NOT NULL,
+  pergunta_3          TINYINT UNSIGNED NOT NULL,
+  pergunta_4          TINYINT UNSIGNED NOT NULL,
+  pergunta_5          TINYINT UNSIGNED NOT NULL,
+  pergunta_6          TINYINT UNSIGNED NOT NULL,
+  pergunta_7          TINYINT UNSIGNED NOT NULL,
+  pergunta_8          TINYINT UNSIGNED NOT NULL,
+  pergunta_9          TINYINT UNSIGNED NOT NULL,
+  pergunta_10         TINYINT UNSIGNED NOT NULL,
+  media_geral         DECIMAL(4,2) NOT NULL,
+  criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_avaliacao_locacao UNIQUE (locacao_id),
+  CONSTRAINT chk_pergunta_1 CHECK (pergunta_1 BETWEEN 1 AND 5),
+  CONSTRAINT chk_pergunta_2 CHECK (pergunta_2 BETWEEN 1 AND 5),
+  CONSTRAINT chk_pergunta_3 CHECK (pergunta_3 BETWEEN 1 AND 5),
+  CONSTRAINT chk_pergunta_4 CHECK (pergunta_4 BETWEEN 1 AND 5),
+  CONSTRAINT chk_pergunta_5 CHECK (pergunta_5 BETWEEN 1 AND 5),
+  CONSTRAINT chk_pergunta_6 CHECK (pergunta_6 BETWEEN 1 AND 5),
+  CONSTRAINT chk_pergunta_7 CHECK (pergunta_7 BETWEEN 1 AND 5),
+  CONSTRAINT chk_pergunta_8 CHECK (pergunta_8 BETWEEN 1 AND 5),
+  CONSTRAINT chk_pergunta_9 CHECK (pergunta_9 BETWEEN 1 AND 5),
+  CONSTRAINT chk_pergunta_10 CHECK (pergunta_10 BETWEEN 1 AND 5),
+  CONSTRAINT fk_avaliacao_locacao FOREIGN KEY (locacao_id) REFERENCES locacoes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_avaliacao_locatario FOREIGN KEY (locatario_id) REFERENCES locatarios(id) ON DELETE CASCADE,
+  CONSTRAINT fk_avaliacao_usuario FOREIGN KEY (avaliador_usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT
 );
 
 -- ----------------------------------------------------------------
@@ -266,6 +306,74 @@ SET @sql_add_auxiliares = (
 PREPARE stmt_add_auxiliares FROM @sql_add_auxiliares;
 EXECUTE stmt_add_auxiliares;
 DEALLOCATE PREPARE stmt_add_auxiliares;
+
+SET @sql_add_comprovante_encerramento = (
+  SELECT IF(
+    EXISTS (
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'locacoes'
+        AND COLUMN_NAME = 'comprovante_pagamento'
+    ),
+    'SELECT 1',
+    'ALTER TABLE locacoes ADD COLUMN comprovante_pagamento VARCHAR(120) AFTER km_saida'
+  )
+);
+PREPARE stmt_add_comprovante_encerramento FROM @sql_add_comprovante_encerramento;
+EXECUTE stmt_add_comprovante_encerramento;
+DEALLOCATE PREPARE stmt_add_comprovante_encerramento;
+
+SET @sql_add_periodicidade = (
+  SELECT IF(
+    EXISTS (
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'locacoes'
+        AND COLUMN_NAME = 'periodicidade'
+    ),
+    'SELECT 1',
+    'ALTER TABLE locacoes ADD COLUMN periodicidade ENUM("dia","semana","quinzenal","mensal") DEFAULT "semanal" AFTER comprovante_pagamento'
+  )
+);
+PREPARE stmt_add_periodicidade FROM @sql_add_periodicidade;
+EXECUTE stmt_add_periodicidade;
+DEALLOCATE PREPARE stmt_add_periodicidade;
+
+SET @sql_add_quantidade_periodos = (
+  SELECT IF(
+    EXISTS (
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'locacoes'
+        AND COLUMN_NAME = 'quantidade_periodos'
+    ),
+    'SELECT 1',
+    'ALTER TABLE locacoes ADD COLUMN quantidade_periodos INT UNSIGNED DEFAULT 1 AFTER periodicidade'
+  )
+);
+PREPARE stmt_add_quantidade_periodos FROM @sql_add_quantidade_periodos;
+EXECUTE stmt_add_quantidade_periodos;
+DEALLOCATE PREPARE stmt_add_quantidade_periodos;
+
+SET @sql_add_valor_diario = (
+  SELECT IF(
+    EXISTS (
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'veiculos'
+        AND COLUMN_NAME = 'valor_diario'
+    ),
+    'SELECT 1',
+    'ALTER TABLE veiculos ADD COLUMN valor_diario DECIMAL(10,2) AFTER nr_bloqueador'
+  )
+);
+PREPARE stmt_add_valor_diario FROM @sql_add_valor_diario;
+EXECUTE stmt_add_valor_diario;
+DEALLOCATE PREPARE stmt_add_valor_diario;
 
 -- ----------------------------------------------------------------
 -- Dados iniciais: usuário administrador

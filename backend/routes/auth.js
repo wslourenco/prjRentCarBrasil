@@ -59,6 +59,95 @@ async function getLocatarioProfileForUser(db, usuario) {
     return rows[0];
 }
 
+async function getAuxiliarLocadorForUser(db, usuario) {
+    const perfil = String(usuario?.perfil || '').trim().toLowerCase();
+    if (perfil !== 'auxiliar') return null;
+
+    const emailUsuario = String(usuario?.email || '').trim().toLowerCase();
+    if (!emailUsuario) return null;
+
+    const [locadorIdColumnRows] = await db.query(
+        "SHOW COLUMNS FROM colaboradores LIKE 'locador_id'"
+    );
+    const hasLocadorIdColumn = Array.isArray(locadorIdColumnRows) && locadorIdColumnRows.length > 0;
+
+    const [rows] = await db.query(
+        `SELECT ${hasLocadorIdColumn ? 'c.locador_id' : 'NULL AS locador_id'}, c.email, c.auxiliares_json
+         FROM colaboradores c
+         WHERE c.categoria = 'Auxiliar Administrativo'
+           AND c.auxiliares_json IS NOT NULL
+         ORDER BY c.atualizado_em DESC, c.id DESC`
+    );
+
+    for (const row of rows) {
+        let auxiliares = [];
+        try {
+            auxiliares = JSON.parse(row.auxiliares_json || '[]');
+        } catch {
+            auxiliares = [];
+        }
+
+        const pertenceAoColaborador = Array.isArray(auxiliares) && auxiliares.some((aux) => {
+            const emailAux = String(aux?.email || aux?.usuario || '').trim().toLowerCase();
+            return emailAux && emailAux === emailUsuario;
+        });
+
+        if (!pertenceAoColaborador) continue;
+
+        let locadorId = row.locador_id ? Number(row.locador_id) : null;
+
+        if (!locadorId) {
+            const emailColaborador = String(row.email || '').trim();
+            if (emailColaborador) {
+                const [locadorByEmail] = await db.query(
+                    'SELECT id FROM locadores WHERE LOWER(email) = LOWER(?) ORDER BY id ASC LIMIT 1',
+                    [emailColaborador]
+                );
+                if (locadorByEmail[0]?.id) locadorId = Number(locadorByEmail[0].id);
+            }
+        }
+
+        if (!locadorId) continue;
+
+        const [locadorRows] = await db.query(
+            `SELECT id, nome, email, tipo, cpf, cnpj
+             FROM locadores
+             WHERE id = ?
+             LIMIT 1`,
+            [locadorId]
+        );
+
+        if (locadorRows.length > 0) return locadorRows[0];
+    }
+
+    const [locadores] = await db.query(
+        'SELECT id, nome, email, tipo, cpf, cnpj FROM locadores ORDER BY id ASC'
+    );
+    if (locadores.length === 1) return locadores[0];
+
+    return null;
+}
+
+async function getLocadorProfileForUser(db, usuario) {
+    const perfil = String(usuario?.perfil || '').trim().toLowerCase();
+    if (perfil !== 'locador') return null;
+
+    const email = String(usuario?.email || '').trim();
+    if (!email) return null;
+
+    const [rows] = await db.query(
+        `SELECT id, nome, email, tipo, cpf, cnpj
+         FROM locadores
+         WHERE LOWER(TRIM(email)) = LOWER(?)
+         ORDER BY id ASC
+         LIMIT 1`,
+        [email]
+    );
+
+    if (!rows || rows.length === 0) return null;
+    return rows[0];
+}
+
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
     const { nome, email, senha, perfil, tipoDocumento, documento, rg } = req.body;
@@ -208,10 +297,14 @@ router.get('/me', authMiddleware, async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ erro: 'Usuário não encontrado.' });
         const usuario = rows[0];
         const locatario = await getLocatarioProfileForUser(pool, usuario);
+        const locadorVinculado = await getAuxiliarLocadorForUser(pool, usuario);
+        const locadorProprio = await getLocadorProfileForUser(pool, usuario);
         res.json({
             ...usuario,
             rg: locatario?.rg || null,
             locatario,
+            locador_vinculado: locadorVinculado ?? null,
+            locador_proprio: locadorProprio ?? null,
         });
     } catch (err) {
         console.error(err);

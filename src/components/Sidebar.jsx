@@ -21,6 +21,8 @@ export default function Sidebar() {
   const isLocador = usuarioLogado?.perfil === 'locador';
   const isLocatario = usuarioLogado?.perfil === 'locatario';
   const isAuxiliar = usuarioLogado?.perfil === 'auxiliar';
+  const locadorVinculado = usuarioLogado?.locadorVinculado || null;
+  const locadorProprio = usuarioLogado?.locadorProprio || null;
 
   return (
     <aside className="sidebar">
@@ -96,6 +98,18 @@ export default function Sidebar() {
           <div className="sidebar-user-info">
             <span className="name">{usuarioLogado?.nome}</span>
             <span className="role">{PERFIL_LABEL[usuarioLogado?.perfil]}</span>
+            {isAuxiliar && (
+              <span className="meta" title={locadorVinculado ? `Locador #${locadorVinculado.id} - ${locadorVinculado.nome}` : 'Locador não identificado'}>
+                {locadorVinculado
+                  ? `Locador: #${locadorVinculado.id} ${locadorVinculado.nome}`
+                  : 'Locador: não identificado'}
+              </span>
+            )}
+            {isLocador && locadorProprio && (
+              <span className="meta" title={`Seu cadastro de locador #${locadorProprio.id}`}>
+                {`Cadastro de locador: #${locadorProprio.id}`}
+              </span>
+            )}
           </div>
         </div>
         <button className="sidebar-logout" onClick={handleLogout}>

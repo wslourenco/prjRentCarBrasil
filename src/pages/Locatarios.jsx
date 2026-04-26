@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Plus, Edit2, Trash2, X, Check } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Check, Star } from 'lucide-react';
 import { applyMask } from '../utils/masks';
 
 const EMPTY = {
@@ -21,6 +21,38 @@ const EMPTY = {
 };
 
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+
+function renderStarIcons(nota, size = 14) {
+  const safeNota = Number.isFinite(Number(nota)) ? Math.max(0, Math.min(5, Number(nota))) : 0;
+
+  return Array.from({ length: 5 }).map((_, i) => {
+    const preenchimento = Math.max(0, Math.min(1, safeNota - i));
+    const clipId = `loc-star-fill-${size}-${i}-${Math.round(safeNota * 10)}`;
+
+    return (
+      <span key={clipId} style={{ position: 'relative', width: size, height: size, display: 'inline-flex' }}>
+        <Star size={size} fill="none" style={{ color: '#d1d5db', position: 'absolute', inset: 0 }} />
+        <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false">
+          <defs>
+            <clipPath id={clipId}>
+              <rect x="0" y="0" width={size * preenchimento} height={size} />
+            </clipPath>
+          </defs>
+        </svg>
+        <Star
+          size={size}
+          fill="currentColor"
+          style={{
+            color: '#f59e0b',
+            position: 'absolute',
+            inset: 0,
+            clipPath: `url(#${clipId})`,
+          }}
+        />
+      </span>
+    );
+  });
+}
 
 export default function Locatarios() {
   const { locatarios, addLocatario, updateLocatario, removeLocatario } = useApp();
@@ -57,6 +89,20 @@ export default function Locatarios() {
   const nomeExibido = l => l.tipo === 'juridica' ? l.razaoSocial : l.nome;
   const docExibido = l => l.tipo === 'juridica' ? `CNPJ: ${l.cnpj}` : `CPF: ${l.cpf}`;
 
+  function renderEstrelas(media, total) {
+    const nota = Number(media || 0);
+    return (
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'inline-flex', gap: 2, color: '#f59e0b' }}>
+          {renderStarIcons(nota, 14)}
+        </div>
+        <span style={{ fontSize: 12, color: 'var(--gray-600)' }}>
+          {total > 0 ? `${nota.toFixed(1)} (${total})` : 'Sem avaliação'}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="page-content">
       <div className="flex-between mb-24">
@@ -82,6 +128,7 @@ export default function Locatarios() {
                   <th>Validade CNH</th>
                   <th>Celular</th>
                   <th>App</th>
+                  <th>Avaliação</th>
                   <th></th>
                 </tr>
               </thead>
@@ -95,6 +142,7 @@ export default function Locatarios() {
                     <td>{l.validadeCnh}</td>
                     <td>{l.celular}</td>
                     <td>{l.motoristApp ? <span className="badge badge-green">Sim</span> : <span className="badge badge-gray">Não</span>}</td>
+                    <td>{renderEstrelas(l.pontuacaoMedia, l.totalAvaliacoes)}</td>
                     <td>
                       <div className="flex" style={{ gap: 6 }}>
                         <button className="btn-icon" onClick={() => abrirEditar(l)}><Edit2 size={14} /></button>

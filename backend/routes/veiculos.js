@@ -28,6 +28,56 @@ async function getLocadorIdForUser(usuario) {
     return null;
 }
 
+async function getAuxiliarLocadorIdForUser(usuario) {
+    const emailUsuario = String(usuario?.email || '').trim().toLowerCase();
+    if (!emailUsuario) return null;
+
+    const [locadorIdColumnRows] = await pool.query(
+        "SHOW COLUMNS FROM colaboradores LIKE 'locador_id'"
+    );
+    const hasLocadorIdColumn = Array.isArray(locadorIdColumnRows) && locadorIdColumnRows.length > 0;
+
+    const [rows] = await pool.query(
+        `SELECT ${hasLocadorIdColumn ? 'c.locador_id' : 'NULL AS locador_id'}, c.email, c.auxiliares_json
+         FROM colaboradores c
+         WHERE c.categoria = 'Auxiliar Administrativo'
+           AND c.auxiliares_json IS NOT NULL
+         ORDER BY c.atualizado_em DESC, c.id DESC`
+    );
+
+    for (const row of rows) {
+        let auxiliares = [];
+        try {
+            auxiliares = JSON.parse(row.auxiliares_json || '[]');
+        } catch {
+            auxiliares = [];
+        }
+
+        const possuiAuxiliar = Array.isArray(auxiliares) && auxiliares.some((aux) => {
+            const emailAux = String(aux?.email || aux?.usuario || '').trim().toLowerCase();
+            return emailAux && emailAux === emailUsuario;
+        });
+
+        if (!possuiAuxiliar) continue;
+
+        if (row.locador_id) return Number(row.locador_id);
+
+        const emailColaborador = String(row.email || '').trim();
+        if (emailColaborador) {
+            const [locadorByEmail] = await pool.query(
+                'SELECT id FROM locadores WHERE LOWER(email) = LOWER(?) ORDER BY id ASC LIMIT 1',
+                [emailColaborador]
+            );
+            if (locadorByEmail[0]?.id) return Number(locadorByEmail[0].id);
+        }
+    }
+
+    const [locadores] = await pool.query('SELECT id FROM locadores ORDER BY id ASC');
+    if (locadores.length === 1) return Number(locadores[0].id);
+
+    return null;
+}
+
 async function buscarValorFipe(marca, modelo, ano) {
     try {
         const marcasResp = await axios.get('https://fipe.parallelum.com.br/api/v2/cars/brands');
@@ -90,6 +140,11 @@ router.get('/', async (req, res) => {
             if (!locadorId) return;
             sql += ' WHERE v.locador_id = ?';
             params.push(locadorId);
+        } else if (req.usuario?.perfil === 'auxiliar') {
+            const locadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!locadorId) return res.json([]);
+            sql += ' WHERE v.locador_id = ?';
+            params.push(locadorId);
         } else if (req.usuario?.perfil === 'locatario') {
             sql += `
                 LEFT JOIN locacoes lc_ativa
@@ -146,6 +201,11 @@ router.get('/:id', async (req, res) => {
             if (!locadorId) return;
             sql += ' AND v.locador_id = ?';
             params.push(locadorId);
+        } else if (req.usuario?.perfil === 'auxiliar') {
+            const locadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!locadorId) return res.status(404).json({ erro: 'Veículo não encontrado.' });
+            sql += ' AND v.locador_id = ?';
+            params.push(locadorId);
         } else if (req.usuario?.perfil === 'locatario') {
             sql += `
                 AND NOT EXISTS (
@@ -175,7 +235,7 @@ router.post('/', requireProfiles('admin', 'locador', 'auxiliar'), async (req, re
         data_compra, valor_compra, valor_fipe,
         seguradora, nr_apolice, vencimento_seguro,
         data_licenciamento, data_vistoria,
-        bloqueador, nr_bloqueador, locador_id, foto, observacoes
+        bloqueador, nr_bloqueador, locador_id, valor_diario, foto, observacoes
     } = req.body;
 
     if (!placa || !marca || !modelo) {
@@ -198,8 +258,8 @@ router.post('/', requireProfiles('admin', 'locador', 'auxiliar'), async (req, re
              data_compra, valor_compra, valor_fipe,
              seguradora, nr_apolice, vencimento_seguro,
              data_licenciamento, data_vistoria,
-             bloqueador, nr_bloqueador, locador_id, foto, observacoes)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+             bloqueador, nr_bloqueador, locador_id, valor_diario, foto, observacoes)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [placa, marca, modelo,
                 ano_fabricacao || null, ano_modelo || null, cor, combustivel || 'Flex',
                 transmissao || 'Manual', nr_portas || 4, capacidade || 5,
@@ -208,7 +268,7 @@ router.post('/', requireProfiles('admin', 'locador', 'auxiliar'), async (req, re
                 data_compra || null, valor_compra || null, valor_fipe || null,
                 seguradora, nr_apolice, vencimento_seguro || null,
                 data_licenciamento || null, data_vistoria || null,
-                bloqueador, nr_bloqueador, locadorIdValue, foto, observacoes]
+                bloqueador, nr_bloqueador, locadorIdValue, valor_diario || null, foto, observacoes]
         );
         const [novo] = await pool.query(`
             SELECT v.*, COALESCE(l.razao_social, l.nome) AS nome_locador
@@ -234,7 +294,7 @@ router.put('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
         data_compra, valor_compra, valor_fipe,
         seguradora, nr_apolice, vencimento_seguro,
         data_licenciamento, data_vistoria,
-        bloqueador, nr_bloqueador, locador_id, foto, observacoes
+        bloqueador, nr_bloqueador, locador_id, valor_diario, foto, observacoes
     } = req.body;
 
     try {
@@ -262,7 +322,7 @@ router.put('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
              data_compra=?, valor_compra=?, valor_fipe=?,
              seguradora=?, nr_apolice=?, vencimento_seguro=?,
              data_licenciamento=?, data_vistoria=?,
-             bloqueador=?, nr_bloqueador=?, locador_id=?, foto=?, observacoes=?
+             bloqueador=?, nr_bloqueador=?, locador_id=?, valor_diario=?, foto=?, observacoes=?
              WHERE id=?`,
             [placa, marca, modelo,
                 ano_fabricacao || null, ano_modelo || null, cor, combustivel || 'Flex',
@@ -272,7 +332,7 @@ router.put('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
                 data_compra || null, valor_compra || null, valor_fipe || null,
                 seguradora, nr_apolice, vencimento_seguro || null,
                 data_licenciamento || null, data_vistoria || null,
-                bloqueador, nr_bloqueador, locadorIdValue, foto, observacoes,
+                bloqueador, nr_bloqueador, locadorIdValue, valor_diario || null, foto, observacoes,
                 req.params.id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Veículo não encontrado.' });

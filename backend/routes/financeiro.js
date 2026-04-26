@@ -74,45 +74,46 @@ async function getAuxiliarLocadorIdForUser(usuario) {
     const emailUsuario = String(usuario?.email || '').trim().toLowerCase();
     if (!emailUsuario) return null;
 
-    try {
-        const [rows] = await pool.query(
-            `SELECT c.id, c.locador_id, c.email, c.auxiliares_json
-             FROM colaboradores c
-             WHERE c.categoria = 'Auxiliar Administrativo'
-               AND c.auxiliares_json IS NOT NULL
-             ORDER BY c.atualizado_em DESC, c.id DESC`
-        );
+    const [locadorIdColumnRows] = await pool.query(
+        "SHOW COLUMNS FROM colaboradores LIKE 'locador_id'"
+    );
+    const hasLocadorIdColumn = Array.isArray(locadorIdColumnRows) && locadorIdColumnRows.length > 0;
 
-        for (const row of rows) {
-            let auxiliares = [];
-            try {
-                auxiliares = JSON.parse(row.auxiliares_json || '[]');
-            } catch {
-                auxiliares = [];
-            }
+    const [rows] = await pool.query(
+        `SELECT c.id, ${hasLocadorIdColumn ? 'c.locador_id' : 'NULL AS locador_id'}, c.email, c.auxiliares_json
+         FROM colaboradores c
+         WHERE c.categoria = 'Auxiliar Administrativo'
+           AND c.auxiliares_json IS NOT NULL
+         ORDER BY c.atualizado_em DESC, c.id DESC`
+    );
 
-            const possuiAuxiliar = Array.isArray(auxiliares) && auxiliares.some((aux) => {
-                const emailAux = String(aux?.email || aux?.usuario || '').trim().toLowerCase();
-                return emailAux && emailAux === emailUsuario;
-            });
-
-            if (!possuiAuxiliar) continue;
-
-            if (row.locador_id) {
-                return Number(row.locador_id);
-            }
-
-            const emailColaborador = String(row.email || '').trim();
-            if (emailColaborador) {
-                const [locadorByEmail] = await pool.query(
-                    'SELECT id FROM locadores WHERE LOWER(email) = LOWER(?) ORDER BY id ASC LIMIT 1',
-                    [emailColaborador]
-                );
-                if (locadorByEmail[0]?.id) return Number(locadorByEmail[0].id);
-            }
+    for (const row of rows) {
+        let auxiliares = [];
+        try {
+            auxiliares = JSON.parse(row.auxiliares_json || '[]');
+        } catch {
+            auxiliares = [];
         }
-    } catch (err) {
-        if (err?.code !== 'ER_BAD_FIELD_ERROR') throw err;
+
+        const possuiAuxiliar = Array.isArray(auxiliares) && auxiliares.some((aux) => {
+            const emailAux = String(aux?.email || aux?.usuario || '').trim().toLowerCase();
+            return emailAux && emailAux === emailUsuario;
+        });
+
+        if (!possuiAuxiliar) continue;
+
+        if (row.locador_id) {
+            return Number(row.locador_id);
+        }
+
+        const emailColaborador = String(row.email || '').trim();
+        if (emailColaborador) {
+            const [locadorByEmail] = await pool.query(
+                'SELECT id FROM locadores WHERE LOWER(email) = LOWER(?) ORDER BY id ASC LIMIT 1',
+                [emailColaborador]
+            );
+            if (locadorByEmail[0]?.id) return Number(locadorByEmail[0].id);
+        }
     }
 
     const [locadores] = await pool.query('SELECT id FROM locadores ORDER BY id ASC');

@@ -23,6 +23,7 @@ const EMPTY_VEICULO = {
   dataLicenciamento: '', dataVistoria: '',
   bloqueador: '', nrBloqueador: '',
   locadorId: '',
+  valorDiario: '',
   observacoes: '',
   foto: '',
 };
@@ -485,6 +486,7 @@ export default function Veiculos() {
                   <div>KM Atual: <strong>{Number(v.kmAtual || 0).toLocaleString()}</strong></div>
                   <div>Próx. troca óleo: {v.kmTrocaOleo ? Number(v.kmTrocaOleo).toLocaleString() : '-'}</div>
                   <div>Valor FIPE: <strong>{v.valorFipe != null ? Number(v.valorFipe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</strong></div>
+                  <div>Locação diária: <strong>{v.valorDiario != null ? Number(v.valorDiario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</strong></div>
                   <div>Locador: {nomeLocador(v.locadorId)}</div>
                 </div>
               </div>
@@ -525,6 +527,7 @@ export default function Veiculos() {
                 <th>Transmissão</th>
                 <th>KM Atual</th>
                 <th>Valor FIPE</th>
+                <th>Locação Diária</th>
                 <th>Locador</th>
                 <th></th>
               </tr>
@@ -541,6 +544,7 @@ export default function Veiculos() {
                   <td>{v.transmissao}</td>
                   <td>{Number(v.kmAtual || 0).toLocaleString()}</td>
                   <td>{v.valorFipe != null ? Number(v.valorFipe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</td>
+                  <td>{v.valorDiario != null ? Number(v.valorDiario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</td>
                   <td>{nomeLocador(v.locadorId)}</td>
                   <td>
                     {podeGerenciar && (
@@ -743,6 +747,7 @@ export default function Veiculos() {
                     <div className="form-group"><label>Data de Compra</label><input type="date" {...f('dataCompra')} /></div>
                     <div className="form-group"><label>Valor Pago (R$)</label><input type="number" step="0.01" {...f('valorCompra')} /></div>
                     <div className="form-group"><label>Valor Tabela FIPE (R$)</label><input type="number" step="0.01" {...f('valorFipe')} /></div>
+                    <div className="form-group"><label>Valor Locação Diária (R$)</label><input type="text" inputMode="decimal" placeholder="0,00" {...f('valorDiario')} /></div>
                   </div>
                 </div>
 

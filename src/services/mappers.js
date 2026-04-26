@@ -30,6 +30,20 @@ function normalizarStringsObjeto(obj) {
     );
 }
 
+function parseMoedaBrasil(valor) {
+    if (valor === null || valor === undefined || valor === '') return null;
+    if (typeof valor === 'number') return Number.isFinite(valor) ? valor : null;
+
+    const normalizado = String(valor)
+        .replace(/\./g, '')
+        .replace(',', '.')
+        .replace(/[^\d.-]/g, '');
+
+    if (!normalizado) return null;
+    const numero = Number(normalizado);
+    return Number.isFinite(numero) ? numero : null;
+}
+
 // ── Locadores ──────────────────────────────────────────────────────────────────
 export function locadorToApi(f) {
     return {
@@ -117,6 +131,8 @@ export function locatarioFromApi(r) {
         refNome1: r.ref_nome1 || '', refTelefone1: r.ref_telefone1 || '',
         refNome2: r.ref_nome2 || '', refTelefone2: r.ref_telefone2 || '',
         observacoes: r.observacoes || '',
+        pontuacaoMedia: Number(r.pontuacao_media || 0),
+        totalAvaliacoes: Number(r.total_avaliacoes || 0),
     });
 }
 
@@ -204,7 +220,7 @@ export function veiculoToApi(f) {
         seguradora: f.seguradora, nr_apolice: f.nrApolice, vencimento_seguro: f.vencimentoSeguro || null,
         data_licenciamento: f.dataLicenciamento || null, data_vistoria: f.dataVistoria || null,
         bloqueador: f.bloqueador, nr_bloqueador: f.nrBloqueador,
-        locador_id: f.locadorId || null, foto: f.foto, observacoes: f.observacoes,
+        locador_id: f.locadorId || null, valor_diario: parseMoedaBrasil(f.valorDiario), foto: f.foto, observacoes: f.observacoes,
     };
 }
 
@@ -224,6 +240,7 @@ export function veiculoFromApi(r) {
         dataLicenciamento: r.data_licenciamento, dataVistoria: r.data_vistoria,
         bloqueador: r.bloqueador || '', nrBloqueador: r.nr_bloqueador || '',
         locadorId: r.locador_id, nomeLocador: r.nome_locador || '',
+        valorDiario: r.valor_diario ?? null,
         foto: r.foto || '', observacoes: r.observacoes || '',
     });
 }
@@ -279,6 +296,7 @@ export function locacaoToApi(f) {
         caucao: f.caucao || 0,
         km_entrada: f.kmEntrada || 0,
         km_saida: f.kmSaida || null,
+        comprovante_pagamento: f.comprovantePagamento || null,
         status: f.status || null,
         condicoes: f.condicoes || f.observacoes,
         periodicidade: f.periodicidade || null,
@@ -300,8 +318,11 @@ export function locacaoFromApi(r) {
         caucao: r.caucao,
         kmEntrada: r.km_entrada,
         kmSaida: r.km_saida,
+        comprovantePagamento: r.comprovante_pagamento || '',
         status: r.status,
         condicoes: r.condicoes || '',
+        periodicidade: r.periodicidade || 'semanal',
+        quantidadePeriodos: r.quantidade_periodos || 1,
         nomeVeiculo: r.nome_veiculo,
         placa: r.placa,
         nomeLocatario: r.nome_locatario,
@@ -342,6 +363,26 @@ export function usuarioFromApi(r) {
                 cidade: r.locatario.cidade || '',
                 estado: r.locatario.estado || '',
                 cep: r.locatario.cep || '',
+            }
+            : null,
+        locadorVinculado: r.locador_vinculado
+            ? {
+                id: r.locador_vinculado.id || null,
+                nome: r.locador_vinculado.nome || '',
+                email: r.locador_vinculado.email || '',
+                tipo: r.locador_vinculado.tipo || 'fisica',
+                cpf: r.locador_vinculado.cpf || '',
+                cnpj: r.locador_vinculado.cnpj || '',
+            }
+            : null,
+        locadorProprio: r.locador_proprio
+            ? {
+                id: r.locador_proprio.id || null,
+                nome: r.locador_proprio.nome || '',
+                email: r.locador_proprio.email || '',
+                tipo: r.locador_proprio.tipo || 'fisica',
+                cpf: r.locador_proprio.cpf || '',
+                cnpj: r.locador_proprio.cnpj || '',
             }
             : null,
         ativo: r.ativo ?? 1,

@@ -9,17 +9,17 @@ async function main() {
         database: 'sislove',
     });
 
-    const [users] = await conn.query(
-        "SELECT id, email, perfil FROM usuarios WHERE LOWER(email)=LOWER(?) LIMIT 1",
+    const [locadores] = await conn.query(
+        "SELECT id, email FROM locadores WHERE LOWER(email)=LOWER(?) LIMIT 1",
         ['locador@sislove.com']
     );
 
-    const usuario = users[0];
-    if (!usuario) {
-        throw new Error('Usuário locador@sislove.com não encontrado em usuarios.');
+    const locador = locadores[0];
+    if (!locador) {
+        throw new Error('Locador locador@sislove.com não encontrado em locadores.');
     }
 
-    const locadorId = Number(usuario.id);
+    const locadorId = Number(locador.id);
 
     const [beforeRows] = await conn.query(
         'SELECT COUNT(*) AS total FROM veiculos WHERE locador_id = ?',
@@ -57,7 +57,7 @@ async function main() {
         [ids]
     );
 
-    console.log('Locador alvo:', usuario.email, '(id=', locadorId, ')');
+    console.log('Locador alvo:', locador.email, '(id=', locadorId, ')');
     console.log('Total antes:', totalAntes);
     console.log('Total depois:', totalDepois);
     console.log('Veículos atribuídos agora:');

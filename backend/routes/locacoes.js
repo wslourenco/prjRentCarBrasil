@@ -93,45 +93,46 @@ async function getAuxiliarLocadorIdForUser(usuario) {
     const emailUsuario = String(usuario?.email || '').trim().toLowerCase();
     if (!emailUsuario) return null;
 
-    try {
-        const [rows] = await pool.query(
-            `SELECT c.id, c.locador_id, c.email, c.auxiliares_json
-             FROM colaboradores c
-             WHERE c.categoria = 'Auxiliar Administrativo'
-               AND c.auxiliares_json IS NOT NULL
-             ORDER BY c.atualizado_em DESC, c.id DESC`
-        );
+    const [locadorIdColumnRows] = await pool.query(
+        "SHOW COLUMNS FROM colaboradores LIKE 'locador_id'"
+    );
+    const hasLocadorIdColumn = Array.isArray(locadorIdColumnRows) && locadorIdColumnRows.length > 0;
 
-        for (const row of rows) {
-            let auxiliares = [];
-            try {
-                auxiliares = JSON.parse(row.auxiliares_json || '[]');
-            } catch {
-                auxiliares = [];
-            }
+    const [rows] = await pool.query(
+        `SELECT c.id, ${hasLocadorIdColumn ? 'c.locador_id' : 'NULL AS locador_id'}, c.email, c.auxiliares_json
+         FROM colaboradores c
+         WHERE c.categoria = 'Auxiliar Administrativo'
+           AND c.auxiliares_json IS NOT NULL
+         ORDER BY c.atualizado_em DESC, c.id DESC`
+    );
 
-            const possuiAuxiliar = Array.isArray(auxiliares) && auxiliares.some((aux) => {
-                const emailAux = String(aux?.email || aux?.usuario || '').trim().toLowerCase();
-                return emailAux && emailAux === emailUsuario;
-            });
-
-            if (!possuiAuxiliar) continue;
-
-            if (row.locador_id) {
-                return Number(row.locador_id);
-            }
-
-            const emailColaborador = String(row.email || '').trim();
-            if (emailColaborador) {
-                const [locadorByEmail] = await pool.query(
-                    'SELECT id FROM locadores WHERE LOWER(email) = LOWER(?) ORDER BY id ASC LIMIT 1',
-                    [emailColaborador]
-                );
-                if (locadorByEmail[0]?.id) return Number(locadorByEmail[0].id);
-            }
+    for (const row of rows) {
+        let auxiliares = [];
+        try {
+            auxiliares = JSON.parse(row.auxiliares_json || '[]');
+        } catch {
+            auxiliares = [];
         }
-    } catch (err) {
-        if (err?.code !== 'ER_BAD_FIELD_ERROR') throw err;
+
+        const possuiAuxiliar = Array.isArray(auxiliares) && auxiliares.some((aux) => {
+            const emailAux = String(aux?.email || aux?.usuario || '').trim().toLowerCase();
+            return emailAux && emailAux === emailUsuario;
+        });
+
+        if (!possuiAuxiliar) continue;
+
+        if (row.locador_id) {
+            return Number(row.locador_id);
+        }
+
+        const emailColaborador = String(row.email || '').trim();
+        if (emailColaborador) {
+            const [locadorByEmail] = await pool.query(
+                'SELECT id FROM locadores WHERE LOWER(email) = LOWER(?) ORDER BY id ASC LIMIT 1',
+                [emailColaborador]
+            );
+            if (locadorByEmail[0]?.id) return Number(locadorByEmail[0].id);
+        }
     }
 
     const [locadores] = await pool.query('SELECT id FROM locadores ORDER BY id ASC');
@@ -219,12 +220,25 @@ function computeEndDate(dataInicio, periodicidade, quantidade) {
     const total = Number(quantidade || 0);
     if (!total) return null;
 
-    if (periodicidade === 'semanal') base.setDate(base.getDate() + (total * 7));
-    else if (periodicidade === 'quinzenal') base.setDate(base.getDate() + (total * 15));
+    if (periodicidade === 'dia') base.setDate(base.getDate() + total);
+    else if (periodicidade === 'semana') base.setDate(base.getDate() + (total * 7));
+    else if (periodicidade === 'quinzenal') base.setDate(base.getDate() + (total * 14));
     else if (periodicidade === 'mensal') base.setMonth(base.getMonth() + total);
     else return null;
 
     return base.toISOString().split('T')[0];
+}
+
+function parseLikertAnswers(avaliacaoLikert) {
+    if (!Array.isArray(avaliacaoLikert) || avaliacaoLikert.length !== 10) {
+        return null;
+    }
+
+    const respostas = avaliacaoLikert.map(v => Number(v));
+    const invalid = respostas.some(v => !Number.isInteger(v) || v < 1 || v > 5);
+    if (invalid) return null;
+
+    return respostas;
 }
 
 function estimateWeeklyValue(veiculo) {
@@ -342,6 +356,67 @@ function criarTransporter() {
         secure,
         auth: { user, pass },
     });
+}
+
+function getComprovanteExtensionByMime(mimeType) {
+    const mime = String(mimeType || '').trim().toLowerCase();
+    if (mime === 'application/pdf') return 'pdf';
+    if (mime === 'image/jpeg' || mime === 'image/jpg') return 'jpg';
+    if (mime === 'image/png') return 'png';
+    if (mime === 'image/webp') return 'webp';
+    if (mime === 'image/gif') return 'gif';
+    return null;
+}
+
+async function salvarComprovanteEncerramentoArquivo({ locacaoId, arquivo }) {
+    const nomeOriginal = String(arquivo?.nome || '').trim();
+    const mimeType = String(arquivo?.tipo || '').trim().toLowerCase();
+    const conteudoBase64 = String(arquivo?.conteudo_base64 || '').trim();
+    const extensao = getComprovanteExtensionByMime(mimeType);
+
+    if (!extensao) {
+        const err = new Error('O comprovante deve ser um arquivo PDF ou imagem (JPG, PNG, WEBP ou GIF).');
+        err.status = 400;
+        throw err;
+    }
+
+    if (!conteudoBase64) {
+        const err = new Error('Arquivo de comprovante inválido.');
+        err.status = 400;
+        throw err;
+    }
+
+    const conteudoLimpo = conteudoBase64.includes(',')
+        ? conteudoBase64.split(',')[1]
+        : conteudoBase64;
+
+    const buffer = Buffer.from(conteudoLimpo, 'base64');
+    if (!buffer || buffer.length === 0) {
+        const err = new Error('Arquivo de comprovante inválido.');
+        err.status = 400;
+        throw err;
+    }
+
+    const maxBytes = 8 * 1024 * 1024; // 8MB
+    if (buffer.length > maxBytes) {
+        const err = new Error('O arquivo de comprovante deve ter no máximo 8MB.');
+        err.status = 400;
+        throw err;
+    }
+
+    const uploadDir = path.resolve(__dirname, '../public/uploads/comprovantes-locacoes');
+    await fs.promises.mkdir(uploadDir, { recursive: true });
+
+    const fileName = `locacao-${locacaoId}-${Date.now()}.${extensao}`;
+    const filePath = path.join(uploadDir, fileName);
+    await fs.promises.writeFile(filePath, buffer);
+
+    return {
+        caminho: `uploads/comprovantes-locacoes/${fileName}`,
+        nomeOriginal,
+        mimeType,
+        tamanhoBytes: buffer.length,
+    };
 }
 
 async function enviarContratoPorEmail({ para, nomeLocatario, pdfBuffer, nomeArquivo }) {
@@ -467,7 +542,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, res) => {
     const {
         veiculo_id, locatario_id, data_inicio, data_previsao_fim,
-        valor_semanal, caucao, km_entrada, condicoes,
+        valor_semanal, caucao, condicoes,
         periodicidade, quantidade_periodos, contrato, contrato_envio
     } = req.body;
 
@@ -485,7 +560,7 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
         let condicoesValue = condicoes || '';
 
         const [veiculoRows] = await conn.query(
-            'SELECT id, placa, marca, modelo, valor_fipe FROM veiculos WHERE id = ? LIMIT 1',
+            'SELECT id, placa, marca, modelo, valor_fipe, km_atual FROM veiculos WHERE id = ? LIMIT 1',
             [veiculo_id]
         );
         if (veiculoRows.length === 0) {
@@ -545,13 +620,17 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
             return res.status(409).json({ erro: 'Este veículo já possui uma locação ativa.' });
         }
 
+        const kmEntradaAtual = Number(veiculoRows[0]?.km_atual || 0);
+        const periodicidadeValue = String(periodicidade || 'semanal').trim().toLowerCase();
+        const quantidadePeridosValue = Number(quantidade_periodos || 1);
+
         const [result] = await conn.query(
             `INSERT INTO locacoes
             (veiculo_id, locatario_id, data_inicio, data_previsao_fim,
-             valor_semanal, caucao, km_entrada, status, condicoes)
-            VALUES (?,?,?,?,?,?,?,'ativa',?)`,
+             valor_semanal, caucao, km_entrada, status, condicoes, periodicidade, quantidade_periodos)
+            VALUES (?,?,?,?,?,?,?,'ativa',?,?,?)`,
             [veiculo_id, locatarioIdValue, data_inicio, dataPrevisaoFimValue,
-                valorSemanalValue, caucao || 0, km_entrada || 0, condicoesValue]
+                valorSemanalValue, caucao || 0, kmEntradaAtual, condicoesValue, periodicidadeValue, quantidadePeridosValue]
         );
 
         // Cria lançamento de caução se houver
@@ -683,7 +762,7 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
 router.put('/:id', requireProfiles('admin', 'auxiliar'), async (req, res) => {
     const {
         veiculo_id, locatario_id, data_inicio, data_previsao_fim, data_encerramento,
-        valor_semanal, caucao, km_entrada, km_saida, status, condicoes
+        valor_semanal, caucao, km_entrada, km_saida, status, condicoes, periodicidade, quantidade_periodos
     } = req.body;
 
     try {
@@ -714,13 +793,16 @@ router.put('/:id', requireProfiles('admin', 'auxiliar'), async (req, res) => {
             }
         }
 
+        const periodicidadeValue = String(periodicidade || 'semanal').trim().toLowerCase();
+        const quantidadePeridosValue = Number(quantidade_periodos || 1);
+
         const [result] = await pool.query(
             `UPDATE locacoes SET
              veiculo_id=?, locatario_id=?, data_inicio=?, data_previsao_fim=?, data_encerramento=?,
-             valor_semanal=?, caucao=?, km_entrada=?, km_saida=?, status=?, condicoes=?
+             valor_semanal=?, caucao=?, km_entrada=?, km_saida=?, status=?, condicoes=?, periodicidade=?, quantidade_periodos=?
              WHERE id=?`,
             [veiculo_id, locatario_id, data_inicio, data_previsao_fim || null, data_encerramento || null,
-                valor_semanal, caucao || 0, km_entrada || 0, km_saida || null, status, condicoes,
+                valor_semanal, caucao || 0, km_entrada || 0, km_saida || null, status, condicoes, periodicidadeValue, quantidadePeridosValue,
                 req.params.id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Locação não encontrada.' });
@@ -741,9 +823,29 @@ router.put('/:id', requireProfiles('admin', 'auxiliar'), async (req, res) => {
 
 // PATCH /api/locacoes/:id/encerrar
 router.patch('/:id/encerrar', requireProfiles('admin', 'locador', 'auxiliar'), async (req, res) => {
-    const { km_saida, data_encerramento } = req.body;
+    const {
+        km_saida,
+        data_encerramento,
+        comprovante_arquivo,
+        avaliacao_likert,
+    } = req.body || {};
     const hoje = data_encerramento || new Date().toISOString().split('T')[0];
+    const kmSaidaNumero = Number(km_saida);
+    const respostasLikert = parseLikertAnswers(avaliacao_likert);
 
+    if (!Number.isFinite(kmSaidaNumero) || kmSaidaNumero <= 0) {
+        return res.status(400).json({ erro: 'Informe a quilometragem final válida para encerrar a locação.' });
+    }
+
+    if (!respostasLikert) {
+        return res.status(400).json({ erro: 'Preencha as 10 perguntas da avaliação do locatário com notas de 1 a 5.' });
+    }
+
+    if (!comprovante_arquivo || typeof comprovante_arquivo !== 'object') {
+        return res.status(400).json({ erro: 'Anexe o arquivo de comprovante do pagamento (PDF ou imagem).' });
+    }
+
+    const conn = await pool.getConnection();
     try {
         if (req.usuario?.perfil === 'locador') {
             const locadorId = await getLocadorIdForUser(req.usuario);
@@ -751,7 +853,7 @@ router.patch('/:id/encerrar', requireProfiles('admin', 'locador', 'auxiliar'), a
                 return res.status(403).json({ erro: 'Não foi encontrado cadastro de locador vinculado a este usuário.' });
             }
 
-            const [ownership] = await pool.query(
+            const [ownership] = await conn.query(
                 `SELECT lc.id
                  FROM locacoes lc
                  INNER JOIN veiculos v ON lc.veiculo_id = v.id
@@ -768,7 +870,7 @@ router.patch('/:id/encerrar', requireProfiles('admin', 'locador', 'auxiliar'), a
                 return res.status(403).json({ erro: 'Não foi possível identificar o locador responsável por este auxiliar.' });
             }
 
-            const [ownership] = await pool.query(
+            const [ownership] = await conn.query(
                 `SELECT lc.id
                  FROM locacoes lc
                  INNER JOIN veiculos v ON lc.veiculo_id = v.id
@@ -781,15 +883,128 @@ router.patch('/:id/encerrar', requireProfiles('admin', 'locador', 'auxiliar'), a
             }
         }
 
-        const [result] = await pool.query(
-            `UPDATE locacoes SET status='encerrada', data_encerramento=?, km_saida=? WHERE id=? AND status='ativa'`,
-            [hoje, km_saida || null, req.params.id]
+        await conn.beginTransaction();
+
+        const [locacaoRows] = await conn.query(
+            `SELECT lc.id, lc.veiculo_id, lc.locatario_id, lc.km_entrada
+             FROM locacoes lc
+             WHERE lc.id = ? AND lc.status = 'ativa'
+             LIMIT 1`,
+            [req.params.id]
         );
-        if (result.affectedRows === 0) return res.status(404).json({ erro: 'Locação não encontrada ou já encerrada.' });
-        res.json({ mensagem: 'Locação encerrada com sucesso.' });
+        if (locacaoRows.length === 0) {
+            await conn.rollback();
+            return res.status(404).json({ erro: 'Locação não encontrada ou já encerrada.' });
+        }
+
+        const locacaoAtual = locacaoRows[0];
+        const kmEntradaNumero = Number(locacaoAtual.km_entrada || 0);
+        if (kmEntradaNumero > 0 && kmSaidaNumero < kmEntradaNumero) {
+            await conn.rollback();
+            return res.status(400).json({ erro: 'A quilometragem final não pode ser menor que a quilometragem inicial da locação.' });
+        }
+
+        const mediaGeral = Number((respostasLikert.reduce((acc, n) => acc + n, 0) / respostasLikert.length).toFixed(2));
+
+        await conn.query(
+            `INSERT INTO locatario_avaliacoes
+            (locacao_id, locatario_id, avaliador_usuario_id,
+             pergunta_1, pergunta_2, pergunta_3, pergunta_4, pergunta_5,
+             pergunta_6, pergunta_7, pergunta_8, pergunta_9, pergunta_10,
+             media_geral)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+                locacaoAtual.id,
+                locacaoAtual.locatario_id,
+                req.usuario.id,
+                respostasLikert[0],
+                respostasLikert[1],
+                respostasLikert[2],
+                respostasLikert[3],
+                respostasLikert[4],
+                respostasLikert[5],
+                respostasLikert[6],
+                respostasLikert[7],
+                respostasLikert[8],
+                respostasLikert[9],
+                mediaGeral,
+            ]
+        );
+
+        const comprovanteSalvo = await salvarComprovanteEncerramentoArquivo({
+            locacaoId: req.params.id,
+            arquivo: comprovante_arquivo,
+        });
+        const comprovantePagamentoPath = comprovanteSalvo.caminho;
+
+        const [comprovanteColumnRows] = await conn.query(
+            "SHOW COLUMNS FROM locacoes LIKE 'comprovante_pagamento'"
+        );
+        const hasComprovanteColumn = Array.isArray(comprovanteColumnRows) && comprovanteColumnRows.length > 0;
+
+        if (hasComprovanteColumn) {
+            const [result] = await conn.query(
+                `UPDATE locacoes
+                 SET status='encerrada', data_encerramento=?, km_saida=?, comprovante_pagamento=?
+                 WHERE id=? AND status='ativa'`,
+                [hoje, kmSaidaNumero, comprovantePagamentoPath, req.params.id]
+            );
+            if (result.affectedRows === 0) {
+                await conn.rollback();
+                return res.status(404).json({ erro: 'Locação não encontrada ou já encerrada.' });
+            }
+        } else {
+            const [result] = await conn.query(
+                `UPDATE locacoes
+                 SET status='encerrada', data_encerramento=?, km_saida=?,
+                     condicoes = CONCAT(IFNULL(condicoes, ''),
+                     CASE WHEN IFNULL(condicoes, '') = '' THEN '' ELSE ' | ' END,
+                     'Comprovante Encerramento: ', ?)
+                 WHERE id=? AND status='ativa'`,
+                [hoje, kmSaidaNumero, comprovantePagamentoPath, req.params.id]
+            );
+            if (result.affectedRows === 0) {
+                await conn.rollback();
+                return res.status(404).json({ erro: 'Locação não encontrada ou já encerrada.' });
+            }
+        }
+
+        const [veiculoAtualizado] = await conn.query(
+            'UPDATE veiculos SET km_atual = ? WHERE id = ? LIMIT 1',
+            [kmSaidaNumero, locacaoAtual.veiculo_id]
+        );
+        if (veiculoAtualizado.affectedRows === 0) {
+            await conn.rollback();
+            return res.status(404).json({ erro: 'Veículo da locação não encontrado para atualizar a quilometragem.' });
+        }
+
+        await conn.commit();
+
+        const [encerrada] = await pool.query(
+            `SELECT lc.*, CONCAT(v.marca,' ',v.modelo) AS nome_veiculo, v.placa,
+                    lt.nome AS nome_locatario, lt.celular AS celular_locatario
+             FROM locacoes lc
+             LEFT JOIN veiculos v ON lc.veiculo_id = v.id
+             LEFT JOIN locatarios lt ON lc.locatario_id = lt.id
+             WHERE lc.id = ?
+             LIMIT 1`,
+            [req.params.id]
+        );
+
+        return res.json({
+            mensagem: 'Locação encerrada com sucesso.',
+            locacao: encerrada[0] || null,
+        });
     } catch (err) {
+        try {
+            await conn.rollback();
+        } catch {
+            // Sem ação: rollback só é necessário quando há transação aberta.
+        }
         console.error(err);
-        res.status(500).json({ erro: 'Erro ao encerrar locação.' });
+        return res.status(500).json({ erro: 'Erro ao encerrar locação.' });
+    } finally {
+        conn.release();
     }
 });
 

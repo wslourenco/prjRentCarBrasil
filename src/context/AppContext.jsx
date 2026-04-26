@@ -43,6 +43,19 @@ export function AppProvider({ children }) {
     const [carregando,       setCarregando]        = useState(false);
     const [erro,             setErro]              = useState(null);
 
+    const sincronizarUsuarioAtual = useCallback(async () => {
+        const me = await api.get('/auth/me');
+        const usuarioNormalizado = usuarioFromApi({
+            ...me,
+            locatario: me.locatario || null,
+            locador_vinculado: me.locador_vinculado || null,
+            locador_proprio: me.locador_proprio || null,
+        });
+        localStorage.setItem('sislove_usuario', JSON.stringify(usuarioNormalizado));
+        setUsuarioLogado(usuarioNormalizado);
+        return usuarioNormalizado;
+    }, []);
+
     const carregarDados = useCallback(async () => {
         if (!localStorage.getItem('sislove_token')) return;
         setCarregando(true);
@@ -136,18 +149,54 @@ export function AppProvider({ children }) {
         if (usuarioLogado) carregarDados();
     }, [usuarioLogado, carregarDados]);
 
+    useEffect(() => {
+        if (!usuarioLogado || !localStorage.getItem('sislove_token')) return;
+
+        let ativo = true;
+        (async () => {
+            try {
+                const me = await api.get('/auth/me');
+                const usuarioNormalizado = usuarioFromApi({
+                    ...me,
+                    locatario: me.locatario || null,
+                    locador_vinculado: me.locador_vinculado || null,
+                    locador_proprio: me.locador_proprio || null,
+                });
+
+                if (!ativo) return;
+                const atualStr = JSON.stringify(usuarioLogado || {});
+                const novoStr = JSON.stringify(usuarioNormalizado || {});
+                if (atualStr !== novoStr) {
+                    localStorage.setItem('sislove_usuario', novoStr);
+                    setUsuarioLogado(usuarioNormalizado);
+                }
+            } catch {
+                // Se falhar, mantém os dados locais de sessão.
+            }
+        })();
+
+        return () => {
+            ativo = false;
+        };
+    }, [usuarioLogado]);
+
     // ── Auth ──────────────────────────────────────────────
     async function login(email, senha) {
         const dados = await api.post('/auth/login', { email, senha });
-        const usuarioNormalizado = usuarioFromApi({
+        const usuarioBase = usuarioFromApi({
             ...(dados.usuario || {}),
             locatario: dados.locatario || null,
             senha_deve_trocar: dados.usuario?.senha_deve_trocar,
         });
         localStorage.setItem('sislove_token', dados.token);
-        localStorage.setItem('sislove_usuario', JSON.stringify(usuarioNormalizado));
-        setUsuarioLogado(usuarioNormalizado);
-        return usuarioNormalizado;
+        localStorage.setItem('sislove_usuario', JSON.stringify(usuarioBase));
+        setUsuarioLogado(usuarioBase);
+
+        try {
+            return await sincronizarUsuarioAtual();
+        } catch {
+            return usuarioBase;
+        }
     }
 
     async function trocarSenha(novaSenha) {
@@ -159,11 +208,16 @@ export function AppProvider({ children }) {
 
     async function register(nome, email, senha, perfil, tipoDocumento, documento, rg) {
         const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento, rg });
-        const usuarioNormalizado = usuarioFromApi({ ...(dados.usuario || {}), locatario: dados.locatario || null });
+        const usuarioBase = usuarioFromApi({ ...(dados.usuario || {}), locatario: dados.locatario || null });
         localStorage.setItem('sislove_token', dados.token);
-        localStorage.setItem('sislove_usuario', JSON.stringify(usuarioNormalizado));
-        setUsuarioLogado(usuarioNormalizado);
-        return usuarioNormalizado;
+        localStorage.setItem('sislove_usuario', JSON.stringify(usuarioBase));
+        setUsuarioLogado(usuarioBase);
+
+        try {
+            return await sincronizarUsuarioAtual();
+        } catch {
+            return usuarioBase;
+        }
     }
 
     function logout() {
@@ -276,10 +330,37 @@ export function AppProvider({ children }) {
         return locacaoFromApi(atualizada);
     }
     async function encerrarLocacao(id, dados) {
-        await api.patch(`/locacoes/${id}/encerrar`, dados || {});
+        const arquivoComprovante = dados?.comprovanteArquivo || null;
+
+        const payload = {
+            ...(dados || {}),
+            km_saida: dados?.kmSaida ?? dados?.km_saida ?? null,
+            avaliacao_likert: Array.isArray(dados?.avaliacaoLikert) ? dados.avaliacaoLikert : null,
+            comprovante_arquivo: arquivoComprovante
+                ? {
+                    nome: arquivoComprovante.nome || '',
+                    tipo: arquivoComprovante.tipo || '',
+                    conteudo_base64: arquivoComprovante.conteudoBase64 || '',
+                }
+                : null,
+        };
+
+        const resposta = await api.patch(`/locacoes/${id}/encerrar`, payload);
+        const locacaoEncerrada = resposta?.locacao ? locacaoFromApi(resposta.locacao) : null;
+
         setLocacoes(prev => prev.map(l =>
-            l.id === id ? { ...l, status: 'encerrada', ...(dados || {}) } : l
+            l.id === id
+                ? (locacaoEncerrada || {
+                    ...l,
+                    status: 'encerrada',
+                    kmSaida: payload.km_saida,
+                    comprovantePagamento: payload.comprovante_arquivo?.nome || '',
+                })
+                : l
         ));
+
+        const listaVeiculosAtualizada = await api.get('/veiculos');
+        setVeiculos(listaVeiculosAtualizada.map(veiculoFromApi));
     }
     async function removeLocacao(id) {
         await api.delete(`/locacoes/${id}`);
