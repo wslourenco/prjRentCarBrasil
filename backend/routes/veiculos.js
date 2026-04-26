@@ -149,7 +149,9 @@ router.get('/', async (req, res) => {
             sql += `
                 LEFT JOIN locacoes lc_ativa
                   ON lc_ativa.veiculo_id = v.id
-                 AND lc_ativa.status = 'ativa'
+                                 AND lc_ativa.status = 'ativa'
+                 AND lc_ativa.data_encerramento IS NULL
+                 AND (lc_ativa.data_previsao_fim IS NULL OR lc_ativa.data_previsao_fim >= CURDATE())
                 WHERE lc_ativa.id IS NULL
             `;
         }
@@ -212,7 +214,9 @@ router.get('/:id', async (req, res) => {
                     SELECT 1
                     FROM locacoes lc_ativa
                     WHERE lc_ativa.veiculo_id = v.id
-                      AND lc_ativa.status = 'ativa'
+                                            AND lc_ativa.status = 'ativa'
+                      AND lc_ativa.data_encerramento IS NULL
+                      AND (lc_ativa.data_previsao_fim IS NULL OR lc_ativa.data_previsao_fim >= CURDATE())
                 )
             `;
         }

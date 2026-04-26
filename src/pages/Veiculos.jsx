@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
+import { usuarioFromApi } from '../services/mappers';
 import { Plus, Edit2, Trash2, X, Car, Check } from 'lucide-react';
 import { applyMask } from '../utils/masks';
 
@@ -59,7 +60,7 @@ function montarEnderecoLocatario(locatario = {}) {
 }
 
 export default function Veiculos() {
-  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, usuarioLogado, addLocacao, carregando, erro } = useApp();
+  const { veiculos, addVeiculo, updateVeiculo, removeVeiculo, locadores, usuarioLogado, addLocacao, carregando, erro, locacoes } = useApp();
     const [fipeAtualizada, setFipeAtualizada] = useState(false);
     // Detecta atualização automática dos valores FIPE
     React.useEffect(() => {
@@ -82,6 +83,8 @@ export default function Veiculos() {
   const [modalContrato, setModalContrato] = useState(false);
   const [contratoForm, setContratoForm] = useState(EMPTY_CONTRATO);
   const [contratoEnvio, setContratoEnvio] = useState('email');
+  const [antecedenteArquivo, setAntecedenteArquivo] = useState(null);
+  const [carregandoDadosContrato, setCarregandoDadosContrato] = useState(false);
   const [modalSmtp, setModalSmtp] = useState(false);
   const [salvandoSmtp, setSalvandoSmtp] = useState(false);
   const [erroSmtp, setErroSmtp] = useState('');
@@ -98,7 +101,7 @@ export default function Veiculos() {
     const hoje = new Date().toISOString().split('T')[0];
     return hoje;
   });
-  const [periodicidadeLocacao, setPeriodicidadeLocacao] = useState('semanal');
+  const [periodicidadeLocacao, setPeriodicidadeLocacao] = useState('semana');
   const [quantidadePeriodosLocacao, setQuantidadePeriodosLocacao] = useState(1);
 
   const podeGerenciar = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador';
@@ -124,9 +127,64 @@ export default function Veiculos() {
   }, [veiculos, form.marca]);
 
   const listaVeiculosFiltrada = useMemo(() => {
-    if (!filtroCategoria) return listaVeiculos;
-    return listaVeiculos.filter(v => (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoria);
-  }, [listaVeiculos, filtroCategoria]);
+    // Primeiro, filtra por categoria
+    let resultado = listaVeiculos;
+    if (filtroCategoria) {
+      resultado = resultado.filter(v => (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoria);
+    }
+
+    // Se o usuário é locatário, remove veículos que têm locação pendente de aprovação
+    if (usuarioLogado?.perfil === 'locatario' && locacoes && locacoes.length > 0) {
+      const idsVeiculosPendentes = locacoes
+        .filter(l => l.status === 'pendente_aprovacao')
+        .map(l => l.veiculoId);
+
+      resultado = resultado.filter(v => !idsVeiculosPendentes.includes(v.id));
+    }
+
+    return resultado;
+  }, [listaVeiculos, filtroCategoria, usuarioLogado, locacoes]);
+
+  const contratoInvalido = useMemo(() => {
+    const nome = String(contratoForm.nome || '').trim();
+    const email = String(contratoForm.email || '').trim();
+    const cpf = String(contratoForm.cpf || '').trim();
+    const telefone = String(contratoForm.telefone || '').trim();
+    const endereco = String(contratoForm.endereco || '').trim();
+
+    if (!nome || !cpf || !telefone || !endereco) return true;
+    if (contratoEnvio === 'email' && !email) return true;
+    if (!antecedenteArquivo) return true;
+    return false;
+  }, [contratoForm, contratoEnvio, antecedenteArquivo]);
+
+  const camposPendentesContrato = useMemo(() => {
+    const pendentes = [];
+    if (!String(contratoForm.nome || '').trim()) pendentes.push('Nome completo');
+    if (contratoEnvio === 'email' && !String(contratoForm.email || '').trim()) pendentes.push('E-mail');
+    if (!String(contratoForm.cpf || '').trim()) pendentes.push('CPF');
+    if (!String(contratoForm.telefone || '').trim()) pendentes.push('Telefone');
+    if (!String(contratoForm.endereco || '').trim()) pendentes.push('Endereço completo');
+    if (!antecedenteArquivo) pendentes.push('Antecedentes criminais (arquivo)');
+    return pendentes;
+  }, [contratoForm, contratoEnvio, antecedenteArquivo]);
+
+  const dataTerminoLocacao = useMemo(() => {
+    const inicio = String(dataInicioLocacao || '').trim();
+    const quantidade = Number(quantidadePeriodosLocacao || 0);
+    if (!inicio || quantidade <= 0) return '';
+
+    const data = new Date(`${inicio}T00:00:00`);
+    if (Number.isNaN(data.getTime())) return '';
+
+    if (periodicidadeLocacao === 'dia') data.setDate(data.getDate() + quantidade);
+    else if (periodicidadeLocacao === 'semana') data.setDate(data.getDate() + (quantidade * 7));
+    else if (periodicidadeLocacao === 'quinzenal') data.setDate(data.getDate() + (quantidade * 14));
+    else if (periodicidadeLocacao === 'mensal') data.setMonth(data.getMonth() + quantidade);
+    else return '';
+
+    return data.toISOString().split('T')[0];
+  }, [dataInicioLocacao, periodicidadeLocacao, quantidadePeriodosLocacao]);
 
   const [erroCrud, setErroCrud] = useState('');
 
@@ -155,6 +213,32 @@ export default function Veiculos() {
     return l ? (l.tipo === 'juridica' ? l.razaoSocial : l.nome) : '-';
   }
 
+  function nomeLocadorVeiculo(veiculo) {
+    const nomeViaApi = String(veiculo?.nomeLocador || '').trim();
+    if (nomeViaApi) return nomeViaApi;
+    return nomeLocador(veiculo?.locadorId);
+  }
+
+  function preencherContratoComUsuario(usuario, manterObservacoes = true) {
+    const dadosLocatario = usuario?.locatario || null;
+
+    setContratoForm(prev => ({
+      ...EMPTY_CONTRATO,
+      observacoesContrato: manterObservacoes ? (prev.observacoesContrato || '') : '',
+      nome: String(dadosLocatario?.nome || usuario?.nome || prev.nome || '').trim(),
+      email: String(dadosLocatario?.email || usuario?.email || prev.email || '').trim(),
+      cpf: applyMask('cpf', String(
+        dadosLocatario?.cpf
+        || ((usuario?.tipoDocumento || usuario?.tipo_documento) === 'cpf' ? usuario?.documento : '')
+        || prev.cpf
+        || ''
+      ).trim()),
+      rg: applyMask('rg', String(dadosLocatario?.rg || usuario?.rg || prev.rg || '').trim()),
+      telefone: applyMask('telefone', String(dadosLocatario?.celular || dadosLocatario?.telefone || prev.telefone || '').trim()),
+      endereco: montarEnderecoLocatario(dadosLocatario || {}) || prev.endereco || '',
+    }));
+  }
+
   function abrirModalContratoLocacao() {
     if (!veiculoSelecionadoLocacao) {
       setErroLocacaoRapida('Selecione um veículo para locar.');
@@ -163,16 +247,7 @@ export default function Veiculos() {
 
     setErroLocacaoRapida('');
     setSucessoLocacaoRapida('');
-    const dadosLocatario = usuarioLogado?.locatario || null;
-    setContratoForm({
-      ...EMPTY_CONTRATO,
-      nome: dadosLocatario?.nome || usuarioLogado?.nome || '',
-      email: dadosLocatario?.email || usuarioLogado?.email || '',
-      cpf: dadosLocatario?.cpf || (usuarioLogado?.tipoDocumento === 'cpf' ? usuarioLogado?.documento : '') || '',
-      rg: dadosLocatario?.rg || usuarioLogado?.rg || '',
-      telefone: dadosLocatario?.celular || dadosLocatario?.telefone || '',
-      endereco: montarEnderecoLocatario(dadosLocatario || {}),
-    });
+    preencherContratoComUsuario(usuarioLogado, true);
     setModalContrato(true);
   }
 
@@ -180,24 +255,25 @@ export default function Veiculos() {
     if (!modalContrato || usuarioLogado?.perfil !== 'locatario') return;
 
     let cancelado = false;
+    setCarregandoDadosContrato(true);
 
     (async () => {
       try {
         const me = await api.get('/auth/me');
         if (cancelado) return;
 
-        const locatario = me?.locatario || null;
-        setContratoForm(prev => ({
-          ...prev,
-          nome: (locatario?.nome || me?.nome || prev.nome || '').trim(),
-          email: (locatario?.email || me?.email || prev.email || '').trim(),
-          cpf: (locatario?.cpf || (me?.tipo_documento === 'cpf' ? me?.documento : '') || prev.cpf || '').trim(),
-          rg: (locatario?.rg || me?.rg || prev.rg || '').trim(),
-          telefone: (locatario?.celular || locatario?.telefone || prev.telefone || '').trim(),
-          endereco: montarEnderecoLocatario(locatario || {}) || prev.endereco || '',
-        }));
+        const usuarioNormalizado = usuarioFromApi({
+          ...me,
+          locatario: me?.locatario || null,
+          locador_vinculado: me?.locador_vinculado || null,
+          locador_proprio: me?.locador_proprio || null,
+        });
+
+        preencherContratoComUsuario(usuarioNormalizado, true);
       } catch {
         // Mantém os dados já preenchidos localmente caso a atualização remota falhe.
+      } finally {
+        if (!cancelado) setCarregandoDadosContrato(false);
       }
     })();
 
@@ -208,8 +284,19 @@ export default function Veiculos() {
 
   function fecharModalContratoLocacao() {
     setModalContrato(false);
+    setCarregandoDadosContrato(false);
+    setAntecedenteArquivo(null);
     setContratoForm(EMPTY_CONTRATO);
     setContratoEnvio('email');
+  }
+
+  async function fileToBase64DataUrl(file) {
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Não foi possível ler o arquivo de antecedentes.'));
+      reader.readAsDataURL(file);
+    });
   }
 
   async function validarSmtpParaEnvioEmail() {
@@ -259,25 +346,39 @@ export default function Veiculos() {
   }
 
   function baixarContratoPdf(base64, nomeArquivo = 'contrato-locacao.pdf', mimeType = 'application/pdf') {
-    if (!base64) return;
+    try {
+      if (!base64) {
+        console.warn('baixarContratoPdf: base64 está vazio');
+        return;
+      }
 
-    const binary = atob(base64);
-    const length = binary.length;
-    const bytes = new Uint8Array(length);
+      // Limpa o base64 se contiver prefixo data URI
+      let base64Puro = base64;
+      if (base64.startsWith('data:')) {
+        base64Puro = base64.split(',')[1] || base64;
+      }
 
-    for (let i = 0; i < length; i += 1) {
-      bytes[i] = binary.charCodeAt(i);
+      const binary = atob(base64Puro);
+      const length = binary.length;
+      const bytes = new Uint8Array(length);
+
+      for (let i = 0; i < length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+
+      const blob = new Blob([bytes], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nomeArquivo;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Erro ao baixar contrato PDF:', error);
+      setErroLocacaoRapida('Erro ao processar o download do contrato. Tente novamente.');
     }
-
-    const blob = new Blob([bytes], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = nomeArquivo;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
   }
 
   async function handleEnviarContratoLocacao(e) {
@@ -292,16 +393,40 @@ export default function Veiculos() {
       if (!smtpOk) return;
     }
 
+    if (!antecedenteArquivo) {
+      setErroLocacaoRapida('Anexe o arquivo de antecedentes criminais para continuar.');
+      return;
+    }
+
+    const tiposPermitidos = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    const tipoArquivo = String(antecedenteArquivo.type || '').toLowerCase();
+    if (!tiposPermitidos.includes(tipoArquivo)) {
+      setErroLocacaoRapida('O arquivo de antecedentes deve ser PDF ou imagem (JPG, PNG, WEBP ou GIF).');
+      return;
+    }
+
+    if (antecedenteArquivo.size > 8 * 1024 * 1024) {
+      setErroLocacaoRapida('O arquivo de antecedentes deve ter no máximo 8MB.');
+      return;
+    }
+
     setErroLocacaoRapida('');
     setSucessoLocacaoRapida('');
     setLocandoVeiculo(true);
     try {
+      const antecedenteBase64 = await fileToBase64DataUrl(antecedenteArquivo);
+
       const resposta = await addLocacao({
         veiculoId: veiculoSelecionadoLocacao,
         dataInicio: dataInicioLocacao,
         periodicidade: periodicidadeLocacao,
         quantidadePeriodos: quantidadePeriodosLocacao,
         contratoEnvio,
+        antecedenteArquivo: {
+          nome: antecedenteArquivo.name || 'antecedentes',
+          tipo: antecedenteArquivo.type || '',
+          conteudoBase64: antecedenteBase64,
+        },
         condicoes: `Locação iniciada pela tela Veículos. ${contratoForm.observacoesContrato || ''}`.trim(),
         contrato: {
           nome: contratoForm.nome,
@@ -313,30 +438,48 @@ export default function Veiculos() {
         },
       });
 
-      setVeiculoSelecionadoLocacao('');
-      fecharModalContratoLocacao();
+      // DEBUG: Log para verificar a resposta
+      console.log('Resposta da locação:', { contratoEnvio: resposta?.contratoEnvio, contratoEmailStatus: resposta?.contratoEmailStatus, temBase64: !!resposta?.contratoPdfBase64 });
 
+      // Processa download ANTES de fechar a modal
       if (resposta?.contratoEnvio === 'download' && resposta?.contratoPdfBase64) {
+        console.log('Iniciando download do contrato...');
         baixarContratoPdf(
           resposta.contratoPdfBase64,
           resposta.contratoPdfNomeArquivo || `contrato-locacao-${resposta.id}.pdf`,
           resposta.contratoPdfMimeType || 'application/pdf'
         );
-        setSucessoLocacaoRapida('Locação criada com sucesso. O contrato em PDF foi baixado para assinatura via gov.br.');
+        setSucessoLocacaoRapida('Solicitação enviada com sucesso! O contrato em PDF foi baixado e também foi enviado por e-mail para você e para o locador. A locação está pendente de aprovação.');
+      } else {
+        // Log de debug se não entrou na condição de download
+        if (resposta?.contratoEnvio !== 'download') {
+          console.log(`contratoEnvio não é "download", é: "${resposta?.contratoEnvio}"`);
+        }
+        if (!resposta?.contratoPdfBase64) {
+          console.log('contratoPdfBase64 está vazio/undefined');
+        }
+      }
+
+      setVeiculoSelecionadoLocacao('');
+      fecharModalContratoLocacao();
+
+      if (resposta?.contratoEnvio === 'download' && resposta?.contratoPdfBase64) {
         return;
       }
 
       if (resposta?.contratoEmailStatus === 'enviado') {
-        setSucessoLocacaoRapida('Contrato enviado por e-mail em PDF para assinatura via gov.br e locação criada com sucesso.');
+        setSucessoLocacaoRapida('Contrato enviado por e-mail em PDF para assinatura via gov.br. Uma cópia também foi enviada para o locador. A locação está pendente de aprovação do locador.');
       } else if (resposta?.contratoEmailStatus === 'download') {
-        setSucessoLocacaoRapida('Locação criada com sucesso. O contrato foi gerado para download.');
+        setSucessoLocacaoRapida('Solicitação enviada com sucesso. O contrato foi gerado para download e a locação está pendente de aprovação.');
+      } else if (resposta?.contratoEmailStatus === 'download_e_enviado') {
+        setSucessoLocacaoRapida('Solicitação enviada com sucesso! O contrato em PDF foi baixado e também foi enviado por e-mail para você e para o locador. A locação está pendente de aprovação.');
       } else if (resposta?.contratoEmailStatus === 'nao_configurado') {
-        setSucessoLocacaoRapida('Locação criada com sucesso. O envio automático do contrato por e-mail está desativado (SMTP não configurado).');
+        setSucessoLocacaoRapida('Solicitação enviada com sucesso. O envio automático do contrato por e-mail está desativado (SMTP não configurado) e a locação está pendente de aprovação.');
       } else if (resposta?.contratoEmailStatus === 'falhou') {
-        setSucessoLocacaoRapida('Locação criada, porém houve falha no envio do e-mail do contrato.');
+        setSucessoLocacaoRapida('Solicitação criada, porém houve falha no envio do e-mail do contrato. A locação segue pendente de aprovação.');
         setErroLocacaoRapida(resposta?.contratoEmailMensagem || 'Não foi possível enviar o contrato por e-mail.');
       } else {
-        setSucessoLocacaoRapida('Locação criada com sucesso.');
+        setSucessoLocacaoRapida('Solicitação de locação enviada com sucesso. Aguarde a aprovação do locador.');
       }
     } catch (err) {
       setErroLocacaoRapida(err.message || 'Não foi possível gerar o contrato e locar o veículo selecionado.');
@@ -404,7 +547,8 @@ export default function Veiculos() {
                 onChange={e => setPeriodicidadeLocacao(e.target.value)}
                 style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13 }}
               >
-                <option value="semanal">Semanal</option>
+                <option value="dia">Diária</option>
+                <option value="semana">Semanal</option>
                 <option value="quinzenal">Quinzenal</option>
                 <option value="mensal">Mensal</option>
               </select>
@@ -415,7 +559,7 @@ export default function Veiculos() {
                 style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13 }}
               >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
-                  <option key={n} value={n}>{n} {periodicidadeLocacao === 'semanal' ? 'semana(s)' : periodicidadeLocacao === 'quinzenal' ? 'quinzena(s)' : 'mês(es)'}</option>
+                  <option key={n} value={n}>{n} {periodicidadeLocacao === 'dia' ? 'dia(s)' : periodicidadeLocacao === 'semana' ? 'semana(s)' : periodicidadeLocacao === 'quinzenal' ? 'quinzena(s)' : 'mês(es)'}</option>
                 ))}
               </select>
             </>
@@ -487,7 +631,7 @@ export default function Veiculos() {
                   <div>Próx. troca óleo: {v.kmTrocaOleo ? Number(v.kmTrocaOleo).toLocaleString() : '-'}</div>
                   <div>Valor FIPE: <strong>{v.valorFipe != null ? Number(v.valorFipe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</strong></div>
                   <div>Locação diária: <strong>{v.valorDiario != null ? Number(v.valorDiario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</strong></div>
-                  <div>Locador: {nomeLocador(v.locadorId)}</div>
+                  <div>Locador: {nomeLocadorVeiculo(v)}</div>
                 </div>
               </div>
               <div className="veiculo-card-footer">
@@ -545,7 +689,7 @@ export default function Veiculos() {
                   <td>{Number(v.kmAtual || 0).toLocaleString()}</td>
                   <td>{v.valorFipe != null ? Number(v.valorFipe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</td>
                   <td>{v.valorDiario != null ? Number(v.valorDiario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</td>
-                  <td>{nomeLocador(v.locadorId)}</td>
+                  <td>{nomeLocadorVeiculo(v)}</td>
                   <td>
                     {podeGerenciar && (
                       <>
@@ -575,9 +719,9 @@ export default function Veiculos() {
                   <div className="form-grid">
                     <div className="form-group"><label>Nome completo *</label><input required value={contratoForm.nome} onChange={e => setContratoForm(prev => ({ ...prev, nome: e.target.value }))} /></div>
                     <div className="form-group"><label>E-mail {contratoEnvio === 'email' ? '*' : ''}</label><input required={contratoEnvio === 'email'} type="email" value={contratoForm.email} onChange={e => setContratoForm(prev => ({ ...prev, email: e.target.value }))} /></div>
-                    <div className="form-group"><label>CPF *</label><input required value={contratoForm.cpf} onChange={e => setContratoForm(prev => ({ ...prev, cpf: e.target.value }))} /></div>
-                    <div className="form-group"><label>RG</label><input value={contratoForm.rg} onChange={e => setContratoForm(prev => ({ ...prev, rg: e.target.value }))} /></div>
-                    <div className="form-group"><label>Telefone *</label><input required value={contratoForm.telefone} onChange={e => setContratoForm(prev => ({ ...prev, telefone: e.target.value }))} /></div>
+                    <div className="form-group"><label>CPF *</label><input required value={contratoForm.cpf} onChange={e => setContratoForm(prev => ({ ...prev, cpf: applyMask('cpf', e.target.value) }))} /></div>
+                    <div className="form-group"><label>RG</label><input value={contratoForm.rg} onChange={e => setContratoForm(prev => ({ ...prev, rg: applyMask('rg', e.target.value) }))} /></div>
+                    <div className="form-group"><label>Telefone *</label><input required value={contratoForm.telefone} onChange={e => setContratoForm(prev => ({ ...prev, telefone: applyMask('telefone', e.target.value) }))} /></div>
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}><label>Endereço completo *</label><input required value={contratoForm.endereco} onChange={e => setContratoForm(prev => ({ ...prev, endereco: e.target.value }))} /></div>
                   </div>
                 </div>
@@ -588,7 +732,8 @@ export default function Veiculos() {
                     <div className="form-group"><label>Data de início</label><input type="date" value={dataInicioLocacao} onChange={e => setDataInicioLocacao(e.target.value)} /></div>
                     <div className="form-group"><label>Periodicidade</label>
                       <select value={periodicidadeLocacao} onChange={e => setPeriodicidadeLocacao(e.target.value)}>
-                        <option value="semanal">Semanal</option>
+                        <option value="dia">Diária</option>
+                        <option value="semana">Semanal</option>
                         <option value="quinzenal">Quinzenal</option>
                         <option value="mensal">Mensal</option>
                       </select>
@@ -598,11 +743,28 @@ export default function Veiculos() {
                         {Array.from({ length: 12 }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
                       </select>
                     </div>
+                    <div className="form-group"><label>Data de término prevista</label><input type="date" value={dataTerminoLocacao} readOnly /></div>
                     <div className="form-group"><label>Recebimento do contrato</label>
                       <select value={contratoEnvio} onChange={e => setContratoEnvio(e.target.value)}>
                         <option value="email">Enviar por e-mail</option>
                         <option value="download">Baixar PDF agora</option>
                       </select>
+                    </div>
+                    <div className="form-group"><label>Antecedentes criminais *</label>
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*"
+                        required
+                        onChange={e => setAntecedenteArquivo(e.target.files?.[0] || null)}
+                      />
+                      <small style={{ color: 'var(--gray-500)' }}>
+                        Formatos aceitos: PDF, JPG, PNG, WEBP ou GIF (máx. 8MB).
+                      </small>
+                      {antecedenteArquivo?.name && (
+                        <div style={{ fontSize: 12, color: 'var(--gray-600)', marginTop: 4 }}>
+                          Arquivo selecionado: {antecedenteArquivo.name}
+                        </div>
+                      )}
                     </div>
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label>Observações do contrato</label>
@@ -617,9 +779,30 @@ export default function Veiculos() {
                     : 'Após confirmar, o PDF será baixado automaticamente para assinatura digital via portal gov.br.'}
                 </p>
 
+                {carregandoDadosContrato && (
+                  <p style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 10 }}>
+                    Carregando dados do locatário logado...
+                  </p>
+                )}
+
+                {!carregandoDadosContrato && contratoInvalido && camposPendentesContrato.length > 0 && (
+                  <p style={{ fontSize: 12, color: 'var(--danger)', marginBottom: 10 }}>
+                    Preencha os campos obrigatórios para continuar: {camposPendentesContrato.join(', ')}.
+                  </p>
+                )}
+
                 <div className="form-actions">
                   <button type="button" className="btn btn-outline" onClick={fecharModalContratoLocacao}><X size={14} /> Cancelar</button>
-                  <button type="submit" className="btn btn-primary" disabled={locandoVeiculo}><Check size={14} /> {locandoVeiculo ? 'Enviando...' : 'Gerar Contrato e Locar'}</button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={locandoVeiculo || carregandoDadosContrato || contratoInvalido}
+                    title={!carregandoDadosContrato && contratoInvalido && camposPendentesContrato.length > 0
+                      ? `Campos pendentes: ${camposPendentesContrato.join(', ')}`
+                      : undefined}
+                  >
+                    <Check size={14} /> {locandoVeiculo ? 'Enviando...' : 'Gerar Contrato e Locar'}
+                  </button>
                 </div>
               </form>
             </div>

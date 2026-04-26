@@ -329,6 +329,21 @@ export function AppProvider({ children }) {
         setLocacoes(prev => prev.map(l => l.id === id ? locacaoFromApi(atualizada) : l));
         return locacaoFromApi(atualizada);
     }
+    async function aprovarLocacao(id) {
+        const resposta = await api.patch(`/locacoes/${id}/aprovar`, {});
+        const locacaoAprovada = resposta?.locacao ? locacaoFromApi(resposta.locacao) : null;
+
+        setLocacoes(prev => prev.map(l =>
+            l.id === id
+                ? (locacaoAprovada || { ...l, status: 'ativa' })
+                : l
+        ));
+
+        const listaVeiculosAtualizada = await api.get('/veiculos');
+        setVeiculos(listaVeiculosAtualizada.map(veiculoFromApi));
+
+        return locacaoAprovada || resposta;
+    }
     async function encerrarLocacao(id, dados) {
         const arquivoComprovante = dados?.comprovanteArquivo || null;
 
@@ -399,7 +414,7 @@ export function AppProvider({ children }) {
             colaboradores,    addColaborador,    updateColaborador,    removeColaborador,
             veiculos,         addVeiculo,         updateVeiculo,         removeVeiculo,
             despesasReceitas, addDespesaReceita, updateDespesaReceita, removeDespesaReceita,
-            locacoes,         addLocacao,         updateLocacao,         encerrarLocacao, removeLocacao,
+            locacoes,         addLocacao,         updateLocacao,         aprovarLocacao, encerrarLocacao, removeLocacao,
             usuarios,         carregarUsuarios,   addUsuario,           updateUsuario,   removeUsuario,
             carregando, erro, carregarDados,
         }}>

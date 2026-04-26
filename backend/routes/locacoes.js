@@ -152,18 +152,6 @@ async function getLocatarioIdByUserEmail(email, db = pool) {
     return rows[0]?.id || null;
 }
 
-async function getLocatarioIdByUserId(userId, db = pool) {
-    const id = Number(userId || 0);
-    if (!id) return null;
-
-    const [rows] = await db.query(
-        'SELECT id FROM locatarios WHERE id = ? LIMIT 1',
-        [id]
-    );
-
-    return rows[0]?.id || null;
-}
-
 async function getUserIdentity(conn, usuario) {
     const identity = {
         id: Number(usuario?.id || 0) || null,
@@ -191,9 +179,6 @@ async function ensureLocatarioForUser(conn, usuario) {
     const email = identity.email;
     const existenteByEmail = email ? await getLocatarioIdByUserEmail(email, conn) : null;
     if (existenteByEmail) return existenteByEmail;
-
-    const existenteById = identity.id ? await getLocatarioIdByUserId(identity.id, conn) : null;
-    if (existenteById) return existenteById;
 
     if (!email) return null;
 
@@ -229,6 +214,15 @@ function computeEndDate(dataInicio, periodicidade, quantidade) {
     return base.toISOString().split('T')[0];
 }
 
+function normalizePeriodicidade(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+
+    if (['dia', 'diaria', 'diária'].includes(normalized)) return 'dia';
+    if (['semana', 'semanal'].includes(normalized)) return 'semana';
+    if (['quinzenal', 'mensal'].includes(normalized)) return normalized;
+    return '';
+}
+
 function parseLikertAnswers(avaliacaoLikert) {
     if (!Array.isArray(avaliacaoLikert) || avaliacaoLikert.length !== 10) {
         return null;
@@ -247,6 +241,28 @@ function estimateWeeklyValue(veiculo) {
         return Number((fipe * 0.01).toFixed(2));
     }
     return 900;
+}
+
+function estimateLocacaoValueForLocatario(veiculo, periodicidade, quantidade) {
+    const qtd = Math.max(1, Number(quantidade || 1));
+    const diaria = Number(veiculo?.valor_diario || 0);
+
+    if (diaria > 0) {
+        let diasTotal = qtd;
+        if (periodicidade === 'semana') diasTotal = qtd * 7;
+        else if (periodicidade === 'quinzenal') diasTotal = qtd * 14;
+        else if (periodicidade === 'mensal') diasTotal = qtd * 30;
+
+        return Number((diaria * diasTotal).toFixed(2));
+    }
+
+    const semanal = estimateWeeklyValue(veiculo);
+    if (periodicidade === 'dia') return Number(((semanal / 7) * qtd).toFixed(2));
+    if (periodicidade === 'semana') return Number((semanal * qtd).toFixed(2));
+    if (periodicidade === 'quinzenal') return Number((semanal * 2 * qtd).toFixed(2));
+    if (periodicidade === 'mensal') return Number((semanal * 4 * qtd).toFixed(2));
+
+    return semanal;
 }
 
 function formatCurrency(value) {
@@ -341,21 +357,47 @@ async function gerarContratoPdfBuffer(dados) {
     });
 }
 
-function criarTransporter() {
-    const host = String(process.env.SMTP_HOST || '').trim();
-    const user = String(process.env.SMTP_USER || '').trim();
-    const pass = String(process.env.SMTP_PASS || '').trim();
-    const port = Number(process.env.SMTP_PORT || 587);
-    const secure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || port === 465;
+async function criarTransporter() {
+    try {
+        // Tenta buscar configurações do banco de dados primeiro
+        const [rows] = await pool.query(`
+            SELECT chave, valor FROM configuracoes 
+            WHERE chave LIKE 'smtp_%' OR chave = 'mail_from'
+        `);
 
-    if (!host || !user || !pass) return null;
+        let config = {};
+        rows.forEach(row => { config[row.chave] = row.valor; });
 
-    return nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: { user, pass },
-    });
+        // Se não encontrou no banco, tenta variáveis de ambiente
+        const host = String(config.smtp_host || process.env.SMTP_HOST || '').trim();
+        const user = String(config.smtp_user || process.env.SMTP_USER || '').trim();
+        const pass = String(config.smtp_pass || process.env.SMTP_PASS || '').trim();
+        const port = Number(config.smtp_port || process.env.SMTP_PORT || 587);
+        const secure = String(config.smtp_secure || process.env.SMTP_SECURE || 'false').toLowerCase() === 'true' || port === 465;
+        const testMode = String(process.env.TEST_MODE || '').toLowerCase() === 'true';
+
+        if (!host || !user || !pass) return null;
+
+        // Em modo de teste, retorna transporter simulado
+        if (testMode) {
+            return {
+                sendMail: async (options) => {
+                    console.log(`[TEST MODE] Email simulado enviado para: ${options.to}`);
+                    console.log(`  Assunto: ${options.subject}`);
+                    console.log(`  Anexo: ${options.attachments?.[0]?.filename || 'nenhum'}`);
+                    return { messageId: `test-${Date.now()}@test.local` };
+                }
+            };
+        }
+
+        return nodemailer.createTransport({
+            host, port, secure,
+            auth: { user, pass },
+        });
+    } catch (err) {
+        console.error('Erro ao criar transporter:', err);
+        return null;
+    }
 }
 
 function getComprovanteExtensionByMime(mimeType) {
@@ -366,6 +408,62 @@ function getComprovanteExtensionByMime(mimeType) {
     if (mime === 'image/webp') return 'webp';
     if (mime === 'image/gif') return 'gif';
     return null;
+}
+
+async function hasAntecedenteColumn(db = pool) {
+    const [rows] = await db.query("SHOW COLUMNS FROM locacoes LIKE 'antecedente_criminal_arquivo'");
+    return Array.isArray(rows) && rows.length > 0;
+}
+
+async function salvarAntecedenteCriminalArquivo({ locacaoId, arquivo }) {
+    const nomeOriginal = String(arquivo?.nome || '').trim();
+    const mimeType = String(arquivo?.tipo || '').trim().toLowerCase();
+    const conteudoBase64 = String(arquivo?.conteudo_base64 || '').trim();
+    const extensao = getComprovanteExtensionByMime(mimeType);
+
+    if (!extensao) {
+        const err = new Error('O arquivo de antecedentes deve ser PDF ou imagem (JPG, PNG, WEBP ou GIF).');
+        err.status = 400;
+        throw err;
+    }
+
+    if (!conteudoBase64) {
+        const err = new Error('Arquivo de antecedentes inválido.');
+        err.status = 400;
+        throw err;
+    }
+
+    const conteudoLimpo = conteudoBase64.includes(',')
+        ? conteudoBase64.split(',')[1]
+        : conteudoBase64;
+
+    const buffer = Buffer.from(conteudoLimpo, 'base64');
+    if (!buffer || buffer.length === 0) {
+        const err = new Error('Arquivo de antecedentes inválido.');
+        err.status = 400;
+        throw err;
+    }
+
+    const maxBytes = 8 * 1024 * 1024; // 8MB
+    if (buffer.length > maxBytes) {
+        const err = new Error('O arquivo de antecedentes deve ter no máximo 8MB.');
+        err.status = 400;
+        throw err;
+    }
+
+    const uploadDir = path.resolve(__dirname, '../public/uploads/antecedentes-locacoes');
+    await fs.promises.mkdir(uploadDir, { recursive: true });
+
+    const fileName = `antecedente-locacao-${locacaoId}-${Date.now()}.${extensao}`;
+    const filePath = path.join(uploadDir, fileName);
+    await fs.promises.writeFile(filePath, buffer);
+
+    return {
+        caminho: `uploads/antecedentes-locacoes/${fileName}`,
+        nomeOriginal,
+        mimeType,
+        tamanhoBytes: buffer.length,
+    };
 }
 
 async function salvarComprovanteEncerramentoArquivo({ locacaoId, arquivo }) {
@@ -420,9 +518,9 @@ async function salvarComprovanteEncerramentoArquivo({ locacaoId, arquivo }) {
 }
 
 async function enviarContratoPorEmail({ para, nomeLocatario, pdfBuffer, nomeArquivo }) {
-    const transporter = criarTransporter();
+    const transporter = await criarTransporter();
     if (!transporter) {
-        const err = new Error('SMTP nao configurado. Defina SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASS.');
+        const err = new Error('SMTP nao configurado. Configure as credenciais SMTP em Configurações.');
         err.code = 'SMTP_NOT_CONFIGURED';
         throw err;
     }
@@ -543,7 +641,8 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
     const {
         veiculo_id, locatario_id, data_inicio, data_previsao_fim,
         valor_semanal, caucao, condicoes,
-        periodicidade, quantidade_periodos, contrato, contrato_envio
+        periodicidade, quantidade_periodos, contrato, contrato_envio,
+        antecedente_arquivo
     } = req.body;
 
     if (!veiculo_id || !data_inicio) {
@@ -558,9 +657,10 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
         let valorSemanalValue = valor_semanal;
         let dataPrevisaoFimValue = data_previsao_fim || null;
         let condicoesValue = condicoes || '';
+        let statusValue = 'ativa';
 
         const [veiculoRows] = await conn.query(
-            'SELECT id, placa, marca, modelo, valor_fipe, km_atual FROM veiculos WHERE id = ? LIMIT 1',
+            'SELECT id, placa, marca, modelo, valor_fipe, valor_diario, km_atual FROM veiculos WHERE id = ? LIMIT 1',
             [veiculo_id]
         );
         if (veiculoRows.length === 0) {
@@ -575,16 +675,23 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
                 return res.status(403).json({ erro: 'Não foi encontrado cadastro de locatário vinculado a este usuário.' });
             }
 
-            locatarioIdValue = locatarioIdByEmail;
-            valorSemanalValue = estimateWeeklyValue(veiculoRows[0]);
+            if (!antecedente_arquivo || typeof antecedente_arquivo !== 'object') {
+                await conn.rollback();
+                return res.status(400).json({ erro: 'Anexe o arquivo de antecedentes criminais para continuar.' });
+            }
 
-            const periodicidadeNormalizada = String(periodicidade || '').trim().toLowerCase();
+            locatarioIdValue = locatarioIdByEmail;
+
+            const periodicidadeNormalizada = normalizePeriodicidade(periodicidade);
             const quantidade = Number(quantidade_periodos || 0);
 
-            if (!['semanal', 'quinzenal', 'mensal'].includes(periodicidadeNormalizada) || quantidade <= 0) {
+            if (!['dia', 'semana', 'quinzenal', 'mensal'].includes(periodicidadeNormalizada) || quantidade <= 0) {
                 await conn.rollback();
                 return res.status(400).json({ erro: 'Periodicidade e quantidade de períodos são obrigatórias para locatário.' });
             }
+
+            valorSemanalValue = estimateLocacaoValueForLocatario(veiculoRows[0], periodicidadeNormalizada, quantidade);
+            statusValue = 'pendente_aprovacao';
 
             dataPrevisaoFimValue = computeEndDate(data_inicio, periodicidadeNormalizada, quantidade);
             condicoesValue = `${condicoesValue ? `${condicoesValue} | ` : ''}Periodicidade: ${periodicidadeNormalizada}; Quantidade: ${quantidade}`;
@@ -612,7 +719,12 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
 
         // Verifica se veículo está disponível
         const [ativas] = await conn.query(
-            'SELECT id FROM locacoes WHERE veiculo_id = ? AND status = "ativa"',
+            `SELECT id
+                         FROM locacoes
+                         WHERE veiculo_id = ?
+                             AND status = 'ativa'
+                             AND data_encerramento IS NULL
+                             AND (data_previsao_fim IS NULL OR data_previsao_fim >= CURDATE())`,
             [veiculo_id]
         );
         if (ativas.length > 0) {
@@ -621,16 +733,16 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
         }
 
         const kmEntradaAtual = Number(veiculoRows[0]?.km_atual || 0);
-        const periodicidadeValue = String(periodicidade || 'semanal').trim().toLowerCase();
+        const periodicidadeValue = normalizePeriodicidade(periodicidade) || 'semana';
         const quantidadePeridosValue = Number(quantidade_periodos || 1);
 
         const [result] = await conn.query(
             `INSERT INTO locacoes
             (veiculo_id, locatario_id, data_inicio, data_previsao_fim,
              valor_semanal, caucao, km_entrada, status, condicoes, periodicidade, quantidade_periodos)
-            VALUES (?,?,?,?,?,?,?,'ativa',?,?,?)`,
+            VALUES (?,?,?,?,?,?,?, ?,?,?,?)`,
             [veiculo_id, locatarioIdValue, data_inicio, dataPrevisaoFimValue,
-                valorSemanalValue, caucao || 0, kmEntradaAtual, condicoesValue, periodicidadeValue, quantidadePeridosValue]
+                valorSemanalValue, caucao || 0, kmEntradaAtual, statusValue, condicoesValue, periodicidadeValue, quantidadePeridosValue]
         );
 
         // Cria lançamento de caução se houver
@@ -641,6 +753,27 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
                 VALUES ('receita','Caução/Depósito','Caução – início de locação',?,?,?,?)`,
                 [caucao, data_inicio, veiculo_id, locatarioIdValue]
             );
+        }
+
+        if (req.usuario?.perfil === 'locatario') {
+            const antecedenteSalvo = await salvarAntecedenteCriminalArquivo({
+                locacaoId: result.insertId,
+                arquivo: antecedente_arquivo,
+            });
+
+            if (await hasAntecedenteColumn(conn)) {
+                await conn.query(
+                    'UPDATE locacoes SET antecedente_criminal_arquivo = ? WHERE id = ?',
+                    [antecedenteSalvo.caminho, result.insertId]
+                );
+            } else {
+                const condicoesComAnexo = `${condicoesValue ? `${condicoesValue} | ` : ''}Arquivo de antecedentes: ${antecedenteSalvo.caminho}`;
+                await conn.query(
+                    'UPDATE locacoes SET condicoes = ? WHERE id = ?',
+                    [condicoesComAnexo, result.insertId]
+                );
+                condicoesValue = condicoesComAnexo;
+            }
         }
 
         await conn.commit();
@@ -672,6 +805,13 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
 
                 const locatario = locatarioRows[0] || {};
                 const veiculo = veiculoRows[0] || {};
+
+                // Obter email do locador
+                const [locadorRows] = await pool.query(
+                    `SELECT id, nome, email FROM locadores WHERE id = ? LIMIT 1`,
+                    [veiculo.locador_id]
+                );
+                const locador = locadorRows[0] || {};
 
                 const contratoPayload = {
                     locatario: {
@@ -705,15 +845,37 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
                 };
 
                 const emailDestino = contratoPayload.locatario.email;
+                const emailLocador = locador.email || '';
                 const pdfBuffer = await gerarContratoPdfBuffer(contratoPayload);
                 const nomeArquivo = `contrato-locacao-${result.insertId}.pdf`;
                 const contratoEnvio = String(contrato_envio || 'email').trim().toLowerCase();
 
                 if (contratoEnvio === 'download') {
-                    emailStatus = 'download';
+                    // Prepara o PDF para download
                     contratoPdfBase64 = pdfBuffer.toString('base64');
                     contratoPdfNomeArquivo = nomeArquivo;
                     contratoPdfMimeType = 'application/pdf';
+
+                    // Envia email também para locatário e locador
+                    if (emailDestino) {
+                        await enviarContratoPorEmail({
+                            para: emailDestino,
+                            nomeLocatario: contratoPayload.locatario.nome || 'Locatario',
+                            pdfBuffer,
+                            nomeArquivo,
+                        });
+                    }
+
+                    if (emailLocador) {
+                        await enviarContratoPorEmail({
+                            para: emailLocador,
+                            nomeLocatario: `${contratoPayload.locatario.nome || 'Locatario'} (Cópia para locador)`,
+                            pdfBuffer,
+                            nomeArquivo,
+                        });
+                    }
+
+                    emailStatus = 'download_e_enviado';
                 } else {
                     if (!emailDestino) {
                         throw new Error('Locatario sem e-mail para envio do contrato.');
@@ -725,6 +887,16 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
                         pdfBuffer,
                         nomeArquivo,
                     });
+
+                    // Envia cópia para locador se houver email
+                    if (emailLocador) {
+                        await enviarContratoPorEmail({
+                            para: emailLocador,
+                            nomeLocatario: `${contratoPayload.locatario.nome || 'Locatario'} (Cópia para locador)`,
+                            pdfBuffer,
+                            nomeArquivo,
+                        });
+                    }
 
                     emailStatus = 'enviado';
                 }
@@ -793,7 +965,7 @@ router.put('/:id', requireProfiles('admin', 'auxiliar'), async (req, res) => {
             }
         }
 
-        const periodicidadeValue = String(periodicidade || 'semanal').trim().toLowerCase();
+        const periodicidadeValue = normalizePeriodicidade(periodicidade) || 'semana';
         const quantidadePeridosValue = Number(quantidade_periodos || 1);
 
         const [result] = await pool.query(
@@ -818,6 +990,121 @@ router.put('/:id', requireProfiles('admin', 'auxiliar'), async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ erro: 'Erro ao atualizar locação.' });
+    }
+});
+
+// PATCH /api/locacoes/:id/aprovar
+router.patch('/:id/aprovar', requireProfiles('admin', 'locador', 'auxiliar'), async (req, res) => {
+    const conn = await pool.getConnection();
+    try {
+        if (req.usuario?.perfil === 'locador') {
+            const locadorId = await getLocadorIdForUser(req.usuario);
+            if (!locadorId) {
+                return res.status(403).json({ erro: 'Não foi encontrado cadastro de locador vinculado a este usuário.' });
+            }
+
+            const [ownership] = await conn.query(
+                `SELECT lc.id
+                 FROM locacoes lc
+                 INNER JOIN veiculos v ON lc.veiculo_id = v.id
+                 WHERE lc.id = ? AND v.locador_id = ?
+                 LIMIT 1`,
+                [req.params.id, locadorId]
+            );
+            if (ownership.length === 0) {
+                return res.status(403).json({ erro: 'Você só pode aprovar solicitações dos seus veículos.' });
+            }
+        } else if (req.usuario?.perfil === 'auxiliar') {
+            const locadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!locadorId) {
+                return res.status(403).json({ erro: 'Não foi possível identificar o locador responsável por este auxiliar.' });
+            }
+
+            const [ownership] = await conn.query(
+                `SELECT lc.id
+                 FROM locacoes lc
+                 INNER JOIN veiculos v ON lc.veiculo_id = v.id
+                 WHERE lc.id = ? AND v.locador_id = ?
+                 LIMIT 1`,
+                [req.params.id, locadorId]
+            );
+            if (ownership.length === 0) {
+                return res.status(403).json({ erro: 'Auxiliar só pode aprovar solicitações de veículos do seu locador.' });
+            }
+        }
+
+        await conn.beginTransaction();
+
+        const [locacaoRows] = await conn.query(
+            `SELECT id, veiculo_id, status, data_previsao_fim
+             FROM locacoes
+             WHERE id = ?
+             LIMIT 1`,
+            [req.params.id]
+        );
+
+        if (locacaoRows.length === 0) {
+            await conn.rollback();
+            return res.status(404).json({ erro: 'Solicitação de locação não encontrada.' });
+        }
+
+        const locacao = locacaoRows[0];
+        if (locacao.status !== 'pendente_aprovacao') {
+            await conn.rollback();
+            return res.status(400).json({ erro: 'Apenas solicitações pendentes podem ser aprovadas.' });
+        }
+
+        const [conflitos] = await conn.query(
+            `SELECT id
+             FROM locacoes
+             WHERE veiculo_id = ?
+               AND id <> ?
+               AND status = 'ativa'
+               AND data_encerramento IS NULL
+               AND (data_previsao_fim IS NULL OR data_previsao_fim >= CURDATE())
+             LIMIT 1`,
+            [locacao.veiculo_id, locacao.id]
+        );
+
+        if (conflitos.length > 0) {
+            await conn.rollback();
+            return res.status(409).json({ erro: 'Não foi possível aprovar: o veículo já possui locação ativa.' });
+        }
+
+        await conn.query(
+            `UPDATE locacoes
+             SET status = 'ativa'
+             WHERE id = ? AND status = 'pendente_aprovacao'`,
+            [locacao.id]
+        );
+
+        await conn.commit();
+
+        const [atualizada] = await pool.query(
+            `SELECT lc.*, CONCAT(v.marca,' ',v.modelo) AS nome_veiculo, v.placa,
+                    lt.nome AS nome_locatario, lt.celular AS celular_locatario
+             FROM locacoes lc
+             LEFT JOIN veiculos v ON lc.veiculo_id = v.id
+             LEFT JOIN locatarios lt ON lc.locatario_id = lt.id
+             WHERE lc.id = ?
+             LIMIT 1`,
+            [locacao.id]
+        );
+
+        return res.json({
+            mensagem: 'Solicitação aprovada com sucesso.',
+            locacao: atualizada[0] || null,
+        });
+    } catch (err) {
+        try {
+            await conn.rollback();
+        } catch {
+            // Sem ação: rollback só é necessário quando há transação aberta.
+        }
+        console.error(err);
+        return res.status(500).json({ erro: 'Erro ao aprovar solicitação de locação.' });
+    } finally {
+        conn.release();
     }
 });
 

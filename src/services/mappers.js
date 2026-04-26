@@ -303,6 +303,13 @@ export function locacaoToApi(f) {
         quantidade_periodos: f.quantidadePeriodos || null,
         contrato: f.contrato || null,
         contrato_envio: f.contratoEnvio || 'email',
+        antecedente_arquivo: f.antecedenteArquivo
+            ? {
+                nome: f.antecedenteArquivo.nome || '',
+                tipo: f.antecedenteArquivo.tipo || '',
+                conteudo_base64: f.antecedenteArquivo.conteudoBase64 || '',
+            }
+            : null,
     };
 }
 
@@ -319,6 +326,7 @@ export function locacaoFromApi(r) {
         kmEntrada: r.km_entrada,
         kmSaida: r.km_saida,
         comprovantePagamento: r.comprovante_pagamento || '',
+        antecedenteCriminalArquivo: r.antecedente_criminal_arquivo || '',
         status: r.status,
         condicoes: r.condicoes || '',
         periodicidade: r.periodicidade || 'semanal',

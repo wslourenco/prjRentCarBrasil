@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus, Edit2, Trash2, X, Check, Shield } from 'lucide-react';
+import { api } from '../services/api';
 
 const PERFIS = [
   { value: 'admin', label: 'Administrador', desc: 'Acesso total ao sistema' },
@@ -10,6 +11,14 @@ const PERFIS = [
 ];
 
 const EMPTY = { nome: '', email: '', senha: '', perfil: 'locador', tipoDocumento: 'cpf', documento: '' };
+const EMPTY_SMTP = {
+  smtp_host: '',
+  smtp_port: 587,
+  smtp_user: '',
+  smtp_pass: '',
+  smtp_secure: false,
+  mail_from: '',
+};
 
 function maskDoc(value, tipo) {
   let v = value.replace(/\D/g, '');
@@ -66,8 +75,72 @@ export default function Admin() {
   const [form, setForm] = useState(EMPTY);
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
   const [erroCrud, setErroCrud] = useState('');
+  const [smtpForm, setSmtpForm] = useState(EMPTY_SMTP);
+  const [smtpStatus, setSmtpStatus] = useState(null);
+  const [smtpMensagem, setSmtpMensagem] = useState('');
+  const [smtpErro, setSmtpErro] = useState('');
+  const [salvandoSmtp, setSalvandoSmtp] = useState(false);
+  const [testandoSmtp, setTestandoSmtp] = useState(false);
 
-  useEffect(() => { carregarUsuarios(); }, [carregarUsuarios]);
+  useEffect(() => {
+    carregarUsuarios();
+    carregarStatusSmtp();
+  }, [carregarUsuarios]);
+
+  async function carregarStatusSmtp() {
+    try {
+      const status = await api.get('/configuracoes/smtp/status');
+      setSmtpStatus(status);
+      setSmtpForm(prev => ({
+        ...prev,
+        smtp_host: String(status?.smtp?.smtp_host || ''),
+        smtp_port: Number(status?.smtp?.smtp_port || 587),
+        smtp_user: String(status?.smtp?.smtp_user || ''),
+        smtp_secure: String(status?.smtp?.smtp_secure || 'false').toLowerCase() === 'true',
+        mail_from: String(status?.smtp?.mail_from || ''),
+      }));
+    } catch (err) {
+      setSmtpErro(err.message || 'Não foi possível carregar o status SMTP.');
+    }
+  }
+
+  async function salvarSmtp(e) {
+    e.preventDefault();
+    setSmtpMensagem('');
+    setSmtpErro('');
+    setSalvandoSmtp(true);
+    try {
+      await api.put('/configuracoes/smtp', {
+        smtp_host: smtpForm.smtp_host,
+        smtp_port: Number(smtpForm.smtp_port || 587),
+        smtp_user: smtpForm.smtp_user,
+        smtp_pass: smtpForm.smtp_pass,
+        smtp_secure: !!smtpForm.smtp_secure,
+        mail_from: smtpForm.mail_from,
+      });
+      setSmtpMensagem('Configuração SMTP salva com sucesso.');
+      setSmtpForm(prev => ({ ...prev, smtp_pass: '' }));
+      await carregarStatusSmtp();
+    } catch (err) {
+      setSmtpErro(err.message || 'Erro ao salvar configuração SMTP.');
+    } finally {
+      setSalvandoSmtp(false);
+    }
+  }
+
+  async function testarSmtp() {
+    setSmtpMensagem('');
+    setSmtpErro('');
+    setTestandoSmtp(true);
+    try {
+      const resp = await api.put('/configuracoes/smtp/testar', {});
+      setSmtpMensagem(resp?.mensagem || 'Conexão SMTP testada com sucesso.');
+    } catch (err) {
+      setSmtpErro(err.message || 'Falha ao testar SMTP.');
+    } finally {
+      setTestandoSmtp(false);
+    }
+  }
 
   function abrirNovo() { setForm(EMPTY); setEditId(null); setModal(true); setErroCrud(''); }
   function abrirEditar(u) { setForm({ ...EMPTY, ...u, senha: '', tipoDocumento: u.tipoDocumento || 'cpf', documento: u.documento || '' }); setEditId(u.id); setModal(true); setErroCrud(''); }
@@ -101,6 +174,101 @@ export default function Admin() {
           <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>Gerencie os níveis de acesso do sistema</p>
         </div>
         <button className="btn btn-primary" onClick={abrirNovo}><Plus size={16} /> Novo Usuário</button>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <span className="card-title">Configuração SMTP</span>
+          <span className={`badge ${smtpStatus?.configurado ? 'badge-green' : 'badge-orange'}`}>
+            {smtpStatus?.configurado ? 'Configurado' : 'Incompleto'}
+          </span>
+        </div>
+
+        <form onSubmit={salvarSmtp}>
+          <div className="form-grid" style={{ padding: 16 }}>
+            <div className="form-group form-full">
+              <label>Host SMTP *</label>
+              <input
+                required
+                value={smtpForm.smtp_host}
+                onChange={e => setSmtpForm(prev => ({ ...prev, smtp_host: e.target.value }))}
+                placeholder="smtp.gmail.com"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Porta *</label>
+              <input
+                required
+                type="number"
+                min="1"
+                max="65535"
+                value={smtpForm.smtp_port}
+                onChange={e => setSmtpForm(prev => ({ ...prev, smtp_port: e.target.value }))}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Seguro (SSL/TLS)</label>
+              <select
+                value={smtpForm.smtp_secure ? 'true' : 'false'}
+                onChange={e => setSmtpForm(prev => ({ ...prev, smtp_secure: e.target.value === 'true' }))}
+              >
+                <option value="false">Não</option>
+                <option value="true">Sim</option>
+              </select>
+            </div>
+
+            <div className="form-group form-full">
+              <label>Usuário SMTP *</label>
+              <input
+                required
+                value={smtpForm.smtp_user}
+                onChange={e => setSmtpForm(prev => ({ ...prev, smtp_user: e.target.value }))}
+                placeholder="usuario@provedor.com"
+              />
+            </div>
+
+            <div className="form-group form-full">
+              <label>Senha SMTP *</label>
+              <input
+                required
+                type="password"
+                value={smtpForm.smtp_pass}
+                onChange={e => setSmtpForm(prev => ({ ...prev, smtp_pass: e.target.value }))}
+                placeholder="Senha de app ou token SMTP"
+              />
+            </div>
+
+            <div className="form-group form-full">
+              <label>E-mail remetente (mail_from)</label>
+              <input
+                type="email"
+                value={smtpForm.mail_from}
+                onChange={e => setSmtpForm(prev => ({ ...prev, mail_from: e.target.value }))}
+                placeholder="noreply@sislove.com"
+              />
+            </div>
+          </div>
+
+          {smtpStatus?.faltantes?.length > 0 && (
+            <div className="alert alert-info" style={{ margin: '0 16px 12px 16px' }}>
+              Campos faltantes: {smtpStatus.faltantes.join(', ')}
+            </div>
+          )}
+
+          {smtpErro && <div className="alert alert-error" style={{ margin: '0 16px 12px 16px' }}>{smtpErro}</div>}
+          {smtpMensagem && <div className="alert alert-success" style={{ margin: '0 16px 12px 16px' }}>{smtpMensagem}</div>}
+
+          <div className="form-actions" style={{ padding: '0 16px 16px 16px' }}>
+            <button type="button" className="btn btn-outline" onClick={testarSmtp} disabled={testandoSmtp || salvandoSmtp}>
+              {testandoSmtp ? 'Testando...' : 'Testar Conexão'}
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={salvandoSmtp || testandoSmtp}>
+              {salvandoSmtp ? 'Salvando...' : 'Salvar SMTP'}
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Cards de nível de acesso */}

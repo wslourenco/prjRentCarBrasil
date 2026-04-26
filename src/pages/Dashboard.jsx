@@ -5,7 +5,7 @@ import { Car, Users, DollarSign, TrendingUp, UserCheck, Briefcase, AlertCircle }
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 export default function Dashboard() {
-  const { veiculos, locatarios, locadores, locacoes, despesasReceitas, usuarioLogado } = useApp();
+  const { veiculos, locatarios, locadores, locacoes, despesasReceitas, aprovarLocacao, usuarioLogado } = useApp();
 
   const perfil = usuarioLogado?.perfil;
 
@@ -14,7 +14,7 @@ export default function Dashboard() {
   }
 
   if (perfil === 'locador') {
-    return <DashboardLocador veiculos={veiculos} locacoes={locacoes} despesasReceitas={despesasReceitas} />;
+    return <DashboardLocador veiculos={veiculos} locacoes={locacoes} despesasReceitas={despesasReceitas} aprovarLocacao={aprovarLocacao} />;
   }
 
   return <DashboardAdmin veiculos={veiculos} locatarios={locatarios} locadores={locadores} locacoes={locacoes} despesasReceitas={despesasReceitas} />;
@@ -22,6 +22,20 @@ export default function Dashboard() {
 
 function formatarMoedaBR(valor) {
   return `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+}
+
+function getStatusLabel(status) {
+  if (status === 'pendente_aprovacao') return 'Pendente de aprovação';
+  if (status === 'ativa') return 'Ativa';
+  if (status === 'encerrada') return 'Encerrada';
+  if (status === 'cancelada') return 'Cancelada';
+  return status || '-';
+}
+
+function getStatusBadgeClass(status) {
+  if (status === 'pendente_aprovacao') return 'badge-orange';
+  if (status === 'ativa') return 'badge-green';
+  return 'badge-gray';
 }
 
 function categoriaLancamento(item) {
@@ -295,7 +309,7 @@ function DashboardAdmin({ veiculos, locatarios, locadores, locacoes, despesasRec
               locacoesRecentes.slice(-5).reverse().map(loc => (
                 <div key={loc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 13 }}>
                   <span>{loc.placa || loc.veiculoId}</span>
-                  <span className={`badge ${loc.status === 'ativa' ? 'badge-green' : 'badge-gray'}`}>{loc.status}</span>
+                  <span className={`badge ${getStatusBadgeClass(loc.status)}`}>{getStatusLabel(loc.status)}</span>
                 </div>
               ))
             )}
@@ -319,9 +333,10 @@ const PALETA_MARCA = [
   { top: '#6366f1', depth: '#4338ca' },
 ];
 
-function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
+function DashboardLocador({ veiculos, locacoes, despesasReceitas, aprovarLocacao }) {
   const [filtroCategoriaFinanceiro, setFiltroCategoriaFinanceiro] = useState('');
   const [filtroCategoriaVeiculo, setFiltroCategoriaVeiculo] = useState('');
+  const [aprovandoId, setAprovandoId] = useState(null);
 
   const idsVeiculosLocador = useMemo(
     () => new Set(veiculos.map(v => String(v.id))),
@@ -363,6 +378,7 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
   const idsVeiculosFiltrados = useMemo(() => new Set(veiculosFiltrados.map(v => String(v.id))), [veiculosFiltrados]);
 
   const locacoesAtivas = locacoesEscopo.filter(l => l.status === 'ativa' && idsVeiculosFiltrados.has(String(l.veiculoId)));
+  const solicitacoesPendentes = locacoesEscopo.filter(l => l.status === 'pendente_aprovacao' && idsVeiculosFiltrados.has(String(l.veiculoId)));
   const totalReceitas = despesasReceitasFiltradas.filter(d => d.tipo === 'receita').reduce((s, d) => s + Number(d.valor || 0), 0);
   const totalDespesas = despesasReceitasFiltradas.filter(d => d.tipo === 'despesa').reduce((s, d) => s + Number(d.valor || 0), 0);
   const lucro = totalReceitas - totalDespesas;
@@ -383,6 +399,25 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
       lucro: receitas - despesas,
     };
   }).sort((a, b) => b.lucro - a.lucro);
+
+  const apiBase = String(import.meta.env.VITE_API_URL ?? '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\/$/, '')
+    || (['localhost', '127.0.0.1'].includes(window.location.hostname)
+      ? 'http://localhost:3001'
+      : window.location.origin);
+
+  async function handleAprovar(id) {
+    setAprovandoId(id);
+    try {
+      await aprovarLocacao(id);
+    } catch (err) {
+      alert(err.message || 'Não foi possível aprovar a solicitação.');
+    } finally {
+      setAprovandoId(null);
+    }
+  }
 
   return (
     <div className="page-content">
@@ -438,6 +473,62 @@ function DashboardLocador({ veiculos, locacoes, despesasReceitas }) {
           </div>
         </div>
       </div>
+
+      {solicitacoesPendentes.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header">
+            <span className="card-title">Solicitações Pendentes de Aprovação</span>
+            <span className="badge badge-orange">{solicitacoesPendentes.length}</span>
+          </div>
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Veículo</th>
+                  <th>Locatário</th>
+                  <th>Início</th>
+                  <th>Período</th>
+                  <th>Antecedentes</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {solicitacoesPendentes.map(loc => {
+                  const antecedenteUrl = loc.antecedenteCriminalArquivo
+                    ? (/^https?:\/\//i.test(String(loc.antecedenteCriminalArquivo || ''))
+                      ? String(loc.antecedenteCriminalArquivo || '')
+                      : `${apiBase}/${String(loc.antecedenteCriminalArquivo || '').replace(/^\//, '')}`)
+                    : '';
+
+                  return (
+                    <tr key={loc.id}>
+                      <td>{loc.nomeVeiculo || loc.placa || '-'}</td>
+                      <td>{loc.nomeLocatario || '-'}</td>
+                      <td>{loc.dataInicio || '-'}</td>
+                      <td>{loc.periodicidade || '-'} / {loc.quantidadePeriodos || 1}</td>
+                      <td>
+                        {antecedenteUrl ? (
+                          <a href={antecedenteUrl} target="_blank" rel="noopener noreferrer">Ver arquivo</a>
+                        ) : '-'}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          disabled={aprovandoId === loc.id}
+                          onClick={() => handleAprovar(loc.id)}
+                        >
+                          {aprovandoId === loc.id ? 'Aprovando...' : 'Aprovar'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div className="card">
@@ -553,7 +644,7 @@ function DashboardLocatario({ veiculos, locacoes }) {
           locacoesFiltradas.slice(0, 8).map(loc => (
             <div key={loc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 13 }}>
               <span>{loc.nomeVeiculo || loc.placa || `Veículo ${loc.veiculoId}`}</span>
-              <span className={`badge ${loc.status === 'ativa' ? 'badge-green' : 'badge-gray'}`}>{loc.status}</span>
+              <span className={`badge ${getStatusBadgeClass(loc.status)}`}>{getStatusLabel(loc.status)}</span>
             </div>
           ))
         )}

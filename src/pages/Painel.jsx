@@ -63,7 +63,7 @@ const EMPTY_LOCACAO = {
 };
 
 export default function Painel() {
-  const { locacoes, veiculos, locatarios, despesasReceitas, addLocacao, updateLocacao, removeLocacao, encerrarLocacao, usuarioLogado } = useApp();
+  const { locacoes, veiculos, locatarios, despesasReceitas, addLocacao, updateLocacao, removeLocacao, aprovarLocacao, encerrarLocacao, usuarioLogado } = useApp();
   const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
   const [abaDetalhe, setAbaDetalhe] = useState('info');
   const [modalNovaLocacao, setModalNovaLocacao] = useState(false);
@@ -72,9 +72,11 @@ export default function Painel() {
   const [confirmarEncerrar, setConfirmarEncerrar] = useState(null);
   const [confirmarExcluir, setConfirmarExcluir] = useState(null);
   const [filtroCategoriaVeiculo, setFiltroCategoriaVeiculo] = useState('');
+  const [aprovandoId, setAprovandoId] = useState(null);
   const podeEditarExcluir = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'auxiliar';
 
   const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
+  const solicitacoesPendentes = locacoes.filter(l => l.status === 'pendente_aprovacao');
 
   const categoriasVeiculo = Array.from(new Set(
     veiculos
@@ -103,6 +105,18 @@ export default function Painel() {
 
   function getReceitasLocatario(locatarioId) {
     return despesasReceitas.filter(d => d.tipo === 'receita' && String(d.locatarioId) === String(locatarioId));
+  }
+
+  async function handleAprovarLocacao(item) {
+    if (!item?.locacao?.id) return;
+    setAprovandoId(item.locacao.id);
+    try {
+      await aprovarLocacao(item.locacao.id);
+    } catch (err) {
+      alert(err.message || 'Não foi possível aprovar a solicitação.');
+    } finally {
+      setAprovandoId(null);
+    }
   }
 
   function computeEndDate(dataInicio, periodicidade, quantidade) {
@@ -345,7 +359,9 @@ export default function Painel() {
           <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>
             {usuarioLogado?.perfil === 'auxiliar' ? 'Painel de Locações' : 'Painel de Controle'}
           </h2>
-          <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>{locacoesAtivas.length} locação(ões) ativa(s)</p>
+          <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>
+            {locacoesAtivas.length} locação(ões) ativa(s) • {solicitacoesPendentes.length} solicitação(ões) pendente(s)
+          </p>
         </div>
         <div className="flex" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
@@ -355,6 +371,63 @@ export default function Painel() {
           <button className="btn btn-primary" onClick={abrirModalNovaLocacao}><Plus size={16} /> Nova Locação</button>
         </div>
       </div>
+
+      {solicitacoesPendentes.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header">
+            <span className="card-title">Solicitações Pendentes de Aprovação</span>
+            <span className="badge badge-orange">{solicitacoesPendentes.length}</span>
+          </div>
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Veículo</th>
+                  <th>Locatário</th>
+                  <th>Início</th>
+                  <th>Período</th>
+                  <th>Antecedentes</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {solicitacoesPendentes.map(loc => {
+                  const veiculo = veiculos.find(v => String(v.id) === String(loc.veiculoId));
+                  const antecedenteUrl = loc.antecedenteCriminalArquivo
+                    ? (/^https?:\/\//i.test(String(loc.antecedenteCriminalArquivo || ''))
+                      ? String(loc.antecedenteCriminalArquivo || '')
+                      : `${window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : window.location.origin}/${String(loc.antecedenteCriminalArquivo || '').replace(/^\//, '')}`)
+                    : '';
+
+                  return (
+                    <tr key={loc.id}>
+                      <td>{loc.nomeVeiculo || (veiculo ? `${veiculo.marca} ${veiculo.modelo}` : '-') || loc.placa || '-'}</td>
+                      <td>{loc.nomeLocatario || '-'}</td>
+                      <td>{loc.dataInicio || '-'}</td>
+                      <td>{loc.periodicidade || '-'} / {loc.quantidadePeriodos || 1}</td>
+                      <td>
+                        {antecedenteUrl ? (
+                          <a href={antecedenteUrl} target="_blank" rel="noopener noreferrer">Ver arquivo</a>
+                        ) : '-'}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleAprovarLocacao({ locacao: loc })}
+                          disabled={aprovandoId === loc.id}
+                        >
+                          {aprovandoId === loc.id ? 'Aprovando...' : 'Aprovar'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: veiculoSelecionado ? '320px 1fr' : '1fr', gap: 16 }}>
 
@@ -696,8 +769,32 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
   const [dataFimCalculada, setDataFimCalculada] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+  const [sucesso, setSucesso] = useState('');
+
+  function getStatusLabel(status) {
+    if (status === 'pendente_aprovacao') return 'Pendente de aprovação';
+    if (status === 'ativa') return 'Ativa';
+    if (status === 'encerrada') return 'Encerrada';
+    if (status === 'cancelada') return 'Cancelada';
+    return status || '-';
+  }
+
+  function getStatusBadgeClass(status) {
+    if (status === 'pendente_aprovacao') return 'badge-orange';
+    if (status === 'ativa') return 'badge-green';
+    return 'badge-gray';
+  }
+
+  const apiBase = String(import.meta.env.VITE_API_URL ?? '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\/$/, '')
+    || (['localhost', '127.0.0.1'].includes(window.location.hostname)
+      ? 'http://localhost:3001'
+      : window.location.origin);
 
   const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
+  const locacoesPendentes = locacoes.filter(l => l.status === 'pendente_aprovacao');
   const categoriasVeiculo = Array.from(new Set(
     veiculos
       .map(v => String(v.marca || '').trim() || 'Sem categoria')
@@ -747,6 +844,7 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setErro('');
+    setSucesso('');
     setSalvando(true);
     try {
       await addLocacao({
@@ -759,10 +857,11 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
       setForm({
         veiculoId: '',
         dataInicio: new Date().toISOString().split('T')[0],
-        periodicidade: 'semanal',
+        periodicidade: 'semana',
         quantidadePeriodos: '1',
         condicoes: '',
       });
+      setSucesso('Solicitação enviada com sucesso. A locação está pendente de aprovação do locador.');
     } catch (err) {
       setErro(err.message || 'Não foi possível iniciar a locação.');
     } finally {
@@ -775,8 +874,13 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 4 }}>Solicitar Locação</h2>
         <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>
-          Defina o período da locação (semanal, quinzenal ou mensal).
+          Defina o período da locação e envie a solicitação para aprovação do locador.
         </p>
+        {locacoesPendentes.length > 0 && (
+          <div className="alert alert-info" style={{ marginTop: 10 }}>
+            Você possui {locacoesPendentes.length} locação(ões) pendente(s) de aprovação pelo locador.
+          </div>
+        )}
         <div style={{ marginTop: 10, maxWidth: 280 }}>
           <select aria-label="Categoria do Veículo" value={filtroCategoriaVeiculo} onChange={e => setFiltroCategoriaVeiculo(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13, width: '100%', maxWidth: 320 }}>
             <option value="">Todas as montadoras</option>
@@ -834,9 +938,10 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
               </div>
 
               {erro && <div className="alert alert-error" style={{ marginTop: 12 }}>{erro}</div>}
+              {sucesso && <div className="alert alert-success" style={{ marginTop: 12 }}>{sucesso}</div>}
 
               <button type="submit" className="btn btn-primary" style={{ marginTop: 12 }} disabled={salvando || !form.veiculoId}>
-                <CalendarDays size={16} /> {salvando ? 'Enviando...' : 'Confirmar Locação'}
+                <CalendarDays size={16} /> {salvando ? 'Enviando...' : 'Solicitar Locação'}
               </button>
             </form>
           )}
@@ -857,6 +962,7 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
                     <th>Veículo</th>
                     <th>Início</th>
                     <th>Previsão Fim</th>
+                    <th>Antecedentes</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -866,7 +972,20 @@ function PainelLocatario({ veiculos, locacoes, addLocacao }) {
                       <td>{loc.nomeVeiculo || loc.placa || loc.veiculoId}</td>
                       <td>{loc.dataInicio}</td>
                       <td>{loc.dataPrevisaoFim || '-'}</td>
-                      <td><span className={`badge ${loc.status === 'ativa' ? 'badge-green' : 'badge-gray'}`}>{loc.status}</span></td>
+                      <td>
+                        {loc.antecedenteCriminalArquivo ? (
+                          <a
+                            href={/^https?:\/\//i.test(String(loc.antecedenteCriminalArquivo || ''))
+                              ? String(loc.antecedenteCriminalArquivo || '')
+                              : `${apiBase}/${String(loc.antecedenteCriminalArquivo || '').replace(/^\//, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Ver arquivo
+                          </a>
+                        ) : '-'}
+                      </td>
+                      <td><span className={`badge ${getStatusBadgeClass(loc.status)}`}>{getStatusLabel(loc.status)}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -891,10 +1010,17 @@ function InfoLocacao({ item }) {
       : window.location.origin);
 
   const comprovantePagamento = String(locacao.comprovantePagamento || '').trim();
+  const antecedenteCriminalArquivo = String(locacao.antecedenteCriminalArquivo || '').trim();
   const comprovanteUrl = (() => {
     if (!comprovantePagamento) return '';
     if (/^https?:\/\//i.test(comprovantePagamento)) return comprovantePagamento;
     const caminho = comprovantePagamento.replace(/^\//, '');
+    return `${apiBase}/${caminho}`;
+  })();
+  const antecedenteUrl = (() => {
+    if (!antecedenteCriminalArquivo) return '';
+    if (/^https?:\/\//i.test(antecedenteCriminalArquivo)) return antecedenteCriminalArquivo;
+    const caminho = antecedenteCriminalArquivo.replace(/^\//, '');
     return `${apiBase}/${caminho}`;
   })();
 
@@ -964,6 +1090,19 @@ function InfoLocacao({ item }) {
               className="btn btn-outline btn-sm"
             >
               Abrir Comprovante
+            </a>
+          </div>
+        )}
+        <InfoRow label="Antecedentes" value={locacao.antecedenteCriminalArquivo || '-'} />
+        {antecedenteUrl && (
+          <div style={{ marginTop: 10 }}>
+            <a
+              href={antecedenteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-outline btn-sm"
+            >
+              Abrir Antecedentes
             </a>
           </div>
         )}

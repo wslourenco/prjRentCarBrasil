@@ -29,31 +29,16 @@ async function getLocatarioProfileForUser(db, usuario) {
     if (perfil !== 'locatario') return null;
 
     const email = String(usuario?.email || '').trim();
-    const userId = Number(usuario?.id || 0);
+    if (!email) return null;
 
-    let rows = [];
-    if (email) {
-        const [byEmail] = await db.query(
-            `SELECT id, nome, email, cpf, rg, telefone, celular, endereco, numero, complemento, bairro, cidade, estado, cep
-             FROM locatarios
-             WHERE LOWER(TRIM(email)) = LOWER(?)
-             ORDER BY id ASC
-             LIMIT 1`,
-            [email]
-        );
-        rows = byEmail;
-    }
-
-    if ((!rows || rows.length === 0) && userId) {
-        const [byId] = await db.query(
-            `SELECT id, nome, email, cpf, rg, telefone, celular, endereco, numero, complemento, bairro, cidade, estado, cep
-             FROM locatarios
-             WHERE id = ?
-             LIMIT 1`,
-            [userId]
-        );
-        rows = byId;
-    }
+    const [rows] = await db.query(
+        `SELECT id, nome, email, cpf, rg, telefone, celular, endereco, numero, complemento, bairro, cidade, estado, cep
+         FROM locatarios
+         WHERE LOWER(TRIM(email)) = LOWER(?)
+         ORDER BY id ASC
+         LIMIT 1`,
+        [email]
+    );
 
     if (!rows || rows.length === 0) return null;
     return rows[0];

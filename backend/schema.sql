@@ -25,6 +25,19 @@ CREATE TABLE IF NOT EXISTS usuarios (
   criado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+-- ----------------------------------------------------------------
+-- Tabela: configuracoes
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS configuracoes (
+  id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  chave             VARCHAR(120) NOT NULL UNIQUE COMMENT 'Identificador único da config (ex: smtp_host, smtp_port)',
+  valor             TEXT COMMENT 'Valor da configuração (pode ser JSON ou texto simples)',
+  tipo              ENUM('texto','numero','booleano','json') DEFAULT 'texto',
+  descricao         VARCHAR(255),
+  criado_em         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 
 -- ----------------------------------------------------------------
 -- Tabela: locadores
@@ -198,9 +211,10 @@ CREATE TABLE IF NOT EXISTS locacoes (
   km_entrada          INT UNSIGNED,
   km_saida            INT UNSIGNED,
   comprovante_pagamento VARCHAR(120),
-  periodicidade       ENUM('dia','semana','quinzenal','mensal') DEFAULT 'semanal',
+  antecedente_criminal_arquivo VARCHAR(160),
+  periodicidade       ENUM('dia','semana','quinzenal','mensal') DEFAULT 'semana',
   quantidade_periodos INT UNSIGNED DEFAULT 1,
-  status              ENUM('ativa','encerrada','cancelada') NOT NULL DEFAULT 'ativa',
+  status              ENUM('pendente_aprovacao','ativa','encerrada','cancelada') NOT NULL DEFAULT 'ativa',
   condicoes           TEXT,
   criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -334,12 +348,29 @@ SET @sql_add_periodicidade = (
         AND COLUMN_NAME = 'periodicidade'
     ),
     'SELECT 1',
-    'ALTER TABLE locacoes ADD COLUMN periodicidade ENUM("dia","semana","quinzenal","mensal") DEFAULT "semanal" AFTER comprovante_pagamento'
+    'ALTER TABLE locacoes ADD COLUMN periodicidade ENUM("dia","semana","quinzenal","mensal") DEFAULT "semana" AFTER comprovante_pagamento'
   )
 );
 PREPARE stmt_add_periodicidade FROM @sql_add_periodicidade;
 EXECUTE stmt_add_periodicidade;
 DEALLOCATE PREPARE stmt_add_periodicidade;
+
+SET @sql_add_antecedente_criminal_arquivo = (
+  SELECT IF(
+    EXISTS (
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'locacoes'
+        AND COLUMN_NAME = 'antecedente_criminal_arquivo'
+    ),
+    'SELECT 1',
+    'ALTER TABLE locacoes ADD COLUMN antecedente_criminal_arquivo VARCHAR(160) AFTER comprovante_pagamento'
+  )
+);
+PREPARE stmt_add_antecedente_criminal_arquivo FROM @sql_add_antecedente_criminal_arquivo;
+EXECUTE stmt_add_antecedente_criminal_arquivo;
+DEALLOCATE PREPARE stmt_add_antecedente_criminal_arquivo;
 
 SET @sql_add_quantidade_periodos = (
   SELECT IF(
@@ -357,6 +388,23 @@ SET @sql_add_quantidade_periodos = (
 PREPARE stmt_add_quantidade_periodos FROM @sql_add_quantidade_periodos;
 EXECUTE stmt_add_quantidade_periodos;
 DEALLOCATE PREPARE stmt_add_quantidade_periodos;
+
+SET @sql_update_locacoes_status_enum = (
+  SELECT IF(
+    EXISTS (
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'locacoes'
+        AND COLUMN_NAME = 'status'
+    ),
+    'ALTER TABLE locacoes MODIFY COLUMN status ENUM("pendente_aprovacao","ativa","encerrada","cancelada") NOT NULL DEFAULT "ativa"',
+    'SELECT 1'
+  )
+);
+PREPARE stmt_update_locacoes_status_enum FROM @sql_update_locacoes_status_enum;
+EXECUTE stmt_update_locacoes_status_enum;
+DEALLOCATE PREPARE stmt_update_locacoes_status_enum;
 
 SET @sql_add_valor_diario = (
   SELECT IF(
