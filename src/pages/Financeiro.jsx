@@ -35,6 +35,17 @@ function formatarMoedaBR(valor) {
   return `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
+function escurecerCorHex(corHex, fator = 0.72) {
+  const hex = String(corHex || '').replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return corHex;
+
+  const r = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(0, 2), 16) * fator)));
+  const g = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(2, 4), 16) * fator)));
+  const b = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(4, 6), 16) * fator)));
+
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
 function abreviarTexto(texto, limite = 24) {
   const valor = String(texto || '');
   return valor.length > limite ? `${valor.slice(0, limite - 1)}…` : valor;
@@ -649,6 +660,16 @@ export default function Financeiro() {
       .sort((a, b) => b.valor - a.valor);
   }, [despesasReceitasEscopo, locacoesEscopo, graficoInicio, graficoFim, graficoStatus, graficoVeiculo, graficoMontadora, marcaPorVeiculoId]);
 
+  const despesasCategoriasTop16 = useMemo(
+    () => despesasDetalhadasCategoria.slice(0, 16),
+    [despesasDetalhadasCategoria]
+  );
+
+  const despesasCategoriasGrupos = useMemo(
+    () => Array.from({ length: 4 }, (_, indice) => despesasCategoriasTop16.slice(indice * 4, indice * 4 + 4)),
+    [despesasCategoriasTop16]
+  );
+
   const lucrosDetalhados = useMemo(() => {
     return resumoPorLocacao
       .map((item) => {
@@ -1171,33 +1192,63 @@ export default function Financeiro() {
             <div className="empty-state"><TrendingDown size={30} /><p>Sem despesas no período para detalhar.</p></div>
           ) : (
             <div className="grafico-detalhe-layout">
-              <div style={{ width: '100%', height: 320 }}>
-                <ResponsiveContainer>
-                  <BarChart data={despesasDetalhadasCategoria.slice(0, 12)} layout="vertical" margin={{ top: 6, right: 16, left: 4, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(valor) => `R$ ${Number(valor || 0).toLocaleString('pt-BR')}`} />
-                    <YAxis type="category" dataKey="categoriaCurta" width={148} tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      formatter={(valor) => formatarMoedaBR(valor)}
-                      labelFormatter={(label, payload) => payload?.[0]?.payload?.categoria || label}
-                    />
-                    <Bar dataKey="valor" radius={[0, 7, 7, 0]}>
-                      {despesasDetalhadasCategoria.slice(0, 12).map((item, idx) => (
-                        <Cell key={`${item.categoria}-${idx}`} fill={CORES_DASHBOARD[idx % CORES_DASHBOARD.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="detalhe-lista">
-                {despesasDetalhadasCategoria.slice(0, 8).map((item, idx) => (
-                  <div className="detalhe-item" key={`${item.categoria}-${idx}`}>
-                    <div>
-                      <div className="detalhe-item-title">{item.categoria}</div>
-                      <div className="detalhe-item-sub">{item.quantidade} lançamento(s) • Ticket médio: {formatarMoedaBR(item.ticketMedio)}</div>
+              <div className="despesas-categorias-grid">
+                {despesasCategoriasGrupos.map((grupo, indiceGrupo) => (
+                  <div key={`grupo-categoria-${indiceGrupo}`} className="despesas-categoria-pie-card">
+                    <div className="despesas-categoria-pie-title">
+                      Categorias {indiceGrupo * 4 + 1}-{Math.min((indiceGrupo + 1) * 4, despesasCategoriasTop16.length)}
                     </div>
-                    <div className="detalhe-item-value">{formatarMoedaBR(item.valor)}</div>
+
+                    {grupo.length === 0 ? (
+                      <div className="despesas-categoria-pie-empty">Sem categorias neste grupo</div>
+                    ) : (
+                      <div style={{ width: '100%', height: 230 }}>
+                        <ResponsiveContainer>
+                          <PieChart>
+                            <Pie
+                              data={grupo}
+                              dataKey="valor"
+                              nameKey="categoria"
+                              cx="50%"
+                              cy="55%"
+                              innerRadius={36}
+                              outerRadius={82}
+                              legendType="none"
+                            >
+                              {grupo.map((item, idx) => {
+                                const corBase = CORES_DASHBOARD[(indiceGrupo * 4 + idx) % CORES_DASHBOARD.length];
+                                return <Cell key={`despesa-depth-${item.categoria}-${idx}`} fill={escurecerCorHex(corBase)} />;
+                              })}
+                            </Pie>
+
+                            <Pie
+                              data={grupo}
+                              dataKey="valor"
+                              nameKey="categoria"
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={36}
+                              outerRadius={82}
+                            >
+                              {grupo.map((item, idx) => {
+                                const corBase = CORES_DASHBOARD[(indiceGrupo * 4 + idx) % CORES_DASHBOARD.length];
+                                return <Cell key={`despesa-top-${item.categoria}-${idx}`} fill={corBase} />;
+                              })}
+                            </Pie>
+
+                            <Tooltip
+                              formatter={(valor) => formatarMoedaBR(valor)}
+                              labelFormatter={(label, payload) => payload?.[0]?.payload?.categoria || label}
+                            />
+                            <Legend
+                              verticalAlign="bottom"
+                              height={26}
+                              formatter={(value) => abreviarTexto(value, 18)}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
