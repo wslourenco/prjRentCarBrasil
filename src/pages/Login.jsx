@@ -39,7 +39,7 @@ export default function Login() {
         <div className="login-logo">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
             <Car size={32} color="var(--primary)" />
-            <h1>SisLoVe</h1>
+            <h1>RentCarBrasil</h1>
           </div>
           <p>Sistema de Locação de Veículos</p>
         </div>
@@ -87,9 +87,9 @@ export default function Login() {
 
         <div style={{ marginTop: 24, padding: 14, background: 'var(--gray-50)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--gray-500)' }}>
           <strong>Contas de demonstração:</strong><br />
-          admin@sislove.com / admin123<br />
-          locador@sislove.com / locador123<br />
-          locatario@sislove.com / locatario123
+          admin@rentcarbrasil.com.br / admin123<br />
+          locador@rentcarbrasil.com.br / locador123<br />
+          locatario@rentcarbrasil.com.br / locatario123
         </div>
 
         <div style={{ marginTop: 14, textAlign: 'center', fontSize: 13, color: 'var(--gray-600)' }}>

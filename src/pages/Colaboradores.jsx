@@ -213,7 +213,7 @@ export default function Colaboradores() {
                             <input
                               required
                               type="email"
-                              placeholder="ex: auxiliar@sislove.com"
+                              placeholder="ex: auxiliar@rentcarbrasil.com.br"
                               autoComplete="username"
                               {...f('usuario')}
                             />
@@ -275,7 +275,7 @@ export default function Colaboradores() {
                                 updateAuxiliar(index, 'usuario', valor);
                                 updateAuxiliar(index, 'email', valor);
                               }}
-                              placeholder="ex: auxiliar@sislove.com"
+                              placeholder="ex: auxiliar@rentcarbrasil.com.br"
                               autoComplete="username"
                             />
                           </div>

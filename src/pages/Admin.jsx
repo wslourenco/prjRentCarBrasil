@@ -246,7 +246,7 @@ export default function Admin() {
                 type="email"
                 value={smtpForm.mail_from}
                 onChange={e => setSmtpForm(prev => ({ ...prev, mail_from: e.target.value }))}
-                placeholder="noreply@sislove.com"
+                placeholder="noreply@rentcarbrasil.com.br"
               />
             </div>
           </div>

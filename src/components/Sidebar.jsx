@@ -27,7 +27,7 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <h1>SisLoVe</h1>
+        <h1>RentCarBrasil</h1>
         <span>Sistema de Locação de Veículos</span>
       </div>
 

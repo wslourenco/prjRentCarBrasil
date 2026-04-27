@@ -530,8 +530,8 @@ async function enviarContratoPorEmail({ para, nomeLocatario, pdfBuffer, nomeArqu
         from,
         to: para,
         subject: 'Contrato de locacao - assinatura digital gov.br',
-        text: `Ola ${nomeLocatario},\n\nSegue em anexo o contrato em PDF para assinatura digital.\n\nAcesse o portal oficial para assinatura com conta gov.br:\nhttps://assinador.iti.br\n\nAtenciosamente,\nEquipe SisLoVe`,
-        html: `<p>Ola ${nomeLocatario},</p><p>Segue em anexo o contrato em PDF para assinatura digital.</p><p>Acesse o portal oficial para assinatura com conta gov.br:<br/><a href="https://assinador.iti.br">https://assinador.iti.br</a></p><p>Atenciosamente,<br/>Equipe SisLoVe</p>`,
+        text: `Ola ${nomeLocatario},\n\nSegue em anexo o contrato em PDF para assinatura digital.\n\nAcesse o portal oficial para assinatura com conta gov.br:\nhttps://assinador.iti.br\n\nAtenciosamente,\nEquipe RentCarBrasil`,
+        html: `<p>Ola ${nomeLocatario},</p><p>Segue em anexo o contrato em PDF para assinatura digital.</p><p>Acesse o portal oficial para assinatura com conta gov.br:<br/><a href="https://assinador.iti.br">https://assinador.iti.br</a></p><p>Atenciosamente,<br/>Equipe RentCarBrasil</p>`,
         attachments: [
             {
                 filename: nomeArquivo,

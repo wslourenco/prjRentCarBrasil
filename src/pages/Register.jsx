@@ -78,7 +78,7 @@ export default function Register() {
         <div className="login-logo">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
             <Car size={32} color="var(--primary)" />
-            <h1>SisLoVe</h1>
+            <h1>RentCarBrasil</h1>
           </div>
           <p>Novo cadastro de usuário</p>
         </div>
