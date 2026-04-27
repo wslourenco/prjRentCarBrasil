@@ -72,7 +72,7 @@ app.use(cors((req, callback) => {
         return callback(err);
     }
 }));
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
 
 // Rotas
 app.use('/api/auth', require('./routes/auth'));
