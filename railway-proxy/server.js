@@ -3,7 +3,7 @@ import cors from 'cors';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const TARGET_BASE = process.env.TARGET_BASE || 'https://prjsislove-production.up.railway.app';
+const TARGET_BASE = process.env.TARGET_BASE || 'https://prjrentcarbrasil-production.up.railway.app';
 
 app.use(cors({
     origin: true,

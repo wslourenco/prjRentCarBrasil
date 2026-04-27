@@ -1,4 +1,4 @@
-# prjSisLoVe
+# prjrentcarbrasil
 
 Sistema para locação de veículos, com frontend em React (Vite) e backend em Node.js/Express com MySQL.
 
