@@ -26,7 +26,7 @@ function getSettledError(...results) {
 export function AppProvider({ children }) {
     const [usuarioLogado, setUsuarioLogado] = useState(() => {
         try {
-            const u = localStorage.getItem('sislove_usuario');
+            const u = sessionStorage.getItem('sislove_usuario');
             return u ? JSON.parse(u) : null;
         } catch {
             return null;
@@ -51,13 +51,13 @@ export function AppProvider({ children }) {
             locador_vinculado: me.locador_vinculado || null,
             locador_proprio: me.locador_proprio || null,
         });
-        localStorage.setItem('sislove_usuario', JSON.stringify(usuarioNormalizado));
+        sessionStorage.setItem('sislove_usuario', JSON.stringify(usuarioNormalizado));
         setUsuarioLogado(usuarioNormalizado);
         return usuarioNormalizado;
     }, []);
 
     const carregarDados = useCallback(async () => {
-        if (!localStorage.getItem('sislove_token')) return;
+        if (!sessionStorage.getItem('sislove_token')) return;
         setCarregando(true);
         setErro(null);
         try {
@@ -150,7 +150,7 @@ export function AppProvider({ children }) {
     }, [usuarioLogado, carregarDados]);
 
     useEffect(() => {
-        if (!usuarioLogado || !localStorage.getItem('sislove_token')) return;
+        if (!usuarioLogado || !sessionStorage.getItem('sislove_token')) return;
 
         let ativo = true;
         (async () => {
@@ -167,7 +167,7 @@ export function AppProvider({ children }) {
                 const atualStr = JSON.stringify(usuarioLogado || {});
                 const novoStr = JSON.stringify(usuarioNormalizado || {});
                 if (atualStr !== novoStr) {
-                    localStorage.setItem('sislove_usuario', novoStr);
+                    sessionStorage.setItem('sislove_usuario', novoStr);
                     setUsuarioLogado(usuarioNormalizado);
                 }
             } catch {
@@ -188,8 +188,10 @@ export function AppProvider({ children }) {
             locatario: dados.locatario || null,
             senha_deve_trocar: dados.usuario?.senha_deve_trocar,
         });
-        localStorage.setItem('sislove_token', dados.token);
-        localStorage.setItem('sislove_usuario', JSON.stringify(usuarioBase));
+        sessionStorage.setItem('sislove_token', dados.token);
+        sessionStorage.setItem('sislove_usuario', JSON.stringify(usuarioBase));
+        localStorage.removeItem('sislove_token');
+        localStorage.removeItem('sislove_usuario');
         setUsuarioLogado(usuarioBase);
 
         try {
@@ -202,15 +204,17 @@ export function AppProvider({ children }) {
     async function trocarSenha(novaSenha) {
         await api.put('/auth/trocar-senha', { novaSenha });
         const atualizado = { ...usuarioLogado, senhaDeveTrocar: false };
-        localStorage.setItem('sislove_usuario', JSON.stringify(atualizado));
+        sessionStorage.setItem('sislove_usuario', JSON.stringify(atualizado));
         setUsuarioLogado(atualizado);
     }
 
     async function register(nome, email, senha, perfil, tipoDocumento, documento, rg) {
         const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento, rg });
         const usuarioBase = usuarioFromApi({ ...(dados.usuario || {}), locatario: dados.locatario || null });
-        localStorage.setItem('sislove_token', dados.token);
-        localStorage.setItem('sislove_usuario', JSON.stringify(usuarioBase));
+        sessionStorage.setItem('sislove_token', dados.token);
+        sessionStorage.setItem('sislove_usuario', JSON.stringify(usuarioBase));
+        localStorage.removeItem('sislove_token');
+        localStorage.removeItem('sislove_usuario');
         setUsuarioLogado(usuarioBase);
 
         try {
@@ -221,6 +225,8 @@ export function AppProvider({ children }) {
     }
 
     function logout() {
+        sessionStorage.removeItem('sislove_token');
+        sessionStorage.removeItem('sislove_usuario');
         localStorage.removeItem('sislove_token');
         localStorage.removeItem('sislove_usuario');
         setUsuarioLogado(null);

@@ -18,13 +18,15 @@ function wait(ms) {
 }
 
 function getToken() {
-    return localStorage.getItem('sislove_token');
+    return sessionStorage.getItem('sislove_token');
 }
 
 async function parseResponse(res) {
     const data = await res.json().catch(() => ({}));
 
     if (res.status === 401) {
+        sessionStorage.removeItem('sislove_token');
+        sessionStorage.removeItem('sislove_usuario');
         localStorage.removeItem('sislove_token');
         localStorage.removeItem('sislove_usuario');
         window.location.href = '/login';

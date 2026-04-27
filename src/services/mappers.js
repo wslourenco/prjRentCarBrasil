@@ -14,13 +14,32 @@ function normalizarTextoMojibake(valor) {
         .replace(/├ç/g, 'Ç')
         .replace(/Manuten[cç][aã]oEst[ée]tica/gi, 'Manutenção Estética');
 
+    const corrigidoPalavrasComSubstituicao = corrigidoSequencias
+        .replace(/Manuten��es/gi, 'Manutenções')
+        .replace(/Manuten��o/gi, 'Manutenção')
+        .replace(/Revisi�o/gi, 'Revisão')
+        .replace(/Reposi��o/gi, 'Reposição')
+        .replace(/Servi�o/gi, 'Serviço')
+        .replace(/Comiss�o/gi, 'Comissão')
+        .replace(/Est�tica/gi, 'Estética')
+        .replace(/Cau��o/gi, 'Caução')
+        .replace(/Dep�sito/gi, 'Depósito')
+        .replace(/�leo/gi, 'Óleo')
+        .replace(/Ve�culo/gi, 'Veículo')
+        .replace(/Alinhamento e balanceamento \uFFFD/gi, 'Alinhamento e balanceamento -')
+        .replace(/\s+�\s+/g, ' - ')
+        .replace(/\uFFFD/g, '');
+
     try {
         // Corrige textos que vieram como latin1, mas deveriam ser utf-8.
-        const bytes = Uint8Array.from(corrigidoSequencias, (char) => char.charCodeAt(0) & 0xff);
+        const bytes = Uint8Array.from(corrigidoPalavrasComSubstituicao, (char) => char.charCodeAt(0) & 0xff);
         const convertido = new TextDecoder('utf-8').decode(bytes);
-        return convertido || corrigidoSequencias;
+        if (/[�]/.test(convertido)) {
+            return corrigidoPalavrasComSubstituicao;
+        }
+        return convertido || corrigidoPalavrasComSubstituicao;
     } catch {
-        return corrigidoSequencias;
+        return corrigidoPalavrasComSubstituicao;
     }
 }
 
