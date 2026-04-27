@@ -57,6 +57,29 @@ async function runMigrations() {
         });
         console.log();
 
+        console.log('4. Garantindo coluna locador_id em despesas_receitas...');
+        const [locadorIdColumn] = await conn.execute("SHOW COLUMNS FROM despesas_receitas LIKE 'locador_id'");
+        if (!Array.isArray(locadorIdColumn) || locadorIdColumn.length === 0) {
+            await conn.execute(`
+                ALTER TABLE despesas_receitas
+                    ADD COLUMN locador_id INT UNSIGNED NULL AFTER colaborador_id,
+                    ADD INDEX idx_despesas_receitas_locador_id (locador_id),
+                    ADD CONSTRAINT fk_dr_locador FOREIGN KEY (locador_id) REFERENCES locadores(id) ON DELETE SET NULL
+            `);
+            console.log('   ✓ Coluna locador_id adicionada');
+        } else {
+            console.log('   ✓ Coluna locador_id já existe');
+        }
+
+        await conn.execute(`
+            UPDATE despesas_receitas dr
+            LEFT JOIN veiculos v ON v.id = dr.veiculo_id
+            SET dr.locador_id = v.locador_id
+            WHERE dr.locador_id IS NULL
+              AND v.locador_id IS NOT NULL
+        `);
+        console.log('   ✓ Backfill de locador_id concluído\n');
+
         console.log('✅ Todas as migrations executadas com sucesso!\n');
         console.log('Próximo passo: Configure o SMTP em http://localhost:5174/admin/configuracoes');
 

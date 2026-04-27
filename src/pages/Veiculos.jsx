@@ -74,6 +74,8 @@ export default function Veiculos() {
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_VEICULO);
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
+  const [deletandoVeiculo, setDeletandoVeiculo] = useState(false);
+  const [erroDelecaoVeiculo, setErroDelecaoVeiculo] = useState('');
   const [view, setView] = useState('cards'); // 'cards' | 'table'
   const [filtroCategoria, setFiltroCategoria] = useState('');
   const [veiculoSelecionadoLocacao, setVeiculoSelecionadoLocacao] = useState('');
@@ -104,7 +106,7 @@ export default function Veiculos() {
   const [periodicidadeLocacao, setPeriodicidadeLocacao] = useState('semana');
   const [quantidadePeriodosLocacao, setQuantidadePeriodosLocacao] = useState(1);
 
-  const podeGerenciar = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador';
+  const podeGerenciar = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'locador' || usuarioLogado?.perfil === 'auxiliar';
   const podeCadastrar = podeGerenciar || usuarioLogado?.perfil === 'auxiliar';
   const listaVeiculos = veiculos;
 
@@ -144,6 +146,16 @@ export default function Veiculos() {
 
     return resultado;
   }, [listaVeiculos, filtroCategoria, usuarioLogado, locacoes]);
+
+  const veiculoEmExclusao = useMemo(
+    () => listaVeiculos.find(v => String(v.id) === String(confirmarExclusao)) || null,
+    [listaVeiculos, confirmarExclusao]
+  );
+
+  const totalLocacoesVeiculoEmExclusao = useMemo(
+    () => locacoes.filter(l => String(l.veiculoId) === String(confirmarExclusao)).length,
+    [locacoes, confirmarExclusao]
+  );
 
   const contratoInvalido = useMemo(() => {
     const nome = String(contratoForm.nome || '').trim();
@@ -191,6 +203,19 @@ export default function Veiculos() {
   function abrirNovo() { setForm(EMPTY_VEICULO); setEditId(null); setModal(true); setErroCrud(''); }
   function abrirEditar(v) { setForm({ ...EMPTY_VEICULO, ...v }); setEditId(v.id); setModal(true); setErroCrud(''); }
   function fecharModal() { setModal(false); setEditId(null); setErroCrud(''); }
+
+  async function handleRemoveVeiculo(id) {
+    setDeletandoVeiculo(true);
+    setErroDelecaoVeiculo('');
+    try {
+      await removeVeiculo(id);
+      setConfirmarExclusao(null);
+    } catch (err) {
+      setErroDelecaoVeiculo(err.message || 'Erro ao deletar veículo. Tente novamente.');
+    } finally {
+      setDeletandoVeiculo(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -289,6 +314,12 @@ export default function Veiculos() {
     setContratoForm(EMPTY_CONTRATO);
     setContratoEnvio('email');
   }
+
+  React.useEffect(() => {
+    if (!confirmarExclusao) {
+      setErroDelecaoVeiculo('');
+    }
+  }, [confirmarExclusao]);
 
   async function fileToBase64DataUrl(file) {
     return await new Promise((resolve, reject) => {
@@ -854,11 +885,19 @@ export default function Veiculos() {
           <div className="modal" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header"><span className="modal-title">Confirmar exclusão</span></div>
             <div className="modal-body">
-              <p style={{ marginBottom: 20 }}>Tem certeza que deseja excluir este veículo?</p>
+              <p style={{ marginBottom: totalLocacoesVeiculoEmExclusao > 0 ? 12 : 20 }}>
+                Tem certeza que deseja excluir este veículo{veiculoEmExclusao ? ` (${veiculoEmExclusao.marca} ${veiculoEmExclusao.modelo} - ${veiculoEmExclusao.placa})` : ''}?
+              </p>
+              {totalLocacoesVeiculoEmExclusao > 0 && (
+                <div style={{ marginBottom: 12, padding: 12, borderRadius: 'var(--radius)', background: 'var(--warning-light)', color: 'var(--warning-dark, #8a5a00)', fontSize: 12, lineHeight: 1.5 }}>
+                  Atenção: esta exclusão também removerá {totalLocacoesVeiculoEmExclusao} registro{totalLocacoesVeiculoEmExclusao > 1 ? 's' : ''} do histórico de locações deste veículo.
+                </div>
+              )}
+              {erroDelecaoVeiculo && <p style={{ color: 'var(--danger)', fontSize: 12, marginBottom: 12 }}>{erroDelecaoVeiculo}</p>}
               <div className="flex" style={{ gap: 10, justifyContent: 'flex-end' }}>
-                <button className="btn btn-outline" onClick={() => setConfirmarExclusao(null)}>Cancelar</button>
-                <button className="btn btn-danger" onClick={() => { removeVeiculo(confirmarExclusao); setConfirmarExclusao(null); }}>
-                  <Trash2 size={14} /> Excluir
+                <button className="btn btn-outline" onClick={() => setConfirmarExclusao(null)} disabled={deletandoVeiculo}>Cancelar</button>
+                <button className="btn btn-danger" onClick={() => handleRemoveVeiculo(confirmarExclusao)} disabled={deletandoVeiculo}>
+                  <Trash2 size={14} /> {deletandoVeiculo ? 'Deletando...' : 'Excluir'}
                 </button>
               </div>
             </div>

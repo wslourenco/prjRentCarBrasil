@@ -293,8 +293,10 @@ export function AppProvider({ children }) {
         return veiculoFromApi(atualizado);
     }
     async function removeVeiculo(id) {
-        await api.delete(`/veiculos/${id}`);
+        const resposta = await api.delete(`/veiculos/${id}`);
         setVeiculos(prev => prev.filter(v => v.id !== id));
+        setLocacoes(prev => prev.filter(l => String(l.veiculoId) !== String(id)));
+        return resposta;
     }
 
     // ── Despesas / Receitas ───────────────────────────────

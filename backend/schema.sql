@@ -273,12 +273,14 @@ CREATE TABLE IF NOT EXISTS despesas_receitas (
   veiculo_id       INT UNSIGNED,
   locatario_id     INT UNSIGNED,
   colaborador_id   INT UNSIGNED,
+  locador_id       INT UNSIGNED,
   observacoes      TEXT,
   criado_em        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_dr_veiculo     FOREIGN KEY (veiculo_id)     REFERENCES veiculos(id)      ON DELETE SET NULL,
   CONSTRAINT fk_dr_locatario   FOREIGN KEY (locatario_id)   REFERENCES locatarios(id)    ON DELETE SET NULL,
-  CONSTRAINT fk_dr_colaborador FOREIGN KEY (colaborador_id) REFERENCES colaboradores(id) ON DELETE SET NULL
+  CONSTRAINT fk_dr_colaborador FOREIGN KEY (colaborador_id) REFERENCES colaboradores(id) ON DELETE SET NULL,
+  CONSTRAINT fk_dr_locador     FOREIGN KEY (locador_id)     REFERENCES locadores(id)     ON DELETE SET NULL
 );
 
 -- ----------------------------------------------------------------

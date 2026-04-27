@@ -290,7 +290,7 @@ router.post('/', requireProfiles('admin', 'locador', 'auxiliar'), async (req, re
 });
 
 // PUT /api/veiculos/:id
-router.put('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
+router.put('/:id', requireProfiles('admin', 'locador', 'auxiliar'), async (req, res) => {
     const {
         placa, marca, modelo, ano_fabricacao, ano_modelo, cor, combustivel,
         transmissao, nr_portas, capacidade,
@@ -314,6 +314,20 @@ router.put('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
             );
             if (ownRows.length === 0) {
                 return res.status(403).json({ erro: 'Você só pode editar veículos vinculados ao seu cadastro de locador.' });
+            }
+            locadorIdValue = locadorId;
+        } else if (req.usuario?.perfil === 'auxiliar') {
+            const locadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!locadorId) {
+                return res.status(403).json({ erro: 'Não foi encontrado cadastro de locador vinculado a este auxiliar.' });
+            }
+
+            const [ownRows] = await pool.query(
+                'SELECT id FROM veiculos WHERE id = ? AND locador_id = ? LIMIT 1',
+                [req.params.id, locadorId]
+            );
+            if (ownRows.length === 0) {
+                return res.status(403).json({ erro: 'Você só pode editar veículos vinculados ao seu locador.' });
             }
             locadorIdValue = locadorId;
         }
@@ -356,27 +370,69 @@ router.put('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
 });
 
 // DELETE /api/veiculos/:id
-router.delete('/:id', requireProfiles('admin', 'locador'), async (req, res) => {
+router.delete('/:id', requireProfiles('admin', 'locador', 'auxiliar'), async (req, res) => {
+    const connection = await pool.getConnection();
     try {
+        await connection.beginTransaction();
+
         if (req.usuario?.perfil === 'locador') {
             const locadorId = await ensureLocadorContext(req, res);
-            if (!locadorId) return;
+            if (!locadorId) {
+                await connection.rollback();
+                return;
+            }
 
-            const [ownRows] = await pool.query(
+            const [ownRows] = await connection.query(
                 'SELECT id FROM veiculos WHERE id = ? AND locador_id = ? LIMIT 1',
                 [req.params.id, locadorId]
             );
             if (ownRows.length === 0) {
+                await connection.rollback();
                 return res.status(403).json({ erro: 'Você só pode remover veículos vinculados ao seu cadastro de locador.' });
+            }
+        } else if (req.usuario?.perfil === 'auxiliar') {
+            const locadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!locadorId) {
+                await connection.rollback();
+                return res.status(403).json({ erro: 'Não foi encontrado cadastro de locador vinculado a este auxiliar.' });
+            }
+            const [ownRows] = await connection.query(
+                'SELECT id FROM veiculos WHERE id = ? AND locador_id = ? LIMIT 1',
+                [req.params.id, locadorId]
+            );
+            if (ownRows.length === 0) {
+                await connection.rollback();
+                return res.status(403).json({ erro: 'Você só pode remover veículos vinculados ao seu locador.' });
             }
         }
 
-        const [result] = await pool.query('DELETE FROM veiculos WHERE id = ?', [req.params.id]);
-        if (result.affectedRows === 0) return res.status(404).json({ erro: 'Veículo não encontrado.' });
-        res.json({ mensagem: 'Veículo removido com sucesso.' });
+        const [historicoRows] = await connection.query(
+            'SELECT COUNT(*) AS total FROM locacoes WHERE veiculo_id = ?',
+            [req.params.id]
+        );
+        const totalLocacoesExcluidas = Number(historicoRows?.[0]?.total || 0);
+
+        if (totalLocacoesExcluidas > 0) {
+            await connection.query('DELETE FROM locacoes WHERE veiculo_id = ?', [req.params.id]);
+        }
+
+        const [result] = await connection.query('DELETE FROM veiculos WHERE id = ?', [req.params.id]);
+        if (result.affectedRows === 0) {
+            await connection.rollback();
+            return res.status(404).json({ erro: 'Veículo não encontrado.' });
+        }
+
+        await connection.commit();
+        res.json({
+            mensagem: 'Veículo removido com sucesso.',
+            locacoesExcluidas: totalLocacoesExcluidas,
+        });
     } catch (err) {
+        await connection.rollback();
         console.error(err);
         res.status(500).json({ erro: 'Erro ao remover veículo.' });
+    } finally {
+        connection.release();
     }
 });
 
