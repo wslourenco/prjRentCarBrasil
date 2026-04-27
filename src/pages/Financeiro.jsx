@@ -449,6 +449,39 @@ export default function Financeiro() {
     return veiculosCatalogo;
   }, [veiculosCatalogo, usuarioLogado?.perfil, idsVeiculosLocatarioAtivos, idsVeiculosAuxiliarAtivos]);
 
+  const veiculosLocadosCombo = useMemo(() => {
+    const idsLocados = Array.from(new Set(
+      locacoesEscopo
+        .map((loc) => String(loc.veiculoId || '').trim())
+        .filter(Boolean)
+    ));
+
+    const opcoes = idsLocados.map((idVeiculo) => {
+      const catalogo = veiculosCatalogoPorId.get(String(idVeiculo));
+      if (catalogo) {
+        return {
+          id: String(catalogo.id),
+          label: nomeVeiculo(catalogo.id),
+        };
+      }
+
+      const locacaoRef = locacoesEscopo.find((loc) => String(loc.veiculoId || '') === String(idVeiculo));
+      return {
+        id: String(idVeiculo),
+        label: String(locacaoRef?.nomeVeiculo || locacaoRef?.placa || `Veículo #${idVeiculo}`).trim(),
+      };
+    });
+
+    if (opcoes.length > 0) {
+      return opcoes.sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { sensitivity: 'base' }));
+    }
+
+    return veiculosCombo.map((v) => ({
+      id: String(v.id),
+      label: nomeVeiculo(v.id),
+    }));
+  }, [locacoesEscopo, veiculosCatalogoPorId, veiculosCombo, nomeVeiculo]);
+
   const lista = useMemo(() => {
     const valorOrdenacao = (item, campo) => {
       if (campo === 'data') {
@@ -1002,19 +1035,20 @@ export default function Financeiro() {
 
   useEffect(() => {
     const idsCombo = new Set(veiculosCombo.map((v) => String(v.id || '')));
+    const idsComboGrafico = new Set(veiculosLocadosCombo.map((v) => String(v.id || '')));
 
     if (filtroVeiculo && !idsCombo.has(String(filtroVeiculo))) {
       setFiltroVeiculo('');
     }
 
-    if (graficoVeiculo && !idsCombo.has(String(graficoVeiculo))) {
+    if (graficoVeiculo && !idsComboGrafico.has(String(graficoVeiculo))) {
       setGraficoVeiculo('');
     }
 
     if (form.veiculoId && !idsCombo.has(String(form.veiculoId))) {
       setForm((prev) => ({ ...prev, veiculoId: '' }));
     }
-  }, [veiculosCombo, filtroVeiculo, graficoVeiculo, form.veiculoId]);
+  }, [veiculosCombo, veiculosLocadosCombo, filtroVeiculo, graficoVeiculo, form.veiculoId]);
 
   useEffect(() => {
     if (primeiroRefreshFiltro.current) {
@@ -1096,7 +1130,7 @@ export default function Financeiro() {
               <label>Veículo (Despesas, Lucros e Gráficos)</label>
               <select value={graficoVeiculo} onChange={e => setGraficoVeiculo(e.target.value)}>
                 <option value="">Todos os veículos</option>
-                {veiculosCombo.map(v => <option key={v.id} value={v.id}>{nomeVeiculo(v.id)}</option>)}
+                {veiculosLocadosCombo.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
               </select>
             </div>
             <button type="button" className="btn btn-outline" onClick={limparFiltrosRelatorios}>
@@ -1141,10 +1175,10 @@ export default function Financeiro() {
             </select>
           </div>
           <div className="form-group" style={{ minWidth: 220, flex: 1 }}>
-            <label>Montadora</label>
-            <select value={graficoMontadora} onChange={e => atualizarFiltroMontadora(e.target.value)}>
-              <option value="">Todas as montadoras</option>
-              {montadorasDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
+            <label>Veículos</label>
+            <select value={graficoVeiculo} onChange={e => setGraficoVeiculo(e.target.value)}>
+              <option value="">Todos os veículos</option>
+              {veiculosLocadosCombo.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ minWidth: 140 }}>

@@ -612,27 +612,6 @@ export default function Veiculos() {
               <Check size={16} /> {locandoVeiculo ? 'Processando...' : 'Locar Veículo'}
             </button>
           )}
-          {usuarioLogado?.perfil === 'locatario' && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ fontSize: 12, color: 'var(--gray-600)', fontWeight: 600 }}>
-                Contrato:
-              </label>
-              <select
-                value={contratoEnvio}
-                onChange={e => setContratoEnvio(e.target.value)}
-                style={{
-                  padding: '7px 12px',
-                  border: '1.5px solid var(--gray-300)',
-                  borderRadius: 'var(--radius)',
-                  fontSize: 13,
-                  minWidth: 190,
-                }}
-              >
-                <option value="email">Enviar por e-mail</option>
-                <option value="download">Baixar PDF</option>
-              </select>
-            </div>
-          )}
           {podeCadastrar && (
             <button className="btn btn-primary" onClick={abrirNovo}><Plus size={16} /> Novo Veículo</button>
           )}
