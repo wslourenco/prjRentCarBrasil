@@ -28,7 +28,7 @@ export default function Sidebar() {
     <aside className="sidebar">
       <div className="sidebar-logo">
         <h1>RentCarBrasil</h1>
-        <span>Sistema de Locação de Veículos</span>
+        <span>Plataforma de locação de veículos</span>
       </div>
 
       <nav className="sidebar-nav">

@@ -41,7 +41,7 @@ export default function Login() {
             <Car size={32} color="var(--primary)" />
             <h1>RentCarBrasil</h1>
           </div>
-          <p>Sistema de Locação de Veículos</p>
+          <p>Plataforma de locação de veículos</p>
         </div>
 
         <h2>Entrar na conta</h2>
