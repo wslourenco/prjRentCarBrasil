@@ -11,12 +11,12 @@ async function main() {
 
     const [locadores] = await conn.query(
         "SELECT id, email FROM locadores WHERE LOWER(email)=LOWER(?) LIMIT 1",
-        ['locador@sislove.com']
+        ['locador@rentcarbrasil.com.br']
     );
 
     const locador = locadores[0];
     if (!locador) {
-        throw new Error('Locador locador@sislove.com não encontrado em locadores.');
+        throw new Error('Locador locador@rentcarbrasil.com.br não encontrado em locadores.');
     }
 
     const locadorId = Number(locador.id);

@@ -6,7 +6,7 @@ test('usuarioFromApi deve mapear RG e dados do locatario', () => {
     const mapped = usuarioFromApi({
         id: 10,
         nome: 'Wilson',
-        email: 'wilson.locatario@sislove.com',
+        email: 'wilson.locatario@rentcarbrasil.com.br',
         perfil: 'locatario',
         tipo_documento: 'cpf',
         documento: '98765432100',
@@ -14,7 +14,7 @@ test('usuarioFromApi deve mapear RG e dados do locatario', () => {
         locatario: {
             id: 10,
             nome: 'Wilson',
-            email: 'wilson.locatario@sislove.com',
+            email: 'wilson.locatario@rentcarbrasil.com.br',
             cpf: '98765432100',
             rg: '12.345.678-9',
             celular: '(11)98888-7777',

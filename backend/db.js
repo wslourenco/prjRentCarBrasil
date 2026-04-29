@@ -33,7 +33,7 @@ const demoUsers = [
     {
         id: 1,
         nome: 'Administrador',
-        email: 'admin@sislove.com',
+        email: 'admin@rentcarbrasil.com.br',
         senha_hash: '$2b$10$JoAN9u6AzGI4vD7ikmTsJuGyDQ1oZkhIyo7RkWUoPLWZbhwuUyWa6',
         perfil: 'admin',
         tipo_documento: 'cpf',
@@ -43,7 +43,7 @@ const demoUsers = [
     {
         id: 2,
         nome: 'Locador Demo',
-        email: 'locador@sislove.com',
+        email: 'locador@rentcarbrasil.com.br',
         senha_hash: '$2b$10$qZUFMmLRPJvplePl5Rmo6urlxA7ck0cxs4TyN0oQG3OCTZ6GgrhfO',
         perfil: 'locador',
         tipo_documento: 'cpf',
@@ -53,7 +53,7 @@ const demoUsers = [
     {
         id: 3,
         nome: 'Locatário Demo',
-        email: 'locatario@sislove.com',
+        email: 'locatario@rentcarbrasil.com.br',
         senha_hash: '$2b$10$ch1Fi5BwQHKSQrn5LRQHC.1Xhq5Wvja4r7k0n115e8VuRMr45WEgu',
         perfil: 'locatario',
         tipo_documento: 'cpf',

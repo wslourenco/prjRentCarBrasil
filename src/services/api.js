@@ -21,16 +21,17 @@ function getToken() {
     return sessionStorage.getItem('sislove_token');
 }
 
-async function parseResponse(res) {
+async function parseResponse(res, path) {
     const data = await res.json().catch(() => ({}));
+    const isAuthEndpoint = typeof path === 'string' && path.startsWith('/auth/');
 
-    if (res.status === 401) {
+    if (res.status === 401 && !isAuthEndpoint) {
         sessionStorage.removeItem('sislove_token');
         sessionStorage.removeItem('sislove_usuario');
         localStorage.removeItem('sislove_token');
         localStorage.removeItem('sislove_usuario');
         window.location.href = '/login';
-        return undefined;
+        throw new Error('Sessao expirada. Faca login novamente.');
     }
 
     if (!res.ok) {
@@ -74,7 +75,7 @@ async function request(method, path, body) {
 
             try {
                 const res = await fetch(`${apiBase}${path}`, options);
-                return await parseResponse(res);
+                return await parseResponse(res, path);
             } catch (error) {
                 const isLastBase = i === candidates.length - 1;
                 const isLastAttempt = attempt === maxAttemptsPerBase;

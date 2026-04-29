@@ -12,7 +12,7 @@ async function testConfigurações() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            email: 'admin@sislove.com',
+            email: 'admin@rentcarbrasil.com.br',
             senha: 'admin123'
         })
     });
@@ -23,7 +23,7 @@ async function testConfigurações() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                email: 'locatario@sislove.com',
+                email: 'locatario@rentcarbrasil.com.br',
                 senha: '123456'
             })
         });

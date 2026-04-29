@@ -12,7 +12,7 @@ test('locacaoToApi deve mapear payload de contrato corretamente', () => {
         contratoEnvio: 'download',
         contrato: {
             nome: 'Locatario Demo',
-            email: 'locatario@sislove.com',
+            email: 'locatario@rentcarbrasil.com.br',
             cpf: '33344455566',
             rg: '112223334',
             telefone: '11911112222',

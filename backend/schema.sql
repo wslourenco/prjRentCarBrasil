@@ -425,15 +425,11 @@ PREPARE stmt_add_valor_diario FROM @sql_add_valor_diario;
 EXECUTE stmt_add_valor_diario;
 DEALLOCATE PREPARE stmt_add_valor_diario;
 
--- ----------------------------------------------------------------
--- Dados iniciais: usuário administrador
--- Senhas: admin@sislove.com=admin123 | locador@sislove.com=locador123 | locatario@sislove.com=locatario123
--- ----------------------------------------------------------------
 INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento) VALUES
-  ('Administrador', 'admin@sislove.com',
+  ('Administrador', 'admin@rentcarbrasil.com.br',
   '$2b$10$JoAN9u6AzGI4vD7ikmTsJuGyDQ1oZkhIyo7RkWUoPLWZbhwuUyWa6', 'admin', 'cpf', '11122233344'),
-  ('Locador Demo',  'locador@sislove.com',
+  ('Locador Demo',  'locador@rentcarbrasil.com.br',
   '$2b$10$qZUFMmLRPJvplePl5Rmo6urlxA7ck0cxs4TyN0oQG3OCTZ6GgrhfO', 'locador', 'cpf', '22233344455'),
-  ('Locatário Demo','locatario@sislove.com',
+  ('Locatário Demo','locatario@rentcarbrasil.com.br',
   '$2b$10$ch1Fi5BwQHKSQrn5LRQHC.1Xhq5Wvja4r7k0n115e8VuRMr45WEgu', 'locatario', 'cpf', '33344455566')
 ON DUPLICATE KEY UPDATE id=id;

@@ -111,9 +111,9 @@ Para usar o backend servindo o frontend estático:
 
 ## Credenciais iniciais (seed do schema)
 
-- admin@sislove.com / admin123
-- locador@sislove.com / locador123
-- locatario@sislove.com / locatario123
+- admin@rentcarbrasil.com.br / admin123
+- locador@rentcarbrasil.com.br / locador123
+- locatario@rentcarbrasil.com.br / locatario123
 
 ## Scripts disponíveis
 

@@ -3,9 +3,9 @@
 const bcrypt = require('bcryptjs');
 
 const senhas = [
-    { email: 'admin@sislove.com', senha: 'admin123' },
-    { email: 'locador@sislove.com', senha: 'locador123' },
-    { email: 'locatario@sislove.com', senha: 'locatario123' },
+    { email: 'admin@rentcarbrasil.com.br', senha: 'admin123' },
+    { email: 'locador@rentcarbrasil.com.br', senha: 'locador123' },
+    { email: 'locatario@rentcarbrasil.com.br', senha: 'locatario123' },
 ];
 
 (async () => {

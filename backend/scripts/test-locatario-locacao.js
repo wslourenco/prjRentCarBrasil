@@ -4,12 +4,12 @@
  *   npm run test:locatario-locacao
  * Variáveis opcionais:
  *   API_BASE (padrão: http://localhost:3001/api)
- *   TEST_EMAIL (padrão: locatario@sislove.com)
+ *   TEST_EMAIL (padrão: locatario@rentcarbrasil.com.br)
  *   TEST_SENHA (padrão: locatario123)
  */
 
 const API_BASE = process.env.API_BASE || 'http://localhost:3001/api';
-const TEST_EMAIL = process.env.TEST_EMAIL || 'locatario@sislove.com';
+const TEST_EMAIL = process.env.TEST_EMAIL || 'locatario@rentcarbrasil.com.br';
 const TEST_SENHA = process.env.TEST_SENHA || 'locatario123';
 
 function hojeIso() {
