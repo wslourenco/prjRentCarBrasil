@@ -24,7 +24,7 @@ if (-not (Test-Path $backend)) {
     throw "Pasta backend não encontrada em: $backend"
 }
 
-Write-Host "Iniciando SisLoVe..." -ForegroundColor Cyan
+Write-Host "Iniciando RentCarBrasil..." -ForegroundColor Cyan
 Write-Host "Projeto: $root"
 
 $mySqlService = Get-MySqlService
