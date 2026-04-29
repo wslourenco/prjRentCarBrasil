@@ -12,6 +12,7 @@ import Financeiro from './pages/Financeiro';
 import Aquisicoes from './pages/Aquisicoes';
 import Painel from './pages/Painel';
 import Admin from './pages/Admin';
+import ConfigSmtp from './pages/ConfigSmtp';
 import TrocarSenha from './pages/TrocarSenha';
 import './styles/global.css';
 
@@ -50,6 +51,7 @@ function App() {
             <Route path="locatarios" element={<RoleRoute allowed={['admin']} element={<Locatarios />} />} />
             <Route path="colaboradores" element={<RoleRoute allowed={['admin', 'locador']} element={<Colaboradores />} />} />
             <Route path="veiculos" element={<RoleRoute allowed={['admin', 'locador', 'locatario', 'auxiliar']} element={<Veiculos />} />} />
+            <Route path="configuracao-smtp" element={<RoleRoute allowed={['locador', 'locatario', 'auxiliar']} element={<ConfigSmtp />} />} />
             <Route path="financeiro" element={<RoleRoute allowed={['admin', 'locador', 'locatario', 'auxiliar']} element={<Financeiro />} />} />
             <Route path="aquisicoes" element={<RoleRoute allowed={['admin', 'locador']} element={<Aquisicoes />} />} />
             <Route path="admin" element={<RoleRoute allowed={['admin']} element={<Admin />} />} />

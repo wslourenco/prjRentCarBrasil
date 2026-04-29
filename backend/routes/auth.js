@@ -29,7 +29,8 @@ async function getLocatarioProfileForUser(db, usuario) {
     if (perfil !== 'locatario') return null;
 
     const email = String(usuario?.email || '').trim();
-    if (!email) return null;
+    const documento = normalizeDocumento(usuario?.documento);
+    if (!email && !documento) return null;
 
     const [rows] = await db.query(
         `SELECT id, nome, email, cpf, rg, telefone, celular, endereco, numero, complemento, bairro, cidade, estado, cep
@@ -40,8 +41,21 @@ async function getLocatarioProfileForUser(db, usuario) {
         [email]
     );
 
-    if (!rows || rows.length === 0) return null;
-    return rows[0];
+    if (rows && rows.length > 0) return rows[0];
+    if (!documento) return null;
+
+    const [docRows] = await db.query(
+        `SELECT id, nome, email, cpf, rg, telefone, celular, endereco, numero, complemento, bairro, cidade, estado, cep
+         FROM locatarios
+         WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(IFNULL(cpf, '')), '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?
+            OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(IFNULL(cnpj, '')), '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?
+         ORDER BY id ASC
+         LIMIT 1`,
+        [documento, documento]
+    );
+
+    if (docRows && docRows.length > 0) return docRows[0];
+    return null;
 }
 
 async function getAuxiliarLocadorForUser(db, usuario) {
@@ -118,7 +132,8 @@ async function getLocadorProfileForUser(db, usuario) {
     if (perfil !== 'locador') return null;
 
     const email = String(usuario?.email || '').trim();
-    if (!email) return null;
+    const documento = normalizeDocumento(usuario?.documento);
+    if (!email && !documento) return null;
 
     const [rows] = await db.query(
         `SELECT id, nome, email, tipo, cpf, cnpj
@@ -129,8 +144,21 @@ async function getLocadorProfileForUser(db, usuario) {
         [email]
     );
 
-    if (!rows || rows.length === 0) return null;
-    return rows[0];
+    if (rows && rows.length > 0) return rows[0];
+    if (!documento) return null;
+
+    const [docRows] = await db.query(
+        `SELECT id, nome, email, tipo, cpf, cnpj
+         FROM locadores
+         WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(IFNULL(cpf, '')), '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?
+            OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(IFNULL(cnpj, '')), '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?
+         ORDER BY id ASC
+         LIMIT 1`,
+        [documento, documento]
+    );
+
+    if (docRows && docRows.length > 0) return docRows[0];
+    return null;
 }
 
 // POST /api/auth/register

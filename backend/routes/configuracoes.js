@@ -126,7 +126,7 @@ router.get('/:chave', async (req, res) => {
 });
 
 // PUT /api/configuracoes/smtp - Atualizar SMTP
-router.put('/smtp', requireProfiles('admin'), async (req, res) => {
+router.put('/smtp', async (req, res) => {
     try {
         const host = String(req.body?.smtp_host || req.body?.host || '').trim();
         const port = Number(req.body?.smtp_port || req.body?.port || 587);
@@ -186,7 +186,7 @@ router.put('/smtp', requireProfiles('admin'), async (req, res) => {
 });
 
 // PUT /api/configuracoes/smtp/testar - Testar conexão SMTP
-router.put('/smtp/testar', requireProfiles('admin'), async (req, res) => {
+router.put('/smtp/testar', async (req, res) => {
     try {
         const [rows] = await dbQuery(`
             SELECT chave, valor FROM configuracoes WHERE chave LIKE 'smtp_%' OR chave = 'mail_from'

@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Car, Users, UserCheck, Briefcase,
-  DollarSign, Settings, LogOut, ChevronRight, CreditCard
+  DollarSign, Settings, Mail, LogOut, ChevronRight, CreditCard
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -50,6 +50,11 @@ export default function Sidebar() {
             <NavLink to="/veiculos" className={({ isActive }) => isActive ? 'active' : ''}>
               <Car size={16} /> Veículos
             </NavLink>
+            {(isLocador || isLocatario || isAuxiliar) && (
+              <NavLink to="/configuracao-smtp" className={({ isActive }) => isActive ? 'active' : ''}>
+                <Mail size={16} /> Configuração SMTP
+              </NavLink>
+            )}
           </>
         )}
         {isAdmin && (

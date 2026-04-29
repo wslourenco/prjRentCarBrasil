@@ -16,7 +16,8 @@ INSERT INTO locadores (tipo, nome, cpf, rg, data_nascimento, email, telefone, ce
 ('fisica','Marcelo Rodrigues Pinto','357.468.579-07','78.901.234-5','1972-06-25','marcelo.pinto@email.com','(71)4012-3456','(71)98678-9012','40020-020','Av. Sete de Setembro','1200','Comércio','Salvador','BA','Banco do Brasil','0027','45678-9','corrente','357.468.579-07'),
 ('fisica','Patrícia Gomes Nunes','468.579.680-08','89.012.345-6','1988-12-03','patricia.nunes@email.com','(62)4123-4567','(62)97789-0123','74005-010','Av. Goiás','500','Centro','Goiânia','GO','Inter','','87654321-0','corrente','(62)97789-0123'),
 ('fisica','Thiago Martins Souza','579.680.791-09','90.123.456-7','1980-08-17','thiago.souza@email.com','(92)4234-5678','(92)96890-1234','69010-010','Av. Eduardo Ribeiro','850','Centro','Manaus','AM','Sicredi','0155','56789-0','corrente','thiago.souza@email.com'),
-('fisica','Juliana Nascimento Alves','680.791.802-10','01.234.567-8','1993-02-28','juliana.alves@email.com','(81)4345-6789','(81)99901-2345','50010-010','Rua do Sol','300','Santo Antônio','Recife','PE','C6 Bank','','11223344-5','corrente','juliana.alves@email.com');
+('fisica','Juliana Nascimento Alves','680.791.802-10','01.234.567-8','1993-02-28','juliana.alves@email.com','(81)4345-6789','(81)99901-2345','50010-010','Rua do Sol','300','Santo Antônio','Recife','PE','C6 Bank','','11223344-5','corrente','juliana.alves@email.com'),
+('fisica','Locador Demo','222.333.444-55','22.333.444-5','1989-09-20','locador@rentcarbrasil.com.br','(21)3222-3333','(21)92222-3333','20040-020','Rua Siqueira Campos','200','Copacabana','Rio de Janeiro','RJ','Itaú','0741','98765-4','corrente','locador@rentcarbrasil.com.br');
 
 -- ----------------------------------------------------------------
 -- 10 Locatários
