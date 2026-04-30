@@ -54,6 +54,15 @@ export default function Register() {
     result = sum % 11 < 2 ? 0 : 11 - sum % 11;
     return result === parseInt(digits.charAt(1));
   }
+  function maskRg(value) {
+    return value.replace(/[^0-9Xx]/g, '').slice(0, 9)
+      .replace(/(\d{2})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})([0-9Xx])$/, '$1-$2');
+  }
+  function isValidRG(value) {
+    return /^[0-9]{2}\.[0-9]{3}\.[0-9]{3}-[0-9Xx]$/.test(maskRg(value));
+  }
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [showSenha, setShowSenha] = useState(false);
@@ -61,6 +70,10 @@ export default function Register() {
   async function handleSubmit(e) {
     e.preventDefault();
     setErro('');
+    if (form.tipoDocumento === 'cpf' && !isValidRG(form.rg)) {
+      setErro('RG inválido. Use o formato 00.000.000-0 ou 00.000.000-X.');
+      return;
+    }
     setCarregando(true);
     try {
       const usuario = await register(form.nome, form.email, form.senha, form.perfil, form.tipoDocumento, form.documento, form.rg);
@@ -123,10 +136,18 @@ export default function Register() {
                         <input
                           type="text"
                           placeholder="Digite o RG"
-                          value={form.rg}
+                          value={maskRg(form.rg)}
                           onChange={e => setForm({ ...form, rg: e.target.value })}
                           required
+                          maxLength={12}
+                          pattern="\\d{2}\\.\\d{3}\\.\\d{3}-[0-9Xx]"
+                          title="Digite um RG no formato 00.000.000-0 ou 00.000.000-X"
                         />
+                        {form.rg && (
+                          <span style={{ color: isValidRG(form.rg) ? 'green' : 'red', fontSize: 12 }}>
+                            {isValidRG(form.rg) ? 'RG válido' : 'RG inválido'}
+                          </span>
+                        )}
                       </div>
                     )}
           <div className="form-group" style={{ marginBottom: 14 }}>
