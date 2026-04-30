@@ -406,6 +406,17 @@ router.delete('/:id', requireProfiles('admin', 'locador', 'auxiliar'), async (re
             }
         }
 
+        const [despesasRows] = await connection.query(
+            'SELECT COUNT(*) AS total FROM despesas_receitas WHERE veiculo_id = ?',
+            [req.params.id]
+        );
+        const totalDespesas = Number(despesasRows?.[0]?.total || 0);
+
+        if (totalDespesas > 0) {
+            await connection.rollback();
+            return res.status(400).json({ erro: 'Não é possível excluir o veículo porque existem despesas cadastradas para ele.' });
+        }
+
         const [historicoRows] = await connection.query(
             'SELECT COUNT(*) AS total FROM locacoes WHERE veiculo_id = ?',
             [req.params.id]

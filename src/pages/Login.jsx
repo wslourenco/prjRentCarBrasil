@@ -85,13 +85,6 @@ export default function Login() {
           </button>
         </form>
 
-        <div style={{ marginTop: 24, padding: 14, background: 'var(--gray-50)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--gray-500)' }}>
-          <strong>Contas de demonstração:</strong><br />
-          admin@rentcarbrasil.com.br / admin123<br />
-          locador@rentcarbrasil.com.br / locador123<br />
-          locatario@rentcarbrasil.com.br / locatario123
-        </div>
-
         <div style={{ marginTop: 14, textAlign: 'center', fontSize: 13, color: 'var(--gray-600)' }}>
           Não tem conta? <Link to="/register">Cadastre-se aqui</Link>
         </div>

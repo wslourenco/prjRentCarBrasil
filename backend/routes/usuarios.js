@@ -135,7 +135,45 @@ router.delete('/:id', async (req, res) => {
     if (parseInt(req.params.id) === req.usuario.id) {
         return res.status(400).json({ erro: 'Você não pode excluir sua própria conta.' });
     }
+
     try {
+        const [users] = await pool.query(
+            'SELECT id, perfil, email FROM usuarios WHERE id = ? LIMIT 1',
+            [req.params.id]
+        );
+        if (users.length === 0) {
+            return res.status(404).json({ erro: 'Usuário não encontrado.' });
+        }
+
+        const usuario = users[0];
+        const email = String(usuario.email || '').trim().toLowerCase();
+
+        if (usuario.perfil === 'locador') {
+            const [veiculos] = await pool.query(
+                `SELECT COUNT(*) AS total
+                 FROM veiculos v
+                 JOIN locadores l ON v.locador_id = l.id
+                 WHERE LOWER(TRIM(l.email)) = ?`,
+                [email]
+            );
+            if (Number(veiculos?.[0]?.total || 0) > 0) {
+                return res.status(400).json({ erro: 'Não é possível excluir o usuário porque existem veículos cadastrados para ele.' });
+            }
+        }
+
+        if (usuario.perfil === 'locatario') {
+            const [locacoes] = await pool.query(
+                `SELECT COUNT(*) AS total
+                 FROM locacoes lc
+                 JOIN locatarios lt ON lc.locatario_id = lt.id
+                 WHERE LOWER(TRIM(lt.email)) = ?`,
+                [email]
+            );
+            if (Number(locacoes?.[0]?.total || 0) > 0) {
+                return res.status(400).json({ erro: 'Não é possível excluir o usuário porque existem locações cadastradas para ele.' });
+            }
+        }
+
         const [result] = await pool.query('DELETE FROM usuarios WHERE id = ?', [req.params.id]);
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Usuário não encontrado.' });
         res.json({ mensagem: 'Usuário removido com sucesso.' });

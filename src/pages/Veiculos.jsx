@@ -480,7 +480,6 @@ export default function Veiculos() {
           resposta.contratoPdfNomeArquivo || `contrato-locacao-${resposta.id}.pdf`,
           resposta.contratoPdfMimeType || 'application/pdf'
         );
-        setSucessoLocacaoRapida('Solicitação enviada com sucesso! O contrato em PDF foi baixado e também foi enviado por e-mail para você e para o locador. A locação está pendente de aprovação.');
       } else {
         // Log de debug se não entrou na condição de download
         if (resposta?.contratoEnvio !== 'download') {
@@ -493,10 +492,6 @@ export default function Veiculos() {
 
       setVeiculoSelecionadoLocacao('');
       fecharModalContratoLocacao();
-
-      if (resposta?.contratoEnvio === 'download' && resposta?.contratoPdfBase64) {
-        return;
-      }
 
       if (resposta?.contratoEmailStatus === 'enviado') {
         setSucessoLocacaoRapida('Contrato enviado por e-mail em PDF para assinatura via gov.br. Uma cópia também foi enviada para o locador. A locação está pendente de aprovação do locador.');
