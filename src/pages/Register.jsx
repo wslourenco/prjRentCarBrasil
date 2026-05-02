@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Car, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { maskRg, isValidRG } from '../utils/masks';
 
 export default function Register() {
   const { register } = useApp();
@@ -54,22 +55,6 @@ export default function Register() {
     result = sum % 11 < 2 ? 0 : 11 - sum % 11;
     return result === parseInt(digits.charAt(1));
   }
-  function cleanRg(value) {
-    return value.replace(/[^0-9Xx]/g, '').slice(0, 9);
-  }
-
-  function maskRg(value) {
-    const cleaned = cleanRg(value);
-
-    return cleaned
-      .replace(/(\d{2})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})([0-9Xx])$/, '$1-$2');
-  }
-
-  function isValidRG(value) {
-    return /^[0-9]{8}[0-9Xx]$/.test(cleanRg(value));
-  }
 
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
@@ -79,7 +64,7 @@ export default function Register() {
     e.preventDefault();
     setErro('');
     if (form.tipoDocumento === 'cpf' && !isValidRG(form.rg)) {
-      setErro('RG inválido. Use o formato 00.000.000-0 ou 00.000.000-X.');
+      setErro('RG inválido. Digite o RG conforme seu documento (mínimo 5 caracteres).');
       return;
     }
     setCarregando(true);
@@ -144,12 +129,10 @@ export default function Register() {
                         <input
                           type="text"
                           placeholder="Digite o RG"
-                          value={maskRg(form.rg)}
-                          onChange={e => setForm({ ...form, rg: e.target.value })}
+                          value={form.rg}
+                          onChange={e => setForm({ ...form, rg: maskRg(e.target.value) })}
                           required
-                          maxLength={12}
-                          pattern="\\d{2}\\.\\d{3}\\.\\d{3}-[0-9Xx]"
-                          title="Digite um RG no formato 00.000.000-0 ou 00.000.000-X"
+                          maxLength={15}
                         />
                         {form.rg && (
                           <span style={{ color: isValidRG(form.rg) ? 'green' : 'red', fontSize: 12 }}>

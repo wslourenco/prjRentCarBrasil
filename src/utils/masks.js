@@ -31,11 +31,24 @@ export function maskTelefone(v) {
 }
 
 export function maskRg(v) {
-    // Aceita dígitos e X (dígito verificador)
-    return v.replace(/[^0-9Xx]/g, '').slice(0, 9)
-        .replace(/(\d{2})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})([0-9Xx]{1})$/, '$1-$2');
+    const raw = String(v || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase().slice(0, 14);
+    if (!raw) return '';
+
+    // Máscara progressiva XX.XXX.XXX-D para RGs numéricos (padrão da maioria dos estados)
+    if (/^[0-9]{1,8}[0-9X]?$/.test(raw)) {
+        if (raw.length <= 2) return raw;
+        if (raw.length <= 5) return `${raw.slice(0, 2)}.${raw.slice(2)}`;
+        if (raw.length <= 8) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5)}`;
+        return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}-${raw.slice(8)}`;
+    }
+
+    // Estados com letras no RG (ex: MG, ES): sem máscara, apenas limpo
+    return raw;
+}
+
+export function isValidRG(v) {
+    const cleaned = String(v || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+    return cleaned.length >= 5 && cleaned.length <= 14;
 }
 
 export function maskPlaca(v) {
