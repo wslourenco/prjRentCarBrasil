@@ -17,7 +17,7 @@ export default function Layout() {
         {logo && (
           <div style={{
             position: 'sticky', top: 0, zIndex: 100,
-            display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
+            display: 'flex', justifyContent: 'flex-start', alignItems: 'center',
             padding: '8px 24px',
             background: 'rgba(255,255,255,0.92)',
             backdropFilter: 'blur(6px)',
@@ -26,7 +26,7 @@ export default function Layout() {
             <img
               src={logo}
               alt="Logo da empresa"
-              style={{ maxHeight: 44, maxWidth: 180, objectFit: 'contain' }}
+              style={{ maxHeight: 88, maxWidth: 360, objectFit: 'contain' }}
             />
           </div>
         )}

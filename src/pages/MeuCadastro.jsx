@@ -250,7 +250,7 @@ export default function MeuCadastro() {
                   </select>
                 </div>
               </div>
-              {isLocador && locadorProprio?.tipo === 'juridica' && (
+              {isLocador && (
                 <div className="form-group form-full">
                   <label>Logotipo da Empresa</label>
                   {logo ? (
