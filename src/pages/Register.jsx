@@ -68,23 +68,8 @@ export default function Register() {
   }
 
   function isValidRG(value) {
-    const cleaned = cleanRg(value).toUpperCase();
-
-    if (!/^[0-9]{8}[0-9X]$/.test(cleaned)) return false;
-
-    let sum = 0;
-    let weight = 2;
-
-    for (let i = 7; i >= 0; i--) {
-      sum += parseInt(cleaned[i], 10) * weight;
-      weight++;
-    }
-
-    let remainder = sum % 11;
-    let digit = remainder === 10 ? 'X' : remainder.toString();
-
-    return digit === cleaned[8];
-  }  
+    return /^[0-9]{8}[0-9Xx]$/.test(cleanRg(value));
+  }
 
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
