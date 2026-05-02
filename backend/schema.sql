@@ -22,9 +22,40 @@ CREATE TABLE IF NOT EXISTS usuarios (
   documento   VARCHAR(20) NOT NULL DEFAULT '',
   ativo       TINYINT(1) NOT NULL DEFAULT 1,
   senha_deve_trocar TINYINT(1) NOT NULL DEFAULT 0,
+  doc_rg      MEDIUMTEXT,
+  doc_cpf     MEDIUMTEXT,
+  doc_comprovante MEDIUMTEXT,
   criado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+-- ----------------------------------------------------------------
+-- Tabela: pagamentos (Mercado Pago)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pagamentos (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  locacao_id INT UNSIGNED,
+  mp_payment_id BIGINT,
+  valor DECIMAL(10,2) NOT NULL,
+  status ENUM('pendente','aprovado','cancelado','rejeitado','em_processo') DEFAULT 'pendente',
+  qr_code TEXT,
+  qr_code_base64 MEDIUMTEXT,
+  pix_copia_cola TEXT,
+  email_pagador VARCHAR(120),
+  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ----------------------------------------------------------------
+-- Tabela: debitos_veiculares_cache (Celcoin)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS debitos_veiculares_cache (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  veiculo_id INT UNSIGNED NOT NULL,
+  dados_json MEDIUMTEXT,
+  consultado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_veiculo (veiculo_id)
+);
+
 -- ----------------------------------------------------------------
 -- Tabela: configuracoes
 -- ----------------------------------------------------------------

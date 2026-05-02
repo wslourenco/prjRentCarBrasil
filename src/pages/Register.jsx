@@ -10,6 +10,8 @@ export default function Register() {
   const [form, setForm] = useState({ nome: '', email: '', senha: '', perfil: 'locatario', tipoDocumento: 'cpf', documento: '', rg: '' });
   const [logo, setLogo] = useState(null);
   const [erroLogo, setErroLogo] = useState('');
+  const [docs, setDocs] = useState({ rg: null, cpf: null, comprovante: null });
+  const [erroDocs, setErroDocs] = useState({});
 
   function handleLogoChange(e) {
     const file = e.target.files?.[0];
@@ -20,6 +22,49 @@ export default function Register() {
     const reader = new FileReader();
     reader.onload = e => setLogo(e.target.result);
     reader.readAsDataURL(file);
+  }
+
+  function handleDocChange(campo, e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const validos = ['image/jpeg','image/png','image/webp','application/pdf'];
+    if (!validos.includes(file.type)) {
+      setErroDocs(p => ({ ...p, [campo]: 'Selecione uma imagem (JPG, PNG, WebP) ou PDF.' }));
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setErroDocs(p => ({ ...p, [campo]: 'Arquivo deve ter no máximo 2MB.' }));
+      return;
+    }
+    setErroDocs(p => ({ ...p, [campo]: '' }));
+    const reader = new FileReader();
+    reader.onload = ev => setDocs(p => ({ ...p, [campo]: ev.target.result }));
+    reader.readAsDataURL(file);
+  }
+
+  function DocUpload({ campo, label, obrigatorio }) {
+    const arquivo = docs[campo];
+    return (
+      <div className="form-group" style={{ marginBottom: 14 }}>
+        <label>{label}{obrigatorio ? ' *' : ''}</label>
+        {arquivo ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, color: 'green' }}>✓ {arquivo.startsWith('data:application/pdf') ? 'PDF anexado' : 'Imagem anexada'}</span>
+            <label style={{ fontSize: 12, color: 'var(--primary)', cursor: 'pointer' }}>
+              Trocar <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={ev => handleDocChange(campo, ev)} />
+            </label>
+            <button type="button" onClick={() => setDocs(p => ({ ...p, [campo]: null }))} style={{ fontSize: 12, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Remover</button>
+          </div>
+        ) : (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 14px', border: '1.5px dashed var(--gray-300)', borderRadius: 8, fontSize: 13, color: 'var(--gray-500)', width: '100%' }}>
+            <ImagePlus size={15} /> Clique para anexar
+            <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={ev => handleDocChange(campo, ev)} />
+          </label>
+        )}
+        {erroDocs[campo] && <span style={{ color: 'red', fontSize: 12 }}>{erroDocs[campo]}</span>}
+        <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>JPG, PNG, WebP ou PDF · máx. 2MB</span>
+      </div>
+    );
   }
   function maskDoc(value, tipo) {
     let v = value.replace(/\D/g, '');
@@ -82,7 +127,7 @@ export default function Register() {
     }
     setCarregando(true);
     try {
-      const usuario = await register(form.nome, form.email, form.senha, form.perfil, form.tipoDocumento, form.documento, form.rg, logo);
+      const usuario = await register(form.nome, form.email, form.senha, form.perfil, form.tipoDocumento, form.documento, form.rg, logo, docs.rg, docs.cpf, docs.comprovante);
       navigate(usuario.perfil === 'locatario' ? '/painel' : '/dashboard');
     } catch (e) {
       setErro(e.message || 'Não foi possível criar sua conta.');
@@ -227,6 +272,13 @@ export default function Register() {
                 {showSenha ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--gray-200)', paddingTop: 14, marginTop: 4 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'var(--gray-700)' }}>Documentos</p>
+            {form.tipoDocumento === 'cpf' && <DocUpload campo="rg" label="Foto/Scan do RG" />}
+            <DocUpload campo="cpf" label={form.tipoDocumento === 'cpf' ? 'Foto/Scan do CPF' : 'Foto/Scan do CNPJ'} />
+            <DocUpload campo="comprovante" label="Comprovante de Residência" />
           </div>
 
           <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px' }} disabled={carregando}>

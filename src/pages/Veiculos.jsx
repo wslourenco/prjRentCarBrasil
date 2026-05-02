@@ -4,6 +4,8 @@ import { api } from '../services/api';
 import { usuarioFromApi } from '../services/mappers';
 import { Plus, Edit2, Trash2, X, Car, Check, Eye, EyeOff } from 'lucide-react';
 import { applyMask } from '../utils/masks';
+import PagamentoPix from '../components/PagamentoPix';
+import DebitosVeiculares from '../components/DebitosVeiculares';
 
 const COMBUSTIVEIS = ['Flex','Gasolina','Etanol','Diesel','GNV','Elétrico','Híbrido'];
 const TRANSMISSOES = ['Manual','Automático','Semi-automático','CVT'];
@@ -123,6 +125,7 @@ export default function Veiculos() {
   const [filtroCidade, setFiltroCidade] = useState('');
   const [veiculoSelecionadoLocacao, setVeiculoSelecionadoLocacao] = useState('');
   const [locandoVeiculo, setLocandoVeiculo] = useState(false);
+  const [modalPix, setModalPix] = useState(null); // { valor, descricao, emailPagador, locacaoId }
   const [erroLocacaoRapida, setErroLocacaoRapida] = useState('');
   const [sucessoLocacaoRapida, setSucessoLocacaoRapida] = useState('');
   const [modalContrato, setModalContrato] = useState(false);
@@ -554,6 +557,20 @@ export default function Veiculos() {
       setVeiculoSelecionadoLocacao('');
       fecharModalContratoLocacao();
 
+      // Abre pagamento PIX após criar locação
+      if (resposta?.locacao?.id) {
+        const veiculo = veiculos.find(v => String(v.id) === String(veiculoSelecionadoLocacao));
+        const valorSemanal = veiculo?.valorDiario ? Number(veiculo.valorDiario) * 7 : 0;
+        if (valorSemanal > 0) {
+          setModalPix({
+            valor: valorSemanal,
+            descricao: `Locação ${veiculo?.marca || ''} ${veiculo?.modelo || ''} - ${veiculo?.placa || ''}`,
+            emailPagador: contratoForm.email || usuarioLogado?.email || '',
+            locacaoId: resposta.locacao.id,
+          });
+        }
+      }
+
       if (resposta?.contratoEmailStatus === 'enviado') {
         setSucessoLocacaoRapida('Contrato enviado por e-mail em PDF para assinatura via gov.br. Uma cópia também foi enviada para o locador. A locação está pendente de aprovação do locador.');
       } else if (resposta?.contratoEmailStatus === 'download') {
@@ -577,6 +594,16 @@ export default function Veiculos() {
 
   return (
     <div className="page-content">
+      {modalPix && (
+        <PagamentoPix
+          valor={modalPix.valor}
+          descricao={modalPix.descricao}
+          emailPagador={modalPix.emailPagador}
+          locacaoId={modalPix.locacaoId}
+          onPago={() => setModalPix(null)}
+          onFechar={() => setModalPix(null)}
+        />
+      )}
       {carregando && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="empty-state"><p>Carregando veículos...</p></div>
@@ -712,6 +739,9 @@ export default function Veiculos() {
                   <div>Locador: {nomeLocadorVeiculo(v)}</div>
                   {localVeiculo(v) && <div>Localização: <strong>{localVeiculo(v)}</strong></div>}
                 </div>
+                {(usuarioLogado?.perfil === 'locador' || usuarioLogado?.perfil === 'admin') && v.renavam && (
+                  <DebitosVeiculares veiculoId={v.id} placa={v.placa} />
+                )}
               </div>
               <div className="veiculo-card-footer">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

@@ -163,7 +163,7 @@ async function getLocadorProfileForUser(db, usuario) {
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
-    const { nome, email, senha, perfil, tipoDocumento, documento, rg, logo } = req.body;
+    const { nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante } = req.body;
     const perfilEscolhido = sanitizeProfile(perfil);
     const tipoDoc = (tipoDocumento === 'cnpj') ? 'cnpj' : 'cpf';
     const doc = normalizeDocumento(documento);
@@ -188,9 +188,10 @@ router.post('/register', async (req, res) => {
         }
 
         const hash = await bcrypt.hash(senha, 10);
+        const cleanDoc = v => (typeof v === 'string' && v.startsWith('data:') ? v : null);
         const [result] = await conn.query(
-            'INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento) VALUES (?,?,?,?,?,?)',
-            [nome, email, hash, perfilEscolhido, tipoDoc, doc]
+            'INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento, doc_rg, doc_cpf, doc_comprovante) VALUES (?,?,?,?,?,?,?,?,?)',
+            [nome, email, hash, perfilEscolhido, tipoDoc, doc, cleanDoc(docRg), cleanDoc(docCpf), cleanDoc(docComprovante)]
         );
 
         if (perfilEscolhido === 'locador') {

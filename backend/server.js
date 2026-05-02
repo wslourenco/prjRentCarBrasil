@@ -84,6 +84,8 @@ app.use('/api/financeiro', require('./routes/financeiro'));
 app.use('/api/locacoes', require('./routes/locacoes'));
 app.use('/api/usuarios', require('./routes/usuarios'));
 app.use('/api/configuracoes', require('./routes/configuracoes'));
+app.use('/api/pagamentos', require('./routes/pagamentos'));
+app.use('/api/debitos', require('./routes/debitos'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));

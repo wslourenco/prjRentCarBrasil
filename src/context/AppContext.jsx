@@ -208,8 +208,8 @@ export function AppProvider({ children }) {
         setUsuarioLogado(atualizado);
     }
 
-    async function register(nome, email, senha, perfil, tipoDocumento, documento, rg, logo) {
-        const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento, rg, logo });
+    async function register(nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante) {
+        const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante });
         const usuarioBase = usuarioFromApi({ ...(dados.usuario || {}), locatario: dados.locatario || null, locador_proprio: dados.locador_proprio || null });
         sessionStorage.setItem('sislove_token', dados.token);
         sessionStorage.setItem('sislove_usuario', JSON.stringify(usuarioBase));
