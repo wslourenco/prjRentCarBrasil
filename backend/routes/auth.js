@@ -109,7 +109,7 @@ async function getAuxiliarLocadorForUser(db, usuario) {
         if (!locadorId) continue;
 
         const [locadorRows] = await db.query(
-            `SELECT id, nome, email, tipo, cpf, cnpj
+            `SELECT id, nome, razao_social, email, tipo, cpf, cnpj, logo
              FROM locadores
              WHERE id = ?
              LIMIT 1`,
@@ -120,7 +120,7 @@ async function getAuxiliarLocadorForUser(db, usuario) {
     }
 
     const [locadores] = await db.query(
-        'SELECT id, nome, email, tipo, cpf, cnpj FROM locadores ORDER BY id ASC'
+        'SELECT id, nome, razao_social, email, tipo, cpf, cnpj, logo FROM locadores ORDER BY id ASC'
     );
     if (locadores.length === 1) return locadores[0];
 

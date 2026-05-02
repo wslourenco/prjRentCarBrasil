@@ -6,7 +6,9 @@ export default function Layout() {
   const { usuarioLogado } = useApp();
   if (!usuarioLogado) return <Navigate to="/login" replace />;
 
-  const logo = usuarioLogado?.locadorProprio?.logo || null;
+  const logo = usuarioLogado?.locadorProprio?.logo
+    || usuarioLogado?.locadorVinculado?.logo
+    || null;
 
   return (
     <div className="app-layout">

@@ -403,6 +403,7 @@ export function usuarioFromApi(r) {
                 tipo: r.locador_vinculado.tipo || 'fisica',
                 cpf: r.locador_vinculado.cpf || '',
                 cnpj: r.locador_vinculado.cnpj || '',
+                logo: r.locador_vinculado.logo || null,
             }
             : null,
         locadorProprio: r.locador_proprio
