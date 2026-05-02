@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(railway variables *)",
+      "Bash(railway status *)",
+      "Bash(mysql -h junction.proxy.rlwy.net -P 13000 -u root -pEGTbIrgmIzjmuktepGlIdMqgdKjhFogs -e \"SHOW DATABASES;\")",
+      "Bash(npx -y mysql2 --version)",
+      "Bash(node -e ' *)",
+      "Bash(railway run *)",
+      "Bash(where python *)",
+      "Bash(where python3 *)",
+      "Bash(python -c ' *)",
+      "Bash(pip install *)",
+      "Bash(railway logs *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP Status: %{http_code}\\\\n\" https://backend-api-production-3d96.up.railway.app/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"admin@rentcarbrasil.com.br\",\"senha\":\"admin123\"}')",
+      "Bash(curl -s https://backend-api-production-3d96.up.railway.app/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"admin@rentcarbrasil.com.br\",\"senha\":\"admin123\"}')",
+      "Bash(curl -v --max-time 10 https://backend-api-production-3d96.up.railway.app/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"admin@rentcarbrasil.com.br\",\"senha\":\"admin123\"}')",
+      "Bash(curl -sk --max-time 15 https://backend-api-production-3d96.up.railway.app/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"admin@rentcarbrasil.com.br\",\"senha\":\"admin123\"}')",
+      "Bash(railway up *)"
+    ]
+  }
+}
