@@ -54,15 +54,38 @@ export default function Register() {
     result = sum % 11 < 2 ? 0 : 11 - sum % 11;
     return result === parseInt(digits.charAt(1));
   }
+  function cleanRg(value) {
+    return value.replace(/[^0-9Xx]/g, '').slice(0, 9);
+  }
+
   function maskRg(value) {
-    return value.replace(/[^0-9Xx]/g, '').slice(0, 9)
+    const cleaned = cleanRg(value);
+
+    return cleaned
       .replace(/(\d{2})(\d)/, '$1.$2')
       .replace(/(\d{3})(\d)/, '$1.$2')
       .replace(/(\d{3})([0-9Xx])$/, '$1-$2');
   }
+
   function isValidRG(value) {
-    return /^[0-9]{2}\.[0-9]{3}\.[0-9]{3}-[0-9Xx]$/.test(maskRg(value));
-  }
+    const cleaned = cleanRg(value).toUpperCase();
+
+    if (!/^[0-9]{8}[0-9X]$/.test(cleaned)) return false;
+
+    let sum = 0;
+    let weight = 2;
+
+    for (let i = 7; i >= 0; i--) {
+      sum += parseInt(cleaned[i], 10) * weight;
+      weight++;
+    }
+
+    let remainder = sum % 11;
+    let digit = remainder === 10 ? 'X' : remainder.toString();
+
+    return digit === cleaned[8];
+  }  
+
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [showSenha, setShowSenha] = useState(false);
