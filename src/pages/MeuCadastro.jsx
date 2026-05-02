@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
-import { Check, Eye, EyeOff } from 'lucide-react';
+import { Check, Eye, EyeOff, ImagePlus, X } from 'lucide-react';
 import { applyMask } from '../utils/masks';
 
 export default function MeuCadastro() {
@@ -102,6 +102,20 @@ export default function MeuCadastro() {
     }
     carregarPerfil();
   }, []);
+  const [logo, setLogo] = useState(locadorProprio?.logo || null);
+  const [erroLogo, setErroLogo] = useState('');
+
+  function handleLogoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setErroLogo('Selecione uma imagem (JPG, PNG, WebP).'); return; }
+    if (file.size > 500 * 1024) { setErroLogo('Imagem deve ter no máximo 500KB.'); return; }
+    setErroLogo('');
+    const reader = new FileReader();
+    reader.onload = ev => setLogo(ev.target.result);
+    reader.readAsDataURL(file);
+  }
+
   const [salvandoPerf, setSalvandoPerf] = useState(false);
   const [msgPerf, setMsgPerf] = useState('');
   const [erroPerf, setErroPerf] = useState('');
@@ -121,6 +135,7 @@ export default function MeuCadastro() {
           cpf: locadorProprio.cpf, email: locadorProprio.email,
           tipo_conta: locadorProprio.tipoConta, pix_chave: locadorProprio.pixChave,
           insc_estadual: locadorProprio.inscEstadual, data_nascimento: locadorProprio.dataNascimento,
+          logo: logo,
         };
         await api.put(endpoint, payload);
       } else {
@@ -235,6 +250,32 @@ export default function MeuCadastro() {
                   </select>
                 </div>
               </div>
+              {isLocador && locadorProprio?.tipo === 'juridica' && (
+                <div className="form-group form-full">
+                  <label>Logotipo da Empresa</label>
+                  {logo ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <img src={logo} alt="Logo" style={{ maxHeight: 64, maxWidth: 180, objectFit: 'contain', border: '1px solid var(--gray-200)', borderRadius: 8, padding: 4, background: '#fff' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: 'var(--primary)' }}>
+                          <ImagePlus size={14} /> Trocar logo
+                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoChange} />
+                        </label>
+                        <button type="button" onClick={() => setLogo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--danger)', textAlign: 'left', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <X size={13} /> Remover logo
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 16px', border: '1.5px dashed var(--gray-300)', borderRadius: 8, fontSize: 13, color: 'var(--gray-500)' }}>
+                      <ImagePlus size={16} /> Clique para anexar o logotipo
+                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoChange} />
+                    </label>
+                  )}
+                  {erroLogo && <p style={{ color: 'var(--danger)', fontSize: 12, margin: '4px 0 0' }}>{erroLogo}</p>}
+                  <p style={{ fontSize: 11, color: 'var(--gray-400)', margin: '4px 0 0' }}>JPG, PNG ou WebP · máx. 500KB</p>
+                </div>
+              )}
               {erroPerf && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{erroPerf}</p>}
               {msgPerf && <p style={{ color: 'green', fontSize: 13 }}>{msgPerf}</p>}
               <div><button type="submit" className="btn btn-primary" disabled={salvandoPerf}><Check size={14} /> {salvandoPerf ? 'Salvando...' : 'Salvar dados de contato'}</button></div>
