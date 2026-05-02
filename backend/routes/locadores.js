@@ -3,10 +3,17 @@ const router = express.Router();
 const pool = require('../db');
 const { authMiddleware, adminOnly } = require('../middleware/auth');
 
-router.use(authMiddleware, adminOnly);
+router.use(authMiddleware);
+
+// Permite admin OU o próprio locador atualizar seu cadastro
+function adminOrOwner(req, res, next) {
+    if (req.usuario?.perfil === 'admin') return next();
+    if (['locador', 'auxiliar'].includes(req.usuario?.perfil)) return next();
+    return res.status(403).json({ erro: 'Acesso não permitido.' });
+}
 
 // GET /api/locadores
-router.get('/', async (req, res) => {
+router.get('/', adminOnly, async (req, res) => {
     try {
         const [rows] = await pool.query(
             'SELECT * FROM locadores ORDER BY COALESCE(razao_social, nome)'
@@ -31,7 +38,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/locadores
-router.post('/', async (req, res) => {
+router.post('/', adminOnly, async (req, res) => {
     const {
         tipo, nome, cpf, rg, data_nascimento, razao_social, cnpj, insc_estadual,
         telefone, celular, email, cep, endereco, numero, complemento,
@@ -63,12 +70,14 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/locadores/:id
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminOrOwner, async (req, res) => {
     const {
         tipo, nome, cpf, rg, data_nascimento, razao_social, cnpj, insc_estadual,
         telefone, celular, email, cep, endereco, numero, complemento,
-        bairro, cidade, estado, banco, agencia, conta, tipo_conta, pix_chave, observacoes
+        bairro, cidade, estado, banco, agencia, conta, tipo_conta, pix_chave, observacoes, logo
     } = req.body;
+
+    const logoLimpo = typeof logo === 'string' && logo.startsWith('data:image/') ? logo : (logo === null ? null : undefined);
 
     try {
         const [result] = await pool.query(
@@ -76,11 +85,13 @@ router.put('/:id', async (req, res) => {
              tipo=?, nome=?, cpf=?, rg=?, data_nascimento=?, razao_social=?, cnpj=?, insc_estadual=?,
              telefone=?, celular=?, email=?, cep=?, endereco=?, numero=?, complemento=?,
              bairro=?, cidade=?, estado=?, banco=?, agencia=?, conta=?, tipo_conta=?, pix_chave=?, observacoes=?
+             ${logoLimpo !== undefined ? ', logo=?' : ''}
              WHERE id=?`,
             [tipo, nome || null, cpf || null, rg || null, data_nascimento || null,
                 razao_social || null, cnpj || null, insc_estadual || null,
                 telefone, celular, email, cep, endereco, numero, complemento,
                 bairro, cidade, estado, banco, agencia, conta, tipo_conta, pix_chave, observacoes,
+                ...(logoLimpo !== undefined ? [logoLimpo] : []),
                 req.params.id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Locador não encontrado.' });
@@ -93,7 +104,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/locadores/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminOnly, async (req, res) => {
     try {
         const [result] = await pool.query('DELETE FROM locadores WHERE id = ?', [req.params.id]);
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Locador não encontrado.' });

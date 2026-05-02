@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { usuarioFromApi } from '../services/mappers';
-import { Plus, Edit2, Trash2, X, Car, Check } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Car, Check, Eye, EyeOff } from 'lucide-react';
 import { applyMask } from '../utils/masks';
 
 const COMBUSTIVEIS = ['Flex','Gasolina','Etanol','Diesel','GNV','Elétrico','Híbrido'];
@@ -73,11 +73,54 @@ export default function Veiculos() {
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_VEICULO);
+  const [fipeStatus, setFipeStatus] = useState(''); // '' | 'buscando' | 'encontrado' | 'nao_encontrado' | 'erro'
+  const [showSmtpPass, setShowSmtpPass] = useState(false);
+  const fipeDebounceRef = useRef(null);
+
+  useEffect(() => {
+    const { marca, modelo, anoModelo } = form;
+    if (!modal) return;
+    clearTimeout(fipeDebounceRef.current);
+    if (!marca || !modelo || !anoModelo) { setFipeStatus(''); return; }
+    setFipeStatus('buscando');
+    fipeDebounceRef.current = setTimeout(async () => {
+      try {
+        const FIPE = 'https://parallelum.com.br/fipe/api/v1/carros';
+        const marcas = await fetch(`${FIPE}/marcas`).then(r => r.json());
+        const nomeMarca = marca.toLowerCase();
+        const marcaFipe = marcas.find(m =>
+          m.nome.toLowerCase().includes(nomeMarca) || nomeMarca.includes(m.nome.toLowerCase())
+        );
+        if (!marcaFipe) { setFipeStatus('nao_encontrado'); return; }
+
+        const { modelos } = await fetch(`${FIPE}/marcas/${marcaFipe.codigo}/modelos`).then(r => r.json());
+        const nomeModelo = modelo.toLowerCase();
+        const modeloFipe = modelos.find(m =>
+          m.nome.toLowerCase().includes(nomeModelo) || nomeModelo.includes(m.nome.toLowerCase())
+        );
+        if (!modeloFipe) { setFipeStatus('nao_encontrado'); return; }
+
+        const anos = await fetch(`${FIPE}/marcas/${marcaFipe.codigo}/modelos/${modeloFipe.codigo}/anos`).then(r => r.json());
+        const anoFipe = anos.find(a => a.nome.includes(String(anoModelo))) || anos[0];
+        if (!anoFipe) { setFipeStatus('nao_encontrado'); return; }
+
+        const dado = await fetch(`${FIPE}/marcas/${marcaFipe.codigo}/modelos/${modeloFipe.codigo}/anos/${anoFipe.codigo}`).then(r => r.json());
+        const valor = parseFloat(dado.Valor.replace('R$ ', '').replace('R$ ', '').replace(/\./g, '').replace(',', '.'));
+        setForm(prev => ({ ...prev, valorFipe: isNaN(valor) ? '' : valor }));
+        setFipeStatus('encontrado');
+      } catch {
+        setFipeStatus('erro');
+      }
+    }, 900);
+    return () => clearTimeout(fipeDebounceRef.current);
+  }, [form.marca, form.modelo, form.anoModelo, modal]);
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
   const [deletandoVeiculo, setDeletandoVeiculo] = useState(false);
   const [erroDelecaoVeiculo, setErroDelecaoVeiculo] = useState('');
   const [view, setView] = useState('cards'); // 'cards' | 'table'
   const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('');
+  const [filtroCidade, setFiltroCidade] = useState('');
   const [veiculoSelecionadoLocacao, setVeiculoSelecionadoLocacao] = useState('');
   const [locandoVeiculo, setLocandoVeiculo] = useState(false);
   const [erroLocacaoRapida, setErroLocacaoRapida] = useState('');
@@ -128,24 +171,37 @@ export default function Veiculos() {
     return Array.from(new Set(todas)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   }, [veiculos, form.marca]);
 
+  const estadosDisponiveis = useMemo(() =>
+    [...new Set(listaVeiculos.map(v => v.estadoLocador).filter(Boolean))].sort()
+  , [listaVeiculos]);
+
+  const cidadesDisponiveis = useMemo(() =>
+    [...new Set(listaVeiculos
+      .filter(v => !filtroEstado || v.estadoLocador === filtroEstado)
+      .map(v => v.cidadeLocador).filter(Boolean))].sort()
+  , [listaVeiculos, filtroEstado]);
+
   const listaVeiculosFiltrada = useMemo(() => {
-    // Primeiro, filtra por categoria
     let resultado = listaVeiculos;
     if (filtroCategoria) {
       resultado = resultado.filter(v => (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoria);
     }
+    if (filtroEstado) {
+      resultado = resultado.filter(v => v.estadoLocador === filtroEstado);
+    }
+    if (filtroCidade) {
+      resultado = resultado.filter(v => v.cidadeLocador === filtroCidade);
+    }
 
-    // Se o usuário é locatário, remove veículos que têm locação pendente de aprovação
     if (usuarioLogado?.perfil === 'locatario' && locacoes && locacoes.length > 0) {
       const idsVeiculosPendentes = locacoes
         .filter(l => l.status === 'pendente_aprovacao')
         .map(l => l.veiculoId);
-
       resultado = resultado.filter(v => !idsVeiculosPendentes.includes(v.id));
     }
 
     return resultado;
-  }, [listaVeiculos, filtroCategoria, usuarioLogado, locacoes]);
+  }, [listaVeiculos, filtroCategoria, filtroEstado, filtroCidade, usuarioLogado, locacoes]);
 
   const veiculoEmExclusao = useMemo(
     () => listaVeiculos.find(v => String(v.id) === String(confirmarExclusao)) || null,
@@ -200,9 +256,9 @@ export default function Veiculos() {
 
   const [erroCrud, setErroCrud] = useState('');
 
-  function abrirNovo() { setForm(EMPTY_VEICULO); setEditId(null); setModal(true); setErroCrud(''); }
-  function abrirEditar(v) { setForm({ ...EMPTY_VEICULO, ...v }); setEditId(v.id); setModal(true); setErroCrud(''); }
-  function fecharModal() { setModal(false); setEditId(null); setErroCrud(''); }
+  function abrirNovo() { setForm(EMPTY_VEICULO); setEditId(null); setModal(true); setErroCrud(''); setFipeStatus(''); }
+  function abrirEditar(v) { setForm({ ...EMPTY_VEICULO, ...v }); setEditId(v.id); setModal(true); setErroCrud(''); setFipeStatus(v.valorFipe ? 'encontrado' : ''); }
+  function fecharModal() { setModal(false); setEditId(null); setErroCrud(''); setFipeStatus(''); }
 
   async function handleRemoveVeiculo(id) {
     setDeletandoVeiculo(true);
@@ -242,6 +298,11 @@ export default function Veiculos() {
     const nomeViaApi = String(veiculo?.nomeLocador || '').trim();
     if (nomeViaApi) return nomeViaApi;
     return nomeLocador(veiculo?.locadorId);
+  }
+
+  function localVeiculo(veiculo) {
+    const partes = [veiculo?.cidadeLocador, veiculo?.estadoLocador].filter(Boolean);
+    return partes.length ? partes.join(' - ') : null;
   }
 
   function preencherContratoComUsuario(usuario, manterObservacoes = true) {
@@ -594,6 +655,18 @@ export default function Veiculos() {
             <option value="">Todas as montadoras</option>
             {categoriasVeiculo.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
           </select>
+          {usuarioLogado?.perfil === 'locatario' && estadosDisponiveis.length > 0 && (
+            <select aria-label="Estado" value={filtroEstado} onChange={e => { setFiltroEstado(e.target.value); setFiltroCidade(''); }} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13 }}>
+              <option value="">Todos os estados</option>
+              {estadosDisponiveis.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+            </select>
+          )}
+          {usuarioLogado?.perfil === 'locatario' && cidadesDisponiveis.length > 0 && (
+            <select aria-label="Cidade" value={filtroCidade} onChange={e => setFiltroCidade(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13 }}>
+              <option value="">Todas as cidades</option>
+              {cidadesDisponiveis.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
           <div className="toggle-group">
             <button type="button" className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')}>Cards</button>
             <button type="button" className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>Tabela</button>
@@ -637,6 +710,7 @@ export default function Veiculos() {
                   <div>Valor FIPE: <strong>{v.valorFipe != null ? Number(v.valorFipe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</strong></div>
                   <div>Locação diária: <strong>{v.valorDiario != null ? Number(v.valorDiario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</strong></div>
                   <div>Locador: {nomeLocadorVeiculo(v)}</div>
+                  {localVeiculo(v) && <div>Localização: <strong>{localVeiculo(v)}</strong></div>}
                 </div>
               </div>
               <div className="veiculo-card-footer">
@@ -838,7 +912,15 @@ export default function Veiculos() {
                     </select>
                   </div>
                   <div className="form-group"><label>SMTP_USER *</label><input required type="email" value={smtpForm.user} onChange={e => setSmtpForm(prev => ({ ...prev, user: e.target.value }))} /></div>
-                  <div className="form-group"><label>SMTP_PASS *</label><input required type="password" value={smtpForm.pass} onChange={e => setSmtpForm(prev => ({ ...prev, pass: e.target.value }))} /></div>
+                  <div className="form-group">
+                    <label>SMTP_PASS *</label>
+                    <div style={{ position: 'relative' }}>
+                      <input required type={showSmtpPass ? 'text' : 'password'} value={smtpForm.pass} onChange={e => setSmtpForm(prev => ({ ...prev, pass: e.target.value }))} style={{ width: '100%', paddingRight: 40 }} />
+                      <button type="button" onClick={() => setShowSmtpPass(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', padding: 0 }}>
+                        {showSmtpPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
                   <div className="form-group"><label>MAIL_FROM (opcional)</label><input value={smtpForm.mailFrom} onChange={e => setSmtpForm(prev => ({ ...prev, mailFrom: e.target.value }))} /></div>
                 </div>
 
@@ -916,13 +998,6 @@ export default function Veiculos() {
                     <div className="form-group"><label>Capacidade (pessoas)</label>
                       <select {...f('capacidade')}>{['2','4','5','7','9','15'].map(n => <option key={n} value={n}>{n}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Locador (proprietário)</label>
-                      <select {...f('locadorId')}>
-                        <option value="">Selecione</option>
-                        {locadores.map(l => <option key={l.id} value={l.id}>{l.tipo === 'juridica' ? l.razaoSocial : l.nome}</option>)}
-                      </select>
-                    </div>
-                    <div className="form-group"><label>URL da foto</label><input type="url" {...f('foto')} /></div>
                   </div>
                 </div>
 
@@ -942,8 +1017,23 @@ export default function Veiculos() {
                   <div className="form-grid">
                     <div className="form-group"><label>Data de Compra</label><input type="date" {...f('dataCompra')} /></div>
                     <div className="form-group"><label>Valor Pago (R$)</label><input type="number" step="0.01" {...f('valorCompra')} /></div>
-                    <div className="form-group"><label>Valor Tabela FIPE (R$)</label><input type="number" step="0.01" {...f('valorFipe')} /></div>
                     <div className="form-group"><label>Valor Locação Diária (R$)</label><input type="text" inputMode="decimal" placeholder="0,00" {...f('valorDiario')} /></div>
+                    <div className="form-group">
+                      <label>
+                        Valor Tabela FIPE
+                        {fipeStatus === 'buscando' && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--primary)', fontWeight: 400 }}>Buscando...</span>}
+                        {fipeStatus === 'encontrado' && <span style={{ marginLeft: 8, fontSize: 11, color: 'green', fontWeight: 400 }}>✓ Atualizado</span>}
+                        {fipeStatus === 'nao_encontrado' && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--gray-400)', fontWeight: 400 }}>Não encontrado</span>}
+                        {fipeStatus === 'erro' && <span style={{ marginLeft: 8, fontSize: 11, color: 'red', fontWeight: 400 }}>Erro na busca</span>}
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={form.valorFipe ? Number(form.valorFipe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : ''}
+                        placeholder={fipeStatus === 'buscando' ? 'Consultando FIPE...' : 'Preencha montadora, modelo e ano'}
+                        style={{ background: 'var(--gray-50)', cursor: 'default' }}
+                      />
+                    </div>
                   </div>
                 </div>
 

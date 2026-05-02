@@ -79,6 +79,7 @@ export function locadorToApi(f) {
         complemento: f.complemento, bairro: f.bairro, cidade: f.cidade, estado: f.estado,
         banco: f.banco, agencia: f.agencia, conta: f.conta,
         tipo_conta: f.tipoConta, pix_chave: f.pixChave, observacoes: f.observacoes,
+        logo: f.logo || null,
     };
 }
 
@@ -100,6 +101,7 @@ export function locadorFromApi(r) {
         banco: r.banco || '', agencia: r.agencia || '', conta: r.conta || '',
         tipoConta: r.tipo_conta || 'corrente', pixChave: r.pix_chave || '',
         observacoes: r.observacoes || '',
+        logo: r.logo || null,
         // campo calculado para exibição
         nomeExibido: r.tipo === 'juridica' ? (r.razao_social || '') : (r.nome || ''),
     });
@@ -259,6 +261,7 @@ export function veiculoFromApi(r) {
         dataLicenciamento: r.data_licenciamento, dataVistoria: r.data_vistoria,
         bloqueador: r.bloqueador || '', nrBloqueador: r.nr_bloqueador || '',
         locadorId: r.locador_id, nomeLocador: r.nome_locador || '',
+        cidadeLocador: r.cidade_locador || '', estadoLocador: r.estado_locador || '',
         valorDiario: r.valor_diario ?? null,
         foto: r.foto || '', observacoes: r.observacoes || '',
     });
@@ -406,10 +409,12 @@ export function usuarioFromApi(r) {
             ? {
                 id: r.locador_proprio.id || null,
                 nome: r.locador_proprio.nome || '',
+                razaoSocial: r.locador_proprio.razao_social || '',
                 email: r.locador_proprio.email || '',
                 tipo: r.locador_proprio.tipo || 'fisica',
                 cpf: r.locador_proprio.cpf || '',
                 cnpj: r.locador_proprio.cnpj || '',
+                logo: r.locador_proprio.logo || null,
             }
             : null,
         ativo: r.ativo ?? 1,

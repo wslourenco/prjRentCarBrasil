@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
-import { Mail, Check } from 'lucide-react';
+import { Mail, Check, Eye, EyeOff } from 'lucide-react';
 
 export default function ConfigSmtp() {
   const { usuarioLogado } = useApp();
@@ -14,6 +14,7 @@ export default function ConfigSmtp() {
     mailFrom: '',
   });
   const [smtpStatus, setSmtpStatus] = useState(null);
+  const [showPass, setShowPass] = useState(false);
   const [smtpMensagem, setSmtpMensagem] = useState('');
   const [smtpErro, setSmtpErro] = useState('');
   const [salvandoSmtp, setSalvandoSmtp] = useState(false);
@@ -147,13 +148,19 @@ export default function ConfigSmtp() {
 
             <div className="form-group form-full">
               <label>Senha SMTP *</label>
-              <input
-                required
-                type="password"
-                value={smtpForm.pass}
-                onChange={e => setSmtpForm(prev => ({ ...prev, pass: e.target.value }))}
-                placeholder="Senha de app ou token SMTP"
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  required
+                  type={showPass ? 'text' : 'password'}
+                  value={smtpForm.pass}
+                  onChange={e => setSmtpForm(prev => ({ ...prev, pass: e.target.value }))}
+                  placeholder="Senha de app ou token SMTP"
+                  style={{ width: '100%', paddingRight: 40 }}
+                />
+                <button type="button" onClick={() => setShowPass(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', padding: 0 }}>
+                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
 
             <div className="form-group form-full">

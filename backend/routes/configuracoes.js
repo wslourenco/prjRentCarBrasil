@@ -132,7 +132,7 @@ router.put('/smtp', async (req, res) => {
         const port = Number(req.body?.smtp_port || req.body?.port || 587);
         const secure = String(req.body?.smtp_secure || req.body?.secure || '').toLowerCase() === 'true' || port === 465;
         const user = String(req.body?.smtp_user || req.body?.user || '').trim();
-        const pass = String(req.body?.smtp_pass || req.body?.pass || '').trim();
+        const pass = String(req.body?.smtp_pass || req.body?.pass || '').trim().replace(/\s+/g, '');
         const mailFrom = String(req.body?.mail_from || req.body?.mailFrom || '').trim();
 
         if (!host || !port || !user || !pass) {
@@ -197,7 +197,7 @@ router.put('/smtp/testar', async (req, res) => {
 
         const host = String(config.smtp_host || '').trim();
         const user = String(config.smtp_user || '').trim();
-        const pass = String(config.smtp_pass || '').trim();
+        const pass = String(config.smtp_pass || '').trim().replace(/\s+/g, '');
         const port = Number(config.smtp_port || 587);
         const secure = String(config.smtp_secure || 'false').toLowerCase() === 'true' || port === 465;
 

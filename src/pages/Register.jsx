@@ -1,13 +1,26 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Car, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Car, Eye, EyeOff, UserPlus, ImagePlus, X } from 'lucide-react';
 import { maskRg, isValidRG } from '../utils/masks';
 
 export default function Register() {
   const { register } = useApp();
   const navigate = useNavigate();
   const [form, setForm] = useState({ nome: '', email: '', senha: '', perfil: 'locatario', tipoDocumento: 'cpf', documento: '', rg: '' });
+  const [logo, setLogo] = useState(null);
+  const [erroLogo, setErroLogo] = useState('');
+
+  function handleLogoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setErroLogo('Selecione um arquivo de imagem (JPG, PNG, WebP).'); return; }
+    if (file.size > 500 * 1024) { setErroLogo('A imagem deve ter no máximo 500KB.'); return; }
+    setErroLogo('');
+    const reader = new FileReader();
+    reader.onload = e => setLogo(e.target.result);
+    reader.readAsDataURL(file);
+  }
   function maskDoc(value, tipo) {
     let v = value.replace(/\D/g, '');
     if (tipo === 'cpf') {
@@ -69,7 +82,7 @@ export default function Register() {
     }
     setCarregando(true);
     try {
-      const usuario = await register(form.nome, form.email, form.senha, form.perfil, form.tipoDocumento, form.documento, form.rg);
+      const usuario = await register(form.nome, form.email, form.senha, form.perfil, form.tipoDocumento, form.documento, form.rg, logo);
       navigate(usuario.perfil === 'locatario' ? '/painel' : '/dashboard');
     } catch (e) {
       setErro(e.message || 'Não foi possível criar sua conta.');
@@ -141,6 +154,28 @@ export default function Register() {
                         )}
                       </div>
                     )}
+
+                    {form.tipoDocumento === 'cnpj' && (
+                      <div className="form-group" style={{ marginBottom: 14 }}>
+                        <label>Logotipo da Empresa</label>
+                        {logo ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <img src={logo} alt="Logo" style={{ height: 64, maxWidth: 160, objectFit: 'contain', border: '1px solid var(--gray-200)', borderRadius: 8, padding: 4, background: '#fff' }} />
+                            <button type="button" onClick={() => setLogo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                              <X size={14} /> Remover
+                            </button>
+                          </div>
+                        ) : (
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 16px', border: '1.5px dashed var(--gray-300)', borderRadius: 8, fontSize: 13, color: 'var(--gray-500)', width: '100%', justifyContent: 'center' }}>
+                            <ImagePlus size={16} /> Clique para anexar o logotipo
+                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoChange} />
+                          </label>
+                        )}
+                        {erroLogo && <span style={{ color: 'red', fontSize: 12 }}>{erroLogo}</span>}
+                        <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>JPG, PNG ou WebP · máximo 500KB</span>
+                      </div>
+                    )}
+
           <div className="form-group" style={{ marginBottom: 14 }}>
             <label>Nome</label>
             <input

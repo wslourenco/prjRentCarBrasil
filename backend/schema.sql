@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS locadores (
   tipo_conta      ENUM('corrente','poupanca') DEFAULT 'corrente',
   pix_chave       VARCHAR(120),
   observacoes     TEXT,
+  logo            MEDIUMTEXT,
   criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

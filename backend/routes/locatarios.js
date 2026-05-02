@@ -26,7 +26,7 @@ router.get('/', requireProfiles('admin', 'auxiliar'), async (req, res) => {
 });
 
 // GET /api/locatarios/:id
-router.get('/:id', requireProfiles('admin', 'auxiliar'), async (req, res) => {
+router.get('/:id', requireProfiles('admin', 'auxiliar', 'locatario'), async (req, res) => {
     try {
         const [rows] = await pool.query(
             `SELECT lt.*, COALESCE(av.media_estrelas, 0) AS pontuacao_media, COALESCE(av.total_avaliacoes, 0) AS total_avaliacoes
@@ -90,7 +90,7 @@ router.post('/', adminOnly, async (req, res) => {
 });
 
 // PUT /api/locatarios/:id
-router.put('/:id', adminOnly, async (req, res) => {
+router.put('/:id', requireProfiles('admin', 'auxiliar', 'locatario'), async (req, res) => {
     const {
         tipo, nome, cpf, rg, data_nascimento, razao_social, cnpj, insc_estadual,
         telefone, celular, email, whatsapp,

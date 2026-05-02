@@ -136,7 +136,7 @@ async function getLocadorProfileForUser(db, usuario) {
     if (!email && !documento) return null;
 
     const [rows] = await db.query(
-        `SELECT id, nome, email, tipo, cpf, cnpj
+        `SELECT id, nome, razao_social, email, tipo, cpf, cnpj, logo
          FROM locadores
          WHERE LOWER(TRIM(email)) = LOWER(?)
          ORDER BY id ASC
@@ -148,7 +148,7 @@ async function getLocadorProfileForUser(db, usuario) {
     if (!documento) return null;
 
     const [docRows] = await db.query(
-        `SELECT id, nome, email, tipo, cpf, cnpj
+        `SELECT id, nome, razao_social, email, tipo, cpf, cnpj, logo
          FROM locadores
          WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(IFNULL(cpf, '')), '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?
             OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(IFNULL(cnpj, '')), '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?
@@ -163,7 +163,7 @@ async function getLocadorProfileForUser(db, usuario) {
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
-    const { nome, email, senha, perfil, tipoDocumento, documento, rg } = req.body;
+    const { nome, email, senha, perfil, tipoDocumento, documento, rg, logo } = req.body;
     const perfilEscolhido = sanitizeProfile(perfil);
     const tipoDoc = (tipoDocumento === 'cnpj') ? 'cnpj' : 'cpf';
     const doc = normalizeDocumento(documento);
@@ -194,9 +194,13 @@ router.post('/register', async (req, res) => {
         );
 
         if (perfilEscolhido === 'locador') {
+            const tipoLocador = tipoDoc === 'cnpj' ? 'juridica' : 'fisica';
+            const logoLimpo = typeof logo === 'string' && logo.startsWith('data:image/') ? logo : null;
             await conn.query(
-                'INSERT INTO locadores (tipo, nome, email, cpf, rg) VALUES (?,?,?,?,?)',
-                ['fisica', nome, email, tipoDoc === 'cpf' ? doc : null, rgLimpo || null]
+                'INSERT INTO locadores (tipo, nome, razao_social, email, cpf, cnpj, rg, logo) VALUES (?,?,?,?,?,?,?,?)',
+                [tipoLocador, nome, tipoLocador === 'juridica' ? nome : null, email,
+                 tipoDoc === 'cpf' ? doc : null, tipoDoc === 'cnpj' ? doc : null,
+                 rgLimpo || null, logoLimpo]
             );
         } else {
             await conn.query(
@@ -218,7 +222,8 @@ router.post('/register', async (req, res) => {
         };
         const token = buildJwtToken(usuario);
         const locatario = await getLocatarioProfileForUser(conn, usuario);
-        return res.status(201).json({ token, usuario, locatario });
+        const locador_proprio = await getLocadorProfileForUser(conn, usuario);
+        return res.status(201).json({ token, usuario, locatario, locador_proprio });
     } catch (err) {
         await conn.rollback();
         console.error(err);

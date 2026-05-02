@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Plus, Edit2, Trash2, X, Check } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Check, ImagePlus } from 'lucide-react';
 import { applyMask } from '../utils/masks';
 
 const EMPTY = {
@@ -13,7 +13,7 @@ const EMPTY = {
   email: '', telefone: '', celular: '',
   cep: '', endereco: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '',
   banco: '', agencia: '', conta: '', tipoConta: 'corrente', pixChave: '',
-  observacoes: '',
+  observacoes: '', logo: null,
 };
 
 export default function Locadores() {
@@ -24,9 +24,21 @@ export default function Locadores() {
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
 
   const [erroCrud, setErroCrud] = useState('');
+  const [erroLogo, setErroLogo] = useState('');
 
-  function abrirNovo() { setForm(EMPTY); setEditId(null); setModal(true); setErroCrud(''); }
-  function abrirEditar(loc) { setForm({ ...EMPTY, ...loc }); setEditId(loc.id); setModal(true); setErroCrud(''); }
+  function handleLogoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setErroLogo('Selecione uma imagem (JPG, PNG, WebP).'); return; }
+    if (file.size > 500 * 1024) { setErroLogo('Imagem deve ter no máximo 500KB.'); return; }
+    setErroLogo('');
+    const reader = new FileReader();
+    reader.onload = ev => setForm(prev => ({ ...prev, logo: ev.target.result }));
+    reader.readAsDataURL(file);
+  }
+
+  function abrirNovo() { setForm(EMPTY); setEditId(null); setModal(true); setErroCrud(''); setErroLogo(''); }
+  function abrirEditar(loc) { setForm({ ...EMPTY, ...loc }); setEditId(loc.id); setModal(true); setErroCrud(''); setErroLogo(''); }
   function fecharModal() { setModal(false); setEditId(null); setErroCrud(''); }
 
   async function handleSubmit(e) {
@@ -204,6 +216,37 @@ export default function Locadores() {
                     <div className="form-group"><label>Chave PIX</label><input {...f('pixChave')} /></div>
                   </div>
                 </div>
+
+                {form.tipo === 'juridica' && (
+                  <div className="form-section">
+                    <div className="form-section-title">Logotipo da Empresa</div>
+                    <div className="form-grid">
+                      <div className="form-group form-full">
+                        {form.logo ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                            <img src={form.logo} alt="Logo" style={{ maxHeight: 72, maxWidth: 200, objectFit: 'contain', border: '1px solid var(--gray-200)', borderRadius: 8, padding: 6, background: '#fff' }} />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: 'var(--primary)' }}>
+                                <ImagePlus size={14} /> Trocar logo
+                                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoChange} />
+                              </label>
+                              <button type="button" onClick={() => setForm(prev => ({ ...prev, logo: null }))} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--danger)', textAlign: 'left', padding: 0 }}>
+                                <X size={13} /> Remover logo
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '10px 20px', border: '1.5px dashed var(--gray-300)', borderRadius: 8, fontSize: 13, color: 'var(--gray-500)' }}>
+                            <ImagePlus size={16} /> Clique para anexar o logotipo
+                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoChange} />
+                          </label>
+                        )}
+                        {erroLogo && <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 4 }}>{erroLogo}</p>}
+                        <p style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>JPG, PNG ou WebP · máximo 500KB · aparece no topo de todas as telas</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="form-section">
                   <div className="form-section-title">Observações</div>

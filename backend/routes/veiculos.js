@@ -129,7 +129,9 @@ router.get('/', async (req, res) => {
     try {
         let sql = `
             SELECT v.*,
-                   COALESCE(l.razao_social, l.nome) AS nome_locador
+                   COALESCE(l.razao_social, l.nome) AS nome_locador,
+                   l.cidade AS cidade_locador,
+                   l.estado AS estado_locador
             FROM veiculos v
             LEFT JOIN locadores l ON v.locador_id = l.id
         `;

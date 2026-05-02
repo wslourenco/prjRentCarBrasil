@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Car, Users, UserCheck, Briefcase,
-  DollarSign, Settings, Mail, LogOut, ChevronRight, CreditCard
+  DollarSign, Settings, Mail, LogOut, ChevronRight, CreditCard, UserCog
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -95,6 +95,11 @@ export default function Sidebar() {
             </NavLink>
           </>
         )}
+
+        <span className="sidebar-section-title">Conta</span>
+        <NavLink to="/meu-cadastro" className={({ isActive }) => isActive ? 'active' : ''}>
+          <UserCog size={16} /> Meu Cadastro
+        </NavLink>
       </nav>
 
       <div className="sidebar-footer">
