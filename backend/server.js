@@ -98,6 +98,51 @@ app.use(cors((req, callback) => {
 app.use(express.json({ limit: '20mb' }));
 
 // Rotas
+// PUT /api/configuracoes/brevo — registrado aqui para garantir prioridade sobre PUT /:chave (admin)
+app.put('/api/configuracoes/brevo', require('./middleware/auth').authMiddleware, async (req, res) => {
+    try {
+        const pool = require('./db');
+        const apiKey = String(req.body?.api_key || '').trim();
+        const senderEmail = String(req.body?.sender_email || '').trim();
+        const senderName = String(req.body?.sender_name || 'RentCarBrasil').trim();
+
+        if (!senderEmail) return res.status(400).json({ erro: 'E-mail remetente é obrigatório.' });
+
+        if (!apiKey) {
+            const [ex] = await pool.query("SELECT valor FROM configuracoes WHERE chave='brevo_api_key' LIMIT 1");
+            if (!ex.length || !ex[0].valor) return res.status(400).json({ erro: 'A API Key do Brevo é obrigatória no primeiro cadastro.' });
+        }
+
+        const upsert = (chave, valor, tipo) => pool.query(
+            'INSERT INTO configuracoes (chave,valor,tipo,descricao) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor=VALUES(valor),tipo=VALUES(tipo),atualizado_em=CURRENT_TIMESTAMP',
+            [chave, valor, tipo, `Configuração ${chave}`]
+        );
+        await upsert('email_provider', 'brevo', 'texto');
+        if (apiKey) await upsert('brevo_api_key', apiKey, 'texto');
+        await upsert('brevo_sender_email', senderEmail, 'texto');
+        await upsert('brevo_sender_name', senderName, 'texto');
+
+        res.json({ mensagem: 'Configuração Brevo salva. Agora clique em Testar Envio.', configurado: true });
+    } catch (err) {
+        console.error('[brevo save]', err.message);
+        res.status(500).json({ erro: 'Erro ao salvar configuração Brevo: ' + err.message });
+    }
+});
+
+// PUT /api/configuracoes/smtp/ativar — idem
+app.put('/api/configuracoes/smtp/ativar', require('./middleware/auth').authMiddleware, async (req, res) => {
+    try {
+        const pool = require('./db');
+        await pool.query(
+            'INSERT INTO configuracoes (chave,valor,tipo,descricao) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor=VALUES(valor),atualizado_em=CURRENT_TIMESTAMP',
+            ['email_provider', 'smtp', 'texto', 'Provedor de e-mail ativo']
+        );
+        res.json({ mensagem: 'Provedor SMTP ativado.' });
+    } catch (err) {
+        res.status(500).json({ erro: 'Erro ao ativar SMTP.' });
+    }
+});
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/locadores', require('./routes/locadores'));
 app.use('/api/locatarios', require('./routes/locatarios'));
