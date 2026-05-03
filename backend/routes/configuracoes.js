@@ -185,7 +185,7 @@ router.put('/smtp', async (req, res) => {
     }
 });
 
-// PUT /api/configuracoes/smtp/testar - Testar conexão SMTP
+// PUT /api/configuracoes/smtp/testar - Testa conexão SMTP (verify + envio real)
 router.put('/smtp/testar', async (req, res) => {
     try {
         const [rows] = await dbQuery(`
@@ -200,18 +200,34 @@ router.put('/smtp/testar', async (req, res) => {
         const pass = String(config.smtp_pass || '').trim().replace(/\s+/g, '');
         const port = Number(config.smtp_port || 587);
         const secure = String(config.smtp_secure || 'false').toLowerCase() === 'true' || port === 465;
+        const from = String(config.mail_from || user).trim();
+        const destino = req.body?.destino || from;
 
         if (!host || !user || !pass) {
             return res.status(400).json({ erro: 'Configure smtp_host, smtp_user e smtp_pass primeiro.' });
         }
 
-        const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
+        const transporter = nodemailer.createTransport({
+            host, port, secure,
+            auth: { user, pass },
+            tls: { rejectUnauthorized: false },
+        });
+
         await transporter.verify();
 
-        res.json({ sucesso: true, mensagem: 'Conexão SMTP testada com sucesso!' });
+        const info = await transporter.sendMail({
+            from,
+            to: destino,
+            subject: 'Teste de e-mail — RentCarBrasil',
+            text: 'Este é um e-mail de teste enviado pelo sistema RentCarBrasil para verificar a configuração SMTP.',
+            html: '<p>Este é um e-mail de <strong>teste</strong> enviado pelo sistema <strong>RentCarBrasil</strong> para verificar a configuração SMTP.</p>',
+        });
+
+        console.log(`[SMTP teste] E-mail enviado para ${destino} — messageId: ${info.messageId}`);
+        res.json({ sucesso: true, mensagem: `E-mail de teste enviado para ${destino}.`, messageId: info.messageId });
     } catch (err) {
         console.error('Erro ao testar SMTP:', err);
-        res.status(400).json({ erro: `Erro na conexão SMTP: ${err.message}` });
+        res.status(400).json({ erro: `Erro na conexão SMTP: ${err.message}`, detalhe: err.code || null });
     }
 });
 

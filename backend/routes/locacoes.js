@@ -393,6 +393,7 @@ async function criarTransporter() {
         return nodemailer.createTransport({
             host, port, secure,
             auth: { user, pass },
+            tls: { rejectUnauthorized: false },
         });
     } catch (err) {
         console.error('Erro ao criar transporter:', err);
@@ -554,8 +555,7 @@ async function enviarEmailAprovacaoLocacao(locacaoId) {
 
         const contatoLocador = [d.telefone_locador, d.celular_locador].filter(Boolean).join(' / ') || '—';
 
-        const [mailCfg] = await pool.query("SELECT valor FROM configuracoes WHERE chave = 'mail_from' LIMIT 1");
-        const from = mailCfg[0]?.valor || process.env.MAIL_FROM || process.env.SMTP_USER;
+        const from = await getMailFrom();
 
         await transporter.sendMail({
             from,
@@ -624,6 +624,15 @@ async function enviarEmailAprovacaoLocacao(locacaoId) {
     }
 }
 
+async function getMailFrom() {
+    try {
+        const [rows] = await pool.query("SELECT valor FROM configuracoes WHERE chave = 'mail_from' OR chave = 'smtp_user' ORDER BY chave='mail_from' DESC LIMIT 1");
+        return rows[0]?.valor || process.env.MAIL_FROM || process.env.SMTP_USER || '';
+    } catch {
+        return process.env.MAIL_FROM || process.env.SMTP_USER || '';
+    }
+}
+
 async function enviarContratoPorEmail({ para, nomeLocatario, pdfBuffer, nomeArquivo }) {
     const transporter = await criarTransporter();
     if (!transporter) {
@@ -632,7 +641,7 @@ async function enviarContratoPorEmail({ para, nomeLocatario, pdfBuffer, nomeArqu
         throw err;
     }
 
-    const from = process.env.MAIL_FROM || process.env.SMTP_USER;
+    const from = await getMailFrom();
     const info = await transporter.sendMail({
         from,
         to: para,
