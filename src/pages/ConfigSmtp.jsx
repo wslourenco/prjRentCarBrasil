@@ -58,8 +58,8 @@ export default function ConfigSmtp() {
     setMensagem(''); setErro('');
     setSalvandoSmtp(true);
     try {
-      await api.put('/configuracoes/smtp/ativar', {});
       await api.put('/configuracoes/smtp', {
+        provider: 'smtp',
         host: smtpForm.host, port: Number(smtpForm.port || 587),
         secure: smtpForm.secure, user: smtpForm.user,
         pass: smtpForm.pass, mailFrom: smtpForm.mailFrom,
@@ -77,10 +77,11 @@ export default function ConfigSmtp() {
     setMensagem(''); setErro('');
     setSalvandoBrevo(true);
     try {
-      await api.put('/configuracoes/brevo', {
-        api_key: brevoForm.apiKey,
-        sender_email: brevoForm.senderEmail,
-        sender_name: brevoForm.senderName,
+      await api.put('/configuracoes/smtp', {
+        provider: 'brevo',
+        brevo_api_key: brevoForm.apiKey,
+        brevo_sender_email: brevoForm.senderEmail,
+        brevo_sender_name: brevoForm.senderName,
       });
       setMensagem('Configuração Brevo salva. Agora clique em Testar Envio.');
       setFoiSalvoBrevo(true); setApiKeyConfigurada(true);

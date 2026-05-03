@@ -166,6 +166,38 @@ router.get('/:chave', async (req, res) => {
 // PUT /api/configuracoes/smtp - Atualizar SMTP
 router.put('/smtp', async (req, res) => {
     try {
+        // ── Modo Brevo API ────────────────────────────────────────────────────
+        if (req.body?.provider === 'brevo') {
+            const apiKey     = String(req.body?.brevo_api_key     || '').trim();
+            const senderEmail = String(req.body?.brevo_sender_email || '').trim();
+            const senderName  = String(req.body?.brevo_sender_name  || 'RentCarBrasil').trim();
+
+            if (!senderEmail) return res.status(400).json({ erro: 'E-mail remetente é obrigatório.' });
+
+            if (!apiKey) {
+                const [ex] = await dbQuery("SELECT valor FROM configuracoes WHERE chave='brevo_api_key' LIMIT 1");
+                if (!ex.length || !ex[0].valor) return res.status(400).json({ erro: 'A API Key do Brevo é obrigatória no primeiro cadastro.' });
+            }
+
+            const upsert = (chave, valor, tipo) => dbQuery(
+                'INSERT INTO configuracoes (chave,valor,tipo,descricao) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor=VALUES(valor),tipo=VALUES(tipo),atualizado_em=CURRENT_TIMESTAMP',
+                [chave, valor, tipo, `Configuração ${chave}`]
+            );
+            await upsert('email_provider', 'brevo', 'texto');
+            if (apiKey) await upsert('brevo_api_key', apiKey, 'texto');
+            await upsert('brevo_sender_email', senderEmail, 'texto');
+            await upsert('brevo_sender_name', senderName, 'texto');
+            router.limparCache();
+            return res.json({ mensagem: 'Configuração Brevo salva. Agora clique em Testar Envio.', configurado: true });
+        }
+
+        // ── Modo SMTP ─────────────────────────────────────────────────────────
+        // Ativar SMTP como provedor
+        await dbQuery(
+            'INSERT INTO configuracoes (chave,valor,tipo,descricao) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor=VALUES(valor),atualizado_em=CURRENT_TIMESTAMP',
+            ['email_provider','smtp','texto','Provedor de e-mail ativo']
+        );
+
         const host = String(req.body?.smtp_host || req.body?.host || '').trim();
         const port = Number(req.body?.smtp_port || req.body?.port || 587);
         const secure = String(req.body?.smtp_secure || req.body?.secure || '').toLowerCase() === 'true' || port === 465;
