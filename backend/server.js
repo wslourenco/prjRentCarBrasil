@@ -120,6 +120,20 @@ app.get('/api/smtp-ping', async (req, res) => {
     try {
         const nodemailer = require('nodemailer');
         const pool = require('./db');
+        const dbInfo = {
+            DB_HOST: process.env.DB_HOST || 'não definido',
+            DB_NAME: process.env.DB_NAME || 'não definido',
+            MYSQLHOST: process.env.MYSQLHOST || 'não definido',
+            MYSQLDATABASE: process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || 'não definido',
+        };
+        // Testa conexão direta ao MySQL
+        let dbStatus = 'desconhecido';
+        try {
+            const [testRows] = await pool.query('SELECT 1 AS ok');
+            dbStatus = 'conectado';
+        } catch(dbErr) {
+            dbStatus = 'erro: ' + dbErr.message;
+        }
         const [rows] = await pool.query("SELECT chave,valor FROM configuracoes WHERE chave LIKE 'smtp_%' OR chave='mail_from'");
         const cfg = {};
         rows.forEach(r => cfg[r.chave] = r.valor);
@@ -127,12 +141,12 @@ app.get('/api/smtp-ping', async (req, res) => {
         const port=Number(cfg.smtp_port||587);
         const secure=String(cfg.smtp_secure||'false').toLowerCase()==='true';
         const from=cfg.mail_from||user;
-        if (!host||!user||!pass) return res.json({smtp:'não configurado'});
+        if (!host||!user||!pass) return res.json({smtp:'não configurado', dbInfo, dbStatus, cfgKeys: Object.keys(cfg)});
         const t=nodemailer.createTransport({host,port,secure,auth:{user,pass},tls:{rejectUnauthorized:false}});
         await t.verify();
         const destino=req.query.to||from;
         const info=await t.sendMail({from,to:destino,subject:'[Diagnóstico Railway] RentCarBrasil',html:'<p>Teste do servidor <strong>Railway</strong>.</p>'});
-        res.json({ok:true,messageId:info.messageId,para:destino,host,port});
+        res.json({ok:true,messageId:info.messageId,para:destino,host,port,dbInfo,dbStatus});
     } catch(e) {
         res.json({ok:false,erro:e.message,code:e.code});
     }
