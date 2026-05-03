@@ -237,19 +237,37 @@ router.put('/smtp/testar', async (req, res) => {
             return res.status(400).json({ erro: 'Configure smtp_host, smtp_user e smtp_pass primeiro.' });
         }
 
-        const transporter = nodemailer.createTransport({
-            host, port, secure,
-            auth: { user, pass },
-            tls: { rejectUnauthorized: false },
-            connectionTimeout: 10000,
-            greetingTimeout: 10000,
-            socketTimeout: 15000,
-        });
-
         const withTimeout = (promise, ms, msg) =>
             Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(msg)), ms))]);
 
-        await withTimeout(transporter.verify(), 12000, 'Timeout ao conectar ao servidor SMTP. Verifique host e porta.');
+        // Tenta a configuração salva; se falhar por timeout/conexão, tenta automaticamente a outra porta do Gmail
+        const tentativas = [{ host, port, secure }];
+        if (host.includes('gmail') && port === 587) tentativas.push({ host, port: 465, secure: true });
+        if (host.includes('gmail') && port === 465) tentativas.push({ host, port: 587, secure: false });
+
+        let transporter, ultimoErro;
+        for (const tentativa of tentativas) {
+            try {
+                const t = nodemailer.createTransport({
+                    host: tentativa.host, port: tentativa.port, secure: tentativa.secure,
+                    auth: { user, pass },
+                    tls: { rejectUnauthorized: false },
+                    connectionTimeout: 8000,
+                    greetingTimeout: 8000,
+                    socketTimeout: 10000,
+                });
+                await withTimeout(t.verify(), 10000, `Timeout porta ${tentativa.port}`);
+                transporter = t;
+                break;
+            } catch (err) {
+                ultimoErro = err;
+                console.warn(`[SMTP teste] falhou porta ${tentativa.port}: ${err.message}`);
+            }
+        }
+
+        if (!transporter) {
+            throw new Error(`Não foi possível conectar ao servidor SMTP. Último erro: ${ultimoErro?.message}. Tente porta 465 com SSL=Sim, ou use outro provedor (Brevo, SendGrid).`);
+        }
 
         const info = await withTimeout(
             transporter.sendMail({
