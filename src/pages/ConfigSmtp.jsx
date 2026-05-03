@@ -19,6 +19,7 @@ export default function ConfigSmtp() {
   const [smtpErro, setSmtpErro] = useState('');
   const [salvandoSmtp, setSalvandoSmtp] = useState(false);
   const [testandoSmtp, setTestandoSmtp] = useState(false);
+  const [foiSalvo, setFoiSalvo] = useState(false);
 
   useEffect(() => {
     async function carregarStatusSmtp() {
@@ -56,7 +57,8 @@ export default function ConfigSmtp() {
         pass: smtpForm.pass,
         mailFrom: smtpForm.mailFrom,
       });
-      setSmtpMensagem('Configuração SMTP salva com sucesso.');
+      setSmtpMensagem('Configuração SMTP salva com sucesso. Agora você pode testar a conexão.');
+      setFoiSalvo(true);
       setSmtpForm(prev => ({ ...prev, pass: '' }));
       const status = await api.get('/configuracoes/smtp/status');
       setSmtpStatus(status);
@@ -68,6 +70,10 @@ export default function ConfigSmtp() {
   }
 
   async function testarSmtp() {
+    if (!foiSalvo && !smtpStatus?.configurado) {
+      setSmtpErro('Salve as configurações antes de testar a conexão.');
+      return;
+    }
     setSmtpMensagem('');
     setSmtpErro('');
     setTestandoSmtp(true);
