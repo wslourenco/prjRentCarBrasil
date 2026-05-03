@@ -114,6 +114,30 @@ app.use('/api/debitos', require('./routes/debitos'));
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
+// Diagnóstico SMTP — sem auth, protegido por chave (remover após teste)
+app.get('/api/smtp-ping', async (req, res) => {
+    if (req.query.key !== 'rcb-diag-2026') return res.status(403).json({ erro: 'Proibido.' });
+    try {
+        const nodemailer = require('nodemailer');
+        const pool = require('./db');
+        const [rows] = await pool.query("SELECT chave,valor FROM configuracoes WHERE chave LIKE 'smtp_%' OR chave='mail_from'");
+        const cfg = {};
+        rows.forEach(r => cfg[r.chave] = r.valor);
+        const host=cfg.smtp_host, user=cfg.smtp_user, pass=String(cfg.smtp_pass||'').replace(/\s+/g,'');
+        const port=Number(cfg.smtp_port||587);
+        const secure=String(cfg.smtp_secure||'false').toLowerCase()==='true';
+        const from=cfg.mail_from||user;
+        if (!host||!user||!pass) return res.json({smtp:'não configurado'});
+        const t=nodemailer.createTransport({host,port,secure,auth:{user,pass},tls:{rejectUnauthorized:false}});
+        await t.verify();
+        const destino=req.query.to||from;
+        const info=await t.sendMail({from,to:destino,subject:'[Diagnóstico Railway] RentCarBrasil',html:'<p>Teste do servidor <strong>Railway</strong>.</p>'});
+        res.json({ok:true,messageId:info.messageId,para:destino,host,port});
+    } catch(e) {
+        res.json({ok:false,erro:e.message,code:e.code});
+    }
+});
+
 // Servir frontend React
 const publicDir = path.join(__dirname, 'public');
 app.use((req, res, next) => {
