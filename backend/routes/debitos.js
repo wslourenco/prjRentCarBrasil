@@ -254,7 +254,13 @@ async function registrarWebhook() {
         );
         console.log('[Celcoin] Webhook registrado:', `${backendUrl}/api/debitos/webhook`);
     } catch (err) {
-        console.warn('[Celcoin] Falha ao registrar webhook:', err.response?.data?.message || err.message);
+        const msg = err.response?.data?.message || err.message;
+        const isProdutoNaoLiberado = msg?.toLowerCase().includes('produto') || msg?.toLowerCase().includes('liberado');
+        if (isProdutoNaoLiberado) {
+            console.warn('[Celcoin] Webhook não registrado: produto "débitos veiculares" não está habilitado nesta conta. Acesse developers.celcoin.com.br e verifique se o produto vehicledebts está ativo nas suas credenciais.');
+        } else {
+            console.warn('[Celcoin] Falha ao registrar webhook:', msg);
+        }
     }
 }
 
