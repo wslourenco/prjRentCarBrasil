@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
+import { api } from '../services/api';
 import {
   Car, User, Phone, Mail, DollarSign, Wrench, X, Plus, CheckCircle,
-  ChevronRight, MessageCircle, Bell, Check, CalendarDays, Star
+  ChevronRight, MessageCircle, Bell, Check, CalendarDays, Star,
+  FileText, Eye, MapPin, CreditCard, Briefcase
 } from 'lucide-react';
 
 const AVALIACAO_QUESTOES = [
@@ -73,7 +75,22 @@ export default function Painel() {
   const [confirmarExcluir, setConfirmarExcluir] = useState(null);
   const [filtroCategoriaVeiculo, setFiltroCategoriaVeiculo] = useState('');
   const [aprovandoId, setAprovandoId] = useState(null);
+  const [modalLocatario, setModalLocatario] = useState(null); // { locacaoId, dados: null | objeto }
+  const [carregandoLocatario, setCarregandoLocatario] = useState(false);
   const podeEditarExcluir = usuarioLogado?.perfil === 'admin' || usuarioLogado?.perfil === 'auxiliar';
+
+  const verDadosLocatario = useCallback(async (locacaoId) => {
+    setModalLocatario({ locacaoId, dados: null });
+    setCarregandoLocatario(true);
+    try {
+      const dados = await api.get(`/locacoes/${locacaoId}/locatario`);
+      setModalLocatario({ locacaoId, dados });
+    } catch (e) {
+      setModalLocatario({ locacaoId, dados: null, erro: e.message });
+    } finally {
+      setCarregandoLocatario(false);
+    }
+  }, []);
 
   const locacoesAtivas = locacoes.filter(l => l.status === 'ativa');
   const solicitacoesPendentes = locacoes.filter(l => l.status === 'pendente_aprovacao');
@@ -387,7 +404,7 @@ export default function Painel() {
                   <th>Início</th>
                   <th>Período</th>
                   <th>Antecedentes</th>
-                  <th>Ação</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -410,7 +427,15 @@ export default function Painel() {
                           <a href={antecedenteUrl} target="_blank" rel="noopener noreferrer">Ver arquivo</a>
                         ) : '-'}
                       </td>
-                      <td>
+                      <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                          onClick={() => verDadosLocatario(loc.id)}
+                        >
+                          <Eye size={13} /> Ver Dados
+                        </button>
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
@@ -749,6 +774,145 @@ export default function Painel() {
                   </div>
                 </form>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: dados completos do locatário */}
+      {modalLocatario && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 680, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,0.22)' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: '1px solid var(--gray-100)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <User size={20} color="var(--primary)" />
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Dados do Locatário</h3>
+              </div>
+              <button onClick={() => setModalLocatario(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', padding: 4 }}><X size={20} /></button>
+            </div>
+
+            <div style={{ padding: '20px 24px 24px' }}>
+              {carregandoLocatario && <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '32px 0' }}>Carregando...</p>}
+              {modalLocatario.erro && <p style={{ color: 'red', textAlign: 'center' }}>{modalLocatario.erro}</p>}
+
+              {modalLocatario.dados && (() => {
+                const d = modalLocatario.dados;
+                const fmtData = v => v ? new Date(v).toLocaleDateString('pt-BR') : '—';
+                const fmtMoeda = v => v != null ? Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—';
+                const val = v => v || '—';
+
+                function Secao({ icone, titulo, children }) {
+                  return (
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+                        {icone}
+                        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--gray-700)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{titulo}</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '6px 16px' }}>
+                        {children}
+                      </div>
+                    </div>
+                  );
+                }
+                function Campo({ label, value }) {
+                  return (
+                    <div>
+                      <span style={{ fontSize: 11, color: 'var(--gray-400)', display: 'block' }}>{label}</span>
+                      <span style={{ fontSize: 13, color: 'var(--gray-800)', wordBreak: 'break-word' }}>{value}</span>
+                    </div>
+                  );
+                }
+                function DocPreview({ label, base64 }) {
+                  if (!base64) return <div><span style={{ fontSize: 11, color: 'var(--gray-400)', display: 'block' }}>{label}</span><span style={{ fontSize: 12, color: 'var(--gray-300)' }}>Não enviado</span></div>;
+                  const isPdf = base64.startsWith('data:application/pdf');
+                  return (
+                    <div>
+                      <span style={{ fontSize: 11, color: 'var(--gray-400)', display: 'block', marginBottom: 4 }}>{label}</span>
+                      {isPdf
+                        ? <a href={base64} download={`${label}.pdf`} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--primary)', padding: '4px 8px', border: '1px solid var(--gray-200)', borderRadius: 6, textDecoration: 'none' }}><FileText size={13} /> Baixar PDF</a>
+                        : <a href={base64} target="_blank" rel="noreferrer"><img src={base64} alt={label} style={{ height: 70, width: 90, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--gray-200)', display: 'block' }} title="Clique para ampliar" /></a>
+                      }
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <Secao icone={<User size={15} color="var(--primary)" />} titulo="Identificação">
+                      <Campo label="Nome" value={val(d.nome)} />
+                      <Campo label="E-mail" value={val(d.email)} />
+                      <Campo label="CPF" value={val(d.cpf)} />
+                      <Campo label="RG" value={val(d.rg)} />
+                      {d.cnpj && <Campo label="CNPJ" value={d.cnpj} />}
+                      {d.razao_social && <Campo label="Razão Social" value={d.razao_social} />}
+                      <Campo label="Data de Nascimento" value={fmtData(d.data_nascimento)} />
+                    </Secao>
+
+                    <Secao icone={<Phone size={15} color="var(--primary)" />} titulo="Contato">
+                      <Campo label="Telefone" value={val(d.telefone)} />
+                      <Campo label="Celular" value={val(d.celular)} />
+                      <Campo label="WhatsApp" value={val(d.whatsapp)} />
+                    </Secao>
+
+                    <Secao icone={<MapPin size={15} color="var(--primary)" />} titulo="Endereço">
+                      <Campo label="CEP" value={val(d.cep)} />
+                      <Campo label="Endereço" value={val(d.endereco)} />
+                      <Campo label="Número" value={val(d.numero)} />
+                      {d.complemento && <Campo label="Complemento" value={d.complemento} />}
+                      <Campo label="Bairro" value={val(d.bairro)} />
+                      <Campo label="Cidade" value={val(d.cidade)} />
+                      <Campo label="Estado" value={val(d.estado)} />
+                    </Secao>
+
+                    <Secao icone={<CreditCard size={15} color="var(--primary)" />} titulo="CNH">
+                      <Campo label="Número CNH" value={val(d.cnh)} />
+                      <Campo label="Categoria" value={val(d.categoria_cnh)} />
+                      <Campo label="Validade" value={fmtData(d.validade_cnh)} />
+                      <Campo label="Órgão Emissor" value={val(d.orgao_emissor_cnh)} />
+                      <Campo label="Estado CNH" value={val(d.estado_cnh)} />
+                    </Secao>
+
+                    <Secao icone={<Briefcase size={15} color="var(--primary)" />} titulo="Profissional">
+                      <Campo label="Profissão" value={val(d.profissao)} />
+                      <Campo label="Renda Mensal" value={fmtMoeda(d.renda_mensal)} />
+                      {d.motorist_app ? (
+                        <>
+                          <Campo label="Motorista de App" value="Sim" />
+                          <Campo label="Plataformas" value={val(d.plataformas_app)} />
+                          <Campo label="Avaliação no App" value={val(d.avaliacao_app)} />
+                        </>
+                      ) : <Campo label="Motorista de App" value="Não" />}
+                    </Secao>
+
+                    {(d.ref_nome1 || d.ref_nome2) && (
+                      <Secao icone={<User size={15} color="var(--primary)" />} titulo="Referências">
+                        {d.ref_nome1 && <><Campo label="Referência 1" value={d.ref_nome1} /><Campo label="Telefone" value={val(d.ref_telefone1)} /></>}
+                        {d.ref_nome2 && <><Campo label="Referência 2" value={d.ref_nome2} /><Campo label="Telefone" value={val(d.ref_telefone2)} /></>}
+                      </Secao>
+                    )}
+
+                    {d.observacoes && (
+                      <div style={{ marginBottom: 20 }}>
+                        <span style={{ fontSize: 11, color: 'var(--gray-400)', display: 'block', marginBottom: 4 }}>OBSERVAÇÕES</span>
+                        <p style={{ fontSize: 13, color: 'var(--gray-700)', margin: 0, whiteSpace: 'pre-wrap' }}>{d.observacoes}</p>
+                      </div>
+                    )}
+
+                    <div style={{ borderTop: '1px solid var(--gray-100)', paddingTop: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+                        <FileText size={15} color="var(--primary)" />
+                        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--gray-700)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Documentos</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                        <DocPreview label="RG" base64={d.doc_rg} />
+                        <DocPreview label="CPF / CNPJ" base64={d.doc_cpf} />
+                        <DocPreview label="Comprovante de Residência" base64={d.doc_comprovante} />
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

@@ -590,6 +590,48 @@ router.get('/', async (req, res) => {
     }
 });
 
+// GET /api/locacoes/:id/locatario — dados completos do locatário + documentos (acessível ao locador da viatura)
+router.get('/:id/locatario', async (req, res) => {
+    try {
+        // Verifica se o locador tem acesso a essa locação
+        let ownerSql = `SELECT lc.locatario_id, v.locador_id FROM locacoes lc LEFT JOIN veiculos v ON lc.veiculo_id = v.id WHERE lc.id = ?`;
+        const [ownerRows] = await pool.query(ownerSql, [req.params.id]);
+        if (ownerRows.length === 0) return res.status(404).json({ erro: 'Locação não encontrada.' });
+
+        const { locatario_id: locatarioId, locador_id: locadorId } = ownerRows[0];
+
+        if (req.usuario?.perfil === 'locador') {
+            const myLocadorId = await getLocadorIdForUser(req.usuario);
+            if (!myLocadorId || String(myLocadorId) !== String(locadorId)) {
+                return res.status(403).json({ erro: 'Acesso não autorizado.' });
+            }
+        } else if (req.usuario?.perfil === 'auxiliar') {
+            const myLocadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!myLocadorId || String(myLocadorId) !== String(locadorId)) {
+                return res.status(403).json({ erro: 'Acesso não autorizado.' });
+            }
+        } else if (req.usuario?.perfil !== 'admin') {
+            return res.status(403).json({ erro: 'Acesso não autorizado.' });
+        }
+
+        // Busca todos os campos do locatário + documentos do usuário vinculado
+        const [rows] = await pool.query(
+            `SELECT lt.*,
+                    u.doc_rg, u.doc_cpf, u.doc_comprovante
+             FROM locatarios lt
+             LEFT JOIN usuarios u ON LOWER(TRIM(u.email)) = LOWER(TRIM(lt.email))
+             WHERE lt.id = ?
+             LIMIT 1`,
+            [locatarioId]
+        );
+        if (rows.length === 0) return res.status(404).json({ erro: 'Locatário não encontrado.' });
+        res.json(rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ erro: 'Erro ao buscar dados do locatário.' });
+    }
+});
+
 // GET /api/locacoes/:id
 router.get('/:id', async (req, res) => {
     try {
