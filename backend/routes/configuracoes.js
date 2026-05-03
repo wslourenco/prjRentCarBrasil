@@ -252,37 +252,33 @@ router.put('/brevo', async (req, res) => {
         const senderEmail = String(req.body?.sender_email || '').trim();
         const senderName = String(req.body?.sender_name || 'RentCarBrasil').trim();
 
-        if (!apiKey || !senderEmail) {
-            return res.status(400).json({ erro: 'API Key e e-mail remetente são obrigatórios.' });
+        if (!senderEmail) {
+            return res.status(400).json({ erro: 'E-mail remetente é obrigatório.' });
         }
 
-        const conn = await dbGetConnection();
-        try {
-            await conn.beginTransaction();
-            const configs = [
-                { chave: 'email_provider', valor: 'brevo', tipo: 'texto' },
-                { chave: 'brevo_api_key', valor: apiKey, tipo: 'texto' },
-                { chave: 'brevo_sender_email', valor: senderEmail, tipo: 'texto' },
-                { chave: 'brevo_sender_name', valor: senderName, tipo: 'texto' },
-            ];
-            for (const cfg of configs) {
-                await conn.query(
-                    'INSERT INTO configuracoes (chave, valor, tipo, descricao) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor=VALUES(valor), tipo=VALUES(tipo), atualizado_em=CURRENT_TIMESTAMP',
-                    [cfg.chave, cfg.valor, cfg.tipo, `Configuração ${cfg.chave}`]
-                );
+        // Se api_key não enviada, verifica se já existe uma salva
+        if (!apiKey) {
+            const [existing] = await pool.query("SELECT valor FROM configuracoes WHERE chave = 'brevo_api_key' LIMIT 1");
+            if (!existing.length || !existing[0].valor) {
+                return res.status(400).json({ erro: 'A API Key do Brevo é obrigatória no primeiro cadastro.' });
             }
-            await conn.commit();
-            router.limparCache();
-            res.json({ mensagem: 'Configuração Brevo salva. Agora teste o envio.', configurado: true });
-        } catch (err) {
-            await conn.rollback();
-            throw err;
-        } finally {
-            conn.release();
         }
+
+        const upsert = (chave, valor, tipo) => pool.query(
+            'INSERT INTO configuracoes (chave, valor, tipo, descricao) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor=VALUES(valor), tipo=VALUES(tipo), atualizado_em=CURRENT_TIMESTAMP',
+            [chave, valor, tipo, `Configuração ${chave}`]
+        );
+
+        await upsert('email_provider', 'brevo', 'texto');
+        if (apiKey) await upsert('brevo_api_key', apiKey, 'texto');
+        await upsert('brevo_sender_email', senderEmail, 'texto');
+        await upsert('brevo_sender_name', senderName, 'texto');
+
+        router.limparCache();
+        res.json({ mensagem: 'Configuração Brevo salva. Agora clique em Testar Envio.', configurado: true });
     } catch (err) {
         console.error('Erro ao salvar Brevo:', err);
-        res.status(500).json({ erro: 'Erro ao salvar configuração Brevo.' });
+        res.status(500).json({ erro: 'Erro ao salvar configuração Brevo: ' + err.message });
     }
 });
 
