@@ -69,6 +69,29 @@ async function obterConfiguracao(chave) {
 router.obterConfiguracao = obterConfiguracao;
 router.limparCache = () => { configCache = {}; cacheTimestamp = 0; };
 
+// GET /api/configuracoes/smtp/ping — diagnóstico sem auth (temporário, protegido por chave)
+router.get('/smtp/ping', async (req, res) => {
+    if (req.query.key !== 'rcb-diag-2026') return res.status(403).json({ erro: 'Proibido.' });
+    try {
+        const [rows] = await dbQuery("SELECT chave,valor FROM configuracoes WHERE chave LIKE 'smtp_%' OR chave='mail_from'");
+        const cfg = {};
+        rows.forEach(r => cfg[r.chave] = r.valor);
+        const host=cfg.smtp_host, user=cfg.smtp_user, pass=String(cfg.smtp_pass||'').replace(/\s+/g,'');
+        const port=Number(cfg.smtp_port||587);
+        const secure=String(cfg.smtp_secure||'false').toLowerCase()==='true';
+        const from=cfg.mail_from||user;
+        if (!host||!user||!pass) return res.json({smtp:'não configurado'});
+        const nodemailerLocal=nodemailer;
+        const t=nodemailerLocal.createTransport({host,port,secure,auth:{user,pass},tls:{rejectUnauthorized:false}});
+        await t.verify();
+        const destino=req.query.to||from;
+        const info=await t.sendMail({from,to:destino,subject:'[Diagnóstico Railway] RentCarBrasil',html:'<p>Teste enviado do servidor Railway.</p>'});
+        res.json({ok:true,messageId:info.messageId,para:destino,host,port});
+    } catch(e) {
+        res.json({ok:false,erro:e.message,code:e.code});
+    }
+});
+
 // GET /api/configuracoes/smtp/status - Status do SMTP
 router.get('/smtp/status', async (req, res) => {
     try {
