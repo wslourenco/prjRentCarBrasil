@@ -290,4 +290,5 @@ test('Fluxo completo de quilometragem: criar → encerrar → verificar atualiza
 
 test.after(async () => {
     await pool.end();
+    await setupPool.end();
 });
