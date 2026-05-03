@@ -91,26 +91,42 @@ async function obterConfiguracao(chave) {
 router.obterConfiguracao = obterConfiguracao;
 router.limparCache = () => { configCache = {}; cacheTimestamp = 0; };
 
-// GET /api/configuracoes/smtp/status - Status do SMTP
+// GET /api/configuracoes/smtp/status - Status do provedor de e-mail ativo
 router.get('/smtp/status', async (req, res) => {
     try {
         const [rows] = await dbQuery(`
-            SELECT chave, valor FROM configuracoes 
-            WHERE chave LIKE 'smtp_%' OR chave = 'mail_from'
+            SELECT chave, valor FROM configuracoes
+            WHERE chave LIKE 'smtp_%' OR chave IN ('mail_from','brevo_api_key','brevo_sender_email','brevo_sender_name','email_provider')
         `);
 
         const config = {};
         rows.forEach(row => { config[row.chave] = row.valor; });
 
+        const provider = config.email_provider || 'smtp';
+        let configurado = false;
         const faltantes = [];
-        if (!config.smtp_host) faltantes.push('smtp_host');
-        if (!config.smtp_port) faltantes.push('smtp_port');
-        if (!config.smtp_user) faltantes.push('smtp_user');
-        if (!config.smtp_pass) faltantes.push('smtp_pass');
+
+        if (provider === 'brevo') {
+            configurado = !!(config.brevo_api_key && config.brevo_sender_email);
+            if (!config.brevo_api_key) faltantes.push('brevo_api_key');
+            if (!config.brevo_sender_email) faltantes.push('brevo_sender_email');
+        } else {
+            if (!config.smtp_host) faltantes.push('smtp_host');
+            if (!config.smtp_port) faltantes.push('smtp_port');
+            if (!config.smtp_user) faltantes.push('smtp_user');
+            if (!config.smtp_pass) faltantes.push('smtp_pass');
+            configurado = faltantes.length === 0;
+        }
 
         res.json({
-            configurado: faltantes.length === 0,
+            configurado,
+            provider,
             faltantes,
+            brevo: {
+                sender_email: config.brevo_sender_email || '',
+                sender_name: config.brevo_sender_name || '',
+                api_key_configurado: !!config.brevo_api_key,
+            },
             smtp: {
                 smtp_host: config.smtp_host || '',
                 smtp_port: config.smtp_port || '587',
@@ -215,77 +231,72 @@ router.put('/smtp', async (req, res) => {
     }
 });
 
-// PUT /api/configuracoes/smtp/testar - Testa conexão SMTP (verify + envio real)
+// PUT /api/configuracoes/smtp/testar — testa provedor ativo (SMTP ou Brevo)
 router.put('/smtp/testar', async (req, res) => {
     try {
-        const [rows] = await dbQuery(`
-            SELECT chave, valor FROM configuracoes WHERE chave LIKE 'smtp_%' OR chave = 'mail_from'
-        `);
-
-        const config = {};
-        rows.forEach(row => { config[row.chave] = row.valor; });
-
-        const host = String(config.smtp_host || '').trim();
-        const user = String(config.smtp_user || '').trim();
-        const pass = String(config.smtp_pass || '').trim().replace(/\s+/g, '');
-        const port = Number(config.smtp_port || 587);
-        const secure = String(config.smtp_secure || 'false').toLowerCase() === 'true' || port === 465;
-        const from = String(config.mail_from || user).trim();
-        const destino = req.body?.destino || from;
-
-        if (!host || !user || !pass) {
-            return res.status(400).json({ erro: 'Configure smtp_host, smtp_user e smtp_pass primeiro.' });
-        }
-
-        const withTimeout = (promise, ms, msg) =>
-            Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(msg)), ms))]);
-
-        // Tenta a configuração salva; se falhar por timeout/conexão, tenta automaticamente a outra porta do Gmail
-        const tentativas = [{ host, port, secure }];
-        if (host.includes('gmail') && port === 587) tentativas.push({ host, port: 465, secure: true });
-        if (host.includes('gmail') && port === 465) tentativas.push({ host, port: 587, secure: false });
-
-        let transporter, ultimoErro;
-        for (const tentativa of tentativas) {
-            try {
-                const t = nodemailer.createTransport({
-                    host: tentativa.host, port: tentativa.port, secure: tentativa.secure,
-                    auth: { user, pass },
-                    tls: { rejectUnauthorized: false },
-                    connectionTimeout: 8000,
-                    greetingTimeout: 8000,
-                    socketTimeout: 10000,
-                });
-                await withTimeout(t.verify(), 10000, `Timeout porta ${tentativa.port}`);
-                transporter = t;
-                break;
-            } catch (err) {
-                ultimoErro = err;
-                console.warn(`[SMTP teste] falhou porta ${tentativa.port}: ${err.message}`);
-            }
-        }
-
-        if (!transporter) {
-            throw new Error(`Não foi possível conectar ao servidor SMTP. Último erro: ${ultimoErro?.message}. Tente porta 465 com SSL=Sim, ou use outro provedor (Brevo, SendGrid).`);
-        }
-
-        const info = await withTimeout(
-            transporter.sendMail({
-                from,
-                to: destino,
-                subject: 'Teste de e-mail — RentCarBrasil',
-                text: 'Este é um e-mail de teste enviado pelo sistema RentCarBrasil para verificar a configuração SMTP.',
-                html: '<p>Este é um e-mail de <strong>teste</strong> enviado pelo sistema <strong>RentCarBrasil</strong> para verificar a configuração SMTP.</p>',
-            }),
-            15000,
-            'Timeout ao enviar o e-mail. Conexão SMTP estabelecida, mas o envio não completou.'
-        );
-
-        console.log(`[SMTP teste] E-mail enviado para ${destino} — messageId: ${info.messageId}`);
-        res.json({ sucesso: true, mensagem: `E-mail de teste enviado para ${destino}.`, messageId: info.messageId });
+        const { testarEmail } = require('../utils/mailer');
+        const destino = req.body?.destino || undefined;
+        const resultado = await testarEmail(destino);
+        const para = resultado.para;
+        res.json({ sucesso: true, mensagem: `E-mail de teste enviado para ${para}.`, ...resultado });
     } catch (err) {
-        console.error('Erro ao testar SMTP:', err);
+        console.error('[SMTP/Brevo teste]', err.message);
         res.status(400).json({ erro: err.message, detalhe: err.code || null });
+    }
+});
+
+// PUT /api/configuracoes/brevo — salva configuração Brevo
+router.put('/brevo', async (req, res) => {
+    try {
+        const apiKey = String(req.body?.api_key || '').trim();
+        const senderEmail = String(req.body?.sender_email || '').trim();
+        const senderName = String(req.body?.sender_name || 'RentCarBrasil').trim();
+
+        if (!apiKey || !senderEmail) {
+            return res.status(400).json({ erro: 'API Key e e-mail remetente são obrigatórios.' });
+        }
+
+        const conn = await dbGetConnection();
+        try {
+            await conn.beginTransaction();
+            const configs = [
+                { chave: 'email_provider', valor: 'brevo', tipo: 'texto' },
+                { chave: 'brevo_api_key', valor: apiKey, tipo: 'texto' },
+                { chave: 'brevo_sender_email', valor: senderEmail, tipo: 'texto' },
+                { chave: 'brevo_sender_name', valor: senderName, tipo: 'texto' },
+            ];
+            for (const cfg of configs) {
+                await conn.query(
+                    'INSERT INTO configuracoes (chave, valor, tipo, descricao) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor=VALUES(valor), tipo=VALUES(tipo), atualizado_em=CURRENT_TIMESTAMP',
+                    [cfg.chave, cfg.valor, cfg.tipo, `Configuração ${cfg.chave}`]
+                );
+            }
+            await conn.commit();
+            router.limparCache();
+            res.json({ mensagem: 'Configuração Brevo salva. Agora teste o envio.', configurado: true });
+        } catch (err) {
+            await conn.rollback();
+            throw err;
+        } finally {
+            conn.release();
+        }
+    } catch (err) {
+        console.error('Erro ao salvar Brevo:', err);
+        res.status(500).json({ erro: 'Erro ao salvar configuração Brevo.' });
+    }
+});
+
+// PUT /api/configuracoes/smtp/ativar — volta para SMTP como provedor
+router.put('/smtp/ativar', async (req, res) => {
+    try {
+        await pool.query(
+            'INSERT INTO configuracoes (chave, valor, tipo, descricao) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor=VALUES(valor), atualizado_em=CURRENT_TIMESTAMP',
+            ['email_provider', 'smtp', 'texto', 'Provedor de e-mail ativo']
+        );
+        router.limparCache();
+        res.json({ mensagem: 'Provedor SMTP ativado.' });
+    } catch (err) {
+        res.status(500).json({ erro: 'Erro ao ativar SMTP.' });
     }
 });
 

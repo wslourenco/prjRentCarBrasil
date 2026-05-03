@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authMiddleware, requireProfiles } = require('../middleware/auth');
-const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
@@ -357,50 +356,6 @@ async function gerarContratoPdfBuffer(dados) {
     });
 }
 
-async function criarTransporter() {
-    try {
-        // Tenta buscar configurações do banco de dados primeiro
-        const [rows] = await pool.query(`
-            SELECT chave, valor FROM configuracoes 
-            WHERE chave LIKE 'smtp_%' OR chave = 'mail_from'
-        `);
-
-        let config = {};
-        rows.forEach(row => { config[row.chave] = row.valor; });
-
-        // Se não encontrou no banco, tenta variáveis de ambiente
-        const host = String(config.smtp_host || process.env.SMTP_HOST || '').trim();
-        const user = String(config.smtp_user || process.env.SMTP_USER || '').trim();
-        const pass = String(config.smtp_pass || process.env.SMTP_PASS || '').trim();
-        const port = Number(config.smtp_port || process.env.SMTP_PORT || 587);
-        const secure = String(config.smtp_secure || process.env.SMTP_SECURE || 'false').toLowerCase() === 'true' || port === 465;
-        const testMode = String(process.env.TEST_MODE || '').toLowerCase() === 'true';
-
-        if (!host || !user || !pass) return null;
-
-        // Em modo de teste, retorna transporter simulado
-        if (testMode) {
-            return {
-                sendMail: async (options) => {
-                    console.log(`[TEST MODE] Email simulado enviado para: ${options.to}`);
-                    console.log(`  Assunto: ${options.subject}`);
-                    console.log(`  Anexo: ${options.attachments?.[0]?.filename || 'nenhum'}`);
-                    return { messageId: `test-${Date.now()}@test.local` };
-                }
-            };
-        }
-
-        return nodemailer.createTransport({
-            host, port, secure,
-            auth: { user, pass },
-            tls: { rejectUnauthorized: false },
-        });
-    } catch (err) {
-        console.error('Erro ao criar transporter:', err);
-        return null;
-    }
-}
-
 function getComprovanteExtensionByMime(mimeType) {
     const mime = String(mimeType || '').trim().toLowerCase();
     if (mime === 'application/pdf') return 'pdf';
@@ -520,11 +475,9 @@ async function salvarComprovanteEncerramentoArquivo({ locacaoId, arquivo }) {
 
 async function enviarEmailAprovacaoLocacao(locacaoId) {
     try {
-        const transporter = await criarTransporter();
-        if (!transporter) return; // SMTP não configurado — sem e-mail, sem erro
-
+        const { enviarEmail } = require('../utils/mailer');
         const [rows] = await pool.query(
-            `SELECT lc.data_inicio, lc.periodicidade, lc.quantidade_periodos,
+            `SELECT lc.data_inicio,
                     CONCAT(v.marca, ' ', v.modelo) AS nome_veiculo, v.placa,
                     lt.nome AS nome_locatario, lt.email AS email_locatario,
                     ld.nome AS nome_locador, ld.telefone AS telefone_locador, ld.celular AS celular_locador,
@@ -533,131 +486,54 @@ async function enviarEmailAprovacaoLocacao(locacaoId) {
              LEFT JOIN veiculos v ON lc.veiculo_id = v.id
              LEFT JOIN locatarios lt ON lc.locatario_id = lt.id
              LEFT JOIN locadores ld ON v.locador_id = ld.id
-             WHERE lc.id = ?
-             LIMIT 1`,
+             WHERE lc.id = ? LIMIT 1`,
             [locacaoId]
         );
-
         if (!rows.length || !rows[0].email_locatario) return;
         const d = rows[0];
 
-        const fmtData = v => {
-            if (!v) return '—';
-            const dt = new Date(v);
-            return dt.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' });
-        };
-
-        const enderecoLocador = [
-            d.endereco, d.numero, d.complemento, d.bairro,
-            d.cidade && d.estado ? `${d.cidade} - ${d.estado}` : (d.cidade || d.estado),
-            d.cep
-        ].filter(Boolean).join(', ') || 'Endereço não informado pelo locador.';
-
+        const fmtData = v => v ? new Date(v).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+        const enderecoLocador = [d.endereco, d.numero, d.complemento, d.bairro, d.cidade && d.estado ? `${d.cidade} - ${d.estado}` : (d.cidade || d.estado), d.cep].filter(Boolean).join(', ') || 'Endereço não informado pelo locador.';
         const contatoLocador = [d.telefone_locador, d.celular_locador].filter(Boolean).join(' / ') || '—';
 
-        const from = await getMailFrom();
-
-        await transporter.sendMail({
-            from,
-            to: d.email_locatario,
-            subject: `Sua locação foi aprovada — retire o veículo em ${fmtData(d.data_inicio)}`,
-            text: [
-                `Olá, ${d.nome_locatario}!`,
-                '',
-                `Sua solicitação de locação foi APROVADA.`,
-                '',
-                `Veículo: ${d.nome_veiculo} — Placa: ${d.placa}`,
-                `Data de início / Retirada: ${fmtData(d.data_inicio)}`,
-                '',
-                `Local de retirada (endereço do locador):`,
-                `${d.nome_locador}`,
-                `${enderecoLocador}`,
-                `Contato: ${contatoLocador}`,
-                '',
-                `Por favor, compareça no endereço acima na data combinada para retirar o veículo.`,
-                '',
-                `Atenciosamente,`,
-                `Equipe RentCarBrasil`,
-            ].join('\n'),
-            html: `
-                <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#222">
-                  <div style="background:#1d4ed8;padding:24px 28px;border-radius:10px 10px 0 0">
-                    <h2 style="color:#fff;margin:0;font-size:20px">Locação Aprovada ✅</h2>
-                  </div>
+        await enviarEmail({
+            para: d.email_locatario,
+            assunto: `Sua locação foi aprovada — retire o veículo em ${fmtData(d.data_inicio)}`,
+            texto: `Olá, ${d.nome_locatario}!\n\nSua locação foi APROVADA.\nVeículo: ${d.nome_veiculo} — Placa: ${d.placa}\nData de Retirada: ${fmtData(d.data_inicio)}\n\nLocal: ${d.nome_locador}\n${enderecoLocador}\nContato: ${contatoLocador}\n\nAtenciosamente,\nEquipe RentCarBrasil`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#222">
+                  <div style="background:#1d4ed8;padding:24px 28px;border-radius:10px 10px 0 0"><h2 style="color:#fff;margin:0;font-size:20px">Locação Aprovada ✅</h2></div>
                   <div style="background:#f8fafc;padding:28px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px">
                     <p style="margin-top:0">Olá, <strong>${d.nome_locatario}</strong>!</p>
-                    <p>Sua solicitação de locação foi <strong style="color:#16a34a">aprovada</strong>. Veja os detalhes abaixo:</p>
-
+                    <p>Sua solicitação foi <strong style="color:#16a34a">aprovada</strong>. Veja os detalhes:</p>
                     <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
-                      <tr style="background:#e0e7ff">
-                        <td style="padding:10px 14px;font-weight:700;border-radius:6px 0 0 0">Veículo</td>
-                        <td style="padding:10px 14px;border-radius:0 6px 0 0">${d.nome_veiculo} — Placa <strong>${d.placa}</strong></td>
-                      </tr>
-                      <tr style="background:#fff">
-                        <td style="padding:10px 14px;font-weight:700">Data de Retirada</td>
-                        <td style="padding:10px 14px"><strong style="font-size:16px;color:#1d4ed8">${fmtData(d.data_inicio)}</strong></td>
-                      </tr>
+                      <tr style="background:#e0e7ff"><td style="padding:10px 14px;font-weight:700">Veículo</td><td style="padding:10px 14px">${d.nome_veiculo} — Placa <strong>${d.placa}</strong></td></tr>
+                      <tr style="background:#fff"><td style="padding:10px 14px;font-weight:700">Data de Retirada</td><td style="padding:10px 14px"><strong style="font-size:16px;color:#1d4ed8">${fmtData(d.data_inicio)}</strong></td></tr>
                     </table>
-
                     <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px 20px;margin:20px 0">
                       <p style="margin:0 0 8px;font-weight:700;font-size:15px;color:#c2410c">📍 Local de Retirada</p>
                       <p style="margin:0 0 4px"><strong>${d.nome_locador}</strong></p>
                       <p style="margin:0 0 4px;color:#555">${enderecoLocador}</p>
                       <p style="margin:0;color:#555">📞 ${contatoLocador}</p>
                     </div>
-
-                    <p style="font-size:13px;color:#64748b">
-                      Por favor, compareça no endereço acima na data combinada para retirar o veículo.<br/>
-                      Em caso de dúvidas, entre em contato com o locador pelo número informado.
-                    </p>
-
                     <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0"/>
                     <p style="font-size:12px;color:#94a3b8;margin:0">Atenciosamente, Equipe RentCarBrasil</p>
-                  </div>
-                </div>
-            `,
+                  </div></div>`,
         });
-
         console.log(`[e-mail] Aprovação enviada para ${d.email_locatario} — locação #${locacaoId}`);
     } catch (err) {
         console.warn(`[e-mail] Falha ao enviar e-mail de aprovação para locação #${locacaoId}:`, err.message);
     }
 }
 
-async function getMailFrom() {
-    try {
-        const [rows] = await pool.query("SELECT valor FROM configuracoes WHERE chave = 'mail_from' OR chave = 'smtp_user' ORDER BY chave='mail_from' DESC LIMIT 1");
-        return rows[0]?.valor || process.env.MAIL_FROM || process.env.SMTP_USER || '';
-    } catch {
-        return process.env.MAIL_FROM || process.env.SMTP_USER || '';
-    }
-}
-
 async function enviarContratoPorEmail({ para, nomeLocatario, pdfBuffer, nomeArquivo }) {
-    const transporter = await criarTransporter();
-    if (!transporter) {
-        const err = new Error('SMTP nao configurado. Configure as credenciais SMTP em Configurações.');
-        err.code = 'SMTP_NOT_CONFIGURED';
-        throw err;
-    }
-
-    const from = await getMailFrom();
-    const info = await transporter.sendMail({
-        from,
-        to: para,
-        subject: 'Contrato de locacao - assinatura digital gov.br',
-        text: `Ola ${nomeLocatario},\n\nSegue em anexo o contrato em PDF para assinatura digital.\n\nAcesse o portal oficial para assinatura com conta gov.br:\nhttps://assinador.iti.br\n\nAtenciosamente,\nEquipe RentCarBrasil`,
+    const { enviarEmail } = require('../utils/mailer');
+    return enviarEmail({
+        para,
+        assunto: 'Contrato de locacao - assinatura digital gov.br',
+        texto: `Ola ${nomeLocatario},\n\nSegue em anexo o contrato em PDF para assinatura digital.\n\nAcesse o portal oficial para assinatura com conta gov.br:\nhttps://assinador.iti.br\n\nAtenciosamente,\nEquipe RentCarBrasil`,
         html: `<p>Ola ${nomeLocatario},</p><p>Segue em anexo o contrato em PDF para assinatura digital.</p><p>Acesse o portal oficial para assinatura com conta gov.br:<br/><a href="https://assinador.iti.br">https://assinador.iti.br</a></p><p>Atenciosamente,<br/>Equipe RentCarBrasil</p>`,
-        attachments: [
-            {
-                filename: nomeArquivo,
-                content: pdfBuffer,
-                contentType: 'application/pdf',
-            },
-        ],
+        anexoPdf: { nome: nomeArquivo, buffer: pdfBuffer },
     });
-
-    return info;
 }
 
 // GET /api/locacoes
