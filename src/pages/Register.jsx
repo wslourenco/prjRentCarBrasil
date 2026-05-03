@@ -117,6 +117,7 @@ export default function Register() {
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [showSenha, setShowSenha] = useState(false);
+  const [cadastroEnviado, setCadastroEnviado] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -127,13 +128,39 @@ export default function Register() {
     }
     setCarregando(true);
     try {
-      const usuario = await register(form.nome, form.email, form.senha, form.perfil, form.tipoDocumento, form.documento, form.rg, logo, docs.rg, docs.cpf, docs.comprovante);
-      navigate(usuario.perfil === 'locatario' ? '/painel' : '/dashboard');
+      const resultado = await register(form.nome, form.email, form.senha, form.perfil, form.tipoDocumento, form.documento, form.rg, logo, docs.rg, docs.cpf, docs.comprovante);
+      if (resultado?.pendente) {
+        setCadastroEnviado(true);
+      } else {
+        navigate(resultado.perfil === 'locatario' ? '/painel' : '/dashboard');
+      }
     } catch (e) {
       setErro(e.message || 'Não foi possível criar sua conta.');
     } finally {
       setCarregando(false);
     }
+  }
+
+  if (cadastroEnviado) {
+    return (
+      <div className="login-page">
+        <div className="login-box" style={{ textAlign: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 16 }}>
+            <Car size={32} color="var(--primary)" />
+            <h1>RentCarBrasil</h1>
+          </div>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+          <h2 style={{ marginBottom: 8 }}>Cadastro enviado!</h2>
+          <p style={{ color: 'var(--gray-600)', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
+            Seus dados e documentos foram recebidos com sucesso.<br />
+            O administrador irá analisar seu cadastro e você receberá o acesso assim que for aprovado.
+          </p>
+          <Link to="/login" className="btn btn-primary" style={{ display: 'inline-flex', justifyContent: 'center', padding: '10px 24px' }}>
+            Voltar ao login
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (

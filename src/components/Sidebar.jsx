@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Car, Users, UserCheck, Briefcase,
-  DollarSign, Settings, Mail, LogOut, ChevronRight, CreditCard, UserCog
+  DollarSign, Settings, Mail, LogOut, ChevronRight, CreditCard, UserCog, ClipboardCheck
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -92,6 +92,9 @@ export default function Sidebar() {
             <span className="sidebar-section-title">Administração</span>
             <NavLink to="/admin" className={({ isActive }) => isActive ? 'active' : ''}>
               <Settings size={16} /> Usuários
+            </NavLink>
+            <NavLink to="/aprovacoes" className={({ isActive }) => isActive ? 'active' : ''}>
+              <ClipboardCheck size={16} /> Aprovações de Cadastro
             </NavLink>
           </>
         )}

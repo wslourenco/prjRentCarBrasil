@@ -189,9 +189,12 @@ router.post('/register', async (req, res) => {
 
         const hash = await bcrypt.hash(senha, 10);
         const cleanDoc = v => (typeof v === 'string' && v.startsWith('data:') ? v : null);
+
+        // Locador e locatário entram como pendentes; admin/auxiliar criados pelo painel já ficam ativos
+        const pendente = ['locador', 'locatario'].includes(perfilEscolhido);
         const [result] = await conn.query(
-            'INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento, doc_rg, doc_cpf, doc_comprovante) VALUES (?,?,?,?,?,?,?,?,?)',
-            [nome, email, hash, perfilEscolhido, tipoDoc, doc, cleanDoc(docRg), cleanDoc(docCpf), cleanDoc(docComprovante)]
+            'INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento, ativo, status_aprovacao, doc_rg, doc_cpf, doc_comprovante) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+            [nome, email, hash, perfilEscolhido, tipoDoc, doc, pendente ? 0 : 1, pendente ? 'pendente' : 'aprovado', cleanDoc(docRg), cleanDoc(docCpf), cleanDoc(docComprovante)]
         );
 
         if (perfilEscolhido === 'locador') {
@@ -203,7 +206,7 @@ router.post('/register', async (req, res) => {
                  tipoDoc === 'cpf' ? doc : null, tipoDoc === 'cnpj' ? doc : null,
                  rgLimpo || null, logoLimpo]
             );
-        } else {
+        } else if (perfilEscolhido === 'locatario') {
             await conn.query(
                 'INSERT INTO locatarios (tipo, nome, email, cpf, rg, categoria_cnh, motorist_app) VALUES (?,?,?,?,?,?,?)',
                 ['fisica', nome, email, tipoDoc === 'cpf' ? doc : null, rgLimpo || null, 'B', 0]
@@ -211,6 +214,10 @@ router.post('/register', async (req, res) => {
         }
 
         await conn.commit();
+
+        if (pendente) {
+            return res.status(201).json({ pendente: true, mensagem: 'Cadastro enviado com sucesso! Aguarde a aprovação do administrador para acessar o sistema.' });
+        }
 
         const usuario = {
             id: result.insertId,
@@ -243,7 +250,7 @@ router.post('/login', async (req, res) => {
 
     try {
         const [rows] = await pool.query(
-            'SELECT * FROM usuarios WHERE email = ? AND ativo = TRUE',
+            'SELECT * FROM usuarios WHERE email = ?',
             [email]
         );
         if (rows.length === 0) {
@@ -254,6 +261,18 @@ router.post('/login', async (req, res) => {
         const senhaCorreta = await bcrypt.compare(senha, usuario.senha_hash);
         if (!senhaCorreta) {
             return res.status(401).json({ erro: 'Credenciais inválidas.' });
+        }
+
+        const statusAprovacao = usuario.status_aprovacao || 'aprovado';
+        if (statusAprovacao === 'pendente') {
+            return res.status(403).json({ erro: 'Seu cadastro está aguardando aprovação do administrador. Você receberá acesso assim que for aprovado.' });
+        }
+        if (statusAprovacao === 'rejeitado') {
+            const motivo = usuario.motivo_rejeicao ? ` Motivo: ${usuario.motivo_rejeicao}` : '';
+            return res.status(403).json({ erro: `Seu cadastro foi rejeitado e não pode acessar o sistema.${motivo}` });
+        }
+        if (!usuario.ativo) {
+            return res.status(403).json({ erro: 'Usuário inativo. Entre em contato com o administrador.' });
         }
 
         const token = buildJwtToken(usuario);

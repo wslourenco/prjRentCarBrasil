@@ -1,11 +1,34 @@
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 dotenv.config({ path: path.join(__dirname, '.env.local') });
 
 const express = require('express');
 const cors = require('cors');
+
+// Executa migrations pendentes ao iniciar
+(async () => {
+    try {
+        const pool = require('./db');
+        const migDir = path.join(__dirname, 'migrations');
+        if (fs.existsSync(migDir)) {
+            const files = fs.readdirSync(migDir).filter(f => f.endsWith('.sql')).sort();
+            for (const file of files) {
+                const sql = fs.readFileSync(path.join(migDir, file), 'utf8');
+                const statements = sql.split(';').map(s => s.trim()).filter(Boolean);
+                for (const stmt of statements) {
+                    await pool.query(stmt).catch(err => {
+                        console.warn(`[migration] ${file}: ${err.message}`);
+                    });
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('[migration] Erro ao executar migrations:', err.message);
+    }
+})();
 
 const app = express();
 
@@ -83,6 +106,7 @@ app.use('/api/veiculos', require('./routes/veiculos'));
 app.use('/api/financeiro', require('./routes/financeiro'));
 app.use('/api/locacoes', require('./routes/locacoes'));
 app.use('/api/usuarios', require('./routes/usuarios'));
+app.use('/api/aprovacoes', require('./routes/aprovacoes'));
 app.use('/api/configuracoes', require('./routes/configuracoes'));
 app.use('/api/pagamentos', require('./routes/pagamentos'));
 app.use('/api/debitos', require('./routes/debitos'));

@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   documento   VARCHAR(20) NOT NULL DEFAULT '',
   ativo       TINYINT(1) NOT NULL DEFAULT 1,
   senha_deve_trocar TINYINT(1) NOT NULL DEFAULT 0,
+  status_aprovacao ENUM('pendente','aprovado','rejeitado') NOT NULL DEFAULT 'aprovado',
+  motivo_rejeicao VARCHAR(500) DEFAULT NULL,
   doc_rg      MEDIUMTEXT,
   doc_cpf     MEDIUMTEXT,
   doc_comprovante MEDIUMTEXT,

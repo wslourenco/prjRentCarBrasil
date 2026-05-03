@@ -210,6 +210,10 @@ export function AppProvider({ children }) {
 
     async function register(nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante) {
         const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante });
+
+        // Cadastro enviado para aprovação — sem token, sem login automático
+        if (dados.pendente) return { pendente: true };
+
         const usuarioBase = usuarioFromApi({ ...(dados.usuario || {}), locatario: dados.locatario || null, locador_proprio: dados.locador_proprio || null });
         sessionStorage.setItem('sislove_token', dados.token);
         sessionStorage.setItem('sislove_usuario', JSON.stringify(usuarioBase));
