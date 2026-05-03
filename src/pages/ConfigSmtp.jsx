@@ -20,6 +20,7 @@ export default function ConfigSmtp() {
   const [salvandoSmtp, setSalvandoSmtp] = useState(false);
   const [testandoSmtp, setTestandoSmtp] = useState(false);
   const [foiSalvo, setFoiSalvo] = useState(false);
+  const [senhaConfigurada, setSenhaConfigurada] = useState(false);
 
   useEffect(() => {
     async function carregarStatusSmtp() {
@@ -34,6 +35,7 @@ export default function ConfigSmtp() {
           user: String(status?.smtp?.smtp_user || status?.smtp?.user || prev.user),
           mailFrom: String(status?.smtp?.mail_from || status?.smtp?.mailFrom || prev.mailFrom),
         }));
+        if (status?.smtp?.smtp_pass_configurado) setSenhaConfigurada(true);
       } catch (err) {
         setSmtpErro(err.message || 'Não foi possível carregar o status SMTP.');
       }
@@ -59,6 +61,7 @@ export default function ConfigSmtp() {
       });
       setSmtpMensagem('Configuração SMTP salva com sucesso. Agora você pode testar a conexão.');
       setFoiSalvo(true);
+      setSenhaConfigurada(true);
       setSmtpForm(prev => ({ ...prev, pass: '' }));
       const status = await api.get('/configuracoes/smtp/status');
       setSmtpStatus(status);
@@ -77,12 +80,17 @@ export default function ConfigSmtp() {
     setSmtpMensagem('');
     setSmtpErro('');
     setTestandoSmtp(true);
+    const timeoutId = setTimeout(() => {
+      setTestandoSmtp(false);
+      setSmtpErro('Tempo esgotado ao testar SMTP. O servidor pode estar demorando para responder.');
+    }, 30000);
     try {
       const resp = await api.put('/configuracoes/smtp/testar', {});
-      setSmtpMensagem(resp?.mensagem || 'Conexão SMTP testada com sucesso.');
+      setSmtpMensagem(resp?.mensagem || 'E-mail de teste enviado com sucesso.');
     } catch (err) {
       setSmtpErro(err.message || 'Falha ao testar SMTP.');
     } finally {
+      clearTimeout(timeoutId);
       setTestandoSmtp(false);
     }
   }
@@ -153,20 +161,23 @@ export default function ConfigSmtp() {
             </div>
 
             <div className="form-group form-full">
-              <label>Senha SMTP *</label>
+              <label>Senha SMTP {senhaConfigurada && !smtpForm.pass ? '' : '*'}</label>
               <div style={{ position: 'relative' }}>
                 <input
-                  required
+                  required={!senhaConfigurada}
                   type={showPass ? 'text' : 'password'}
                   value={smtpForm.pass}
                   onChange={e => setSmtpForm(prev => ({ ...prev, pass: e.target.value }))}
-                  placeholder="Senha de app ou token SMTP"
+                  placeholder={senhaConfigurada && !smtpForm.pass ? '••••••••  (senha já configurada — deixe em branco para manter)' : 'Senha de app ou token SMTP'}
                   style={{ width: '100%', paddingRight: 40 }}
                 />
                 <button type="button" onClick={() => setShowPass(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', padding: 0 }}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {senhaConfigurada && !smtpForm.pass && (
+                <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>Senha mantida. Digite uma nova para alterá-la.</span>
+              )}
             </div>
 
             <div className="form-group form-full">

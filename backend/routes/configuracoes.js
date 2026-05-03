@@ -157,8 +157,16 @@ router.put('/smtp', async (req, res) => {
         const pass = String(req.body?.smtp_pass || req.body?.pass || '').trim().replace(/\s+/g, '');
         const mailFrom = String(req.body?.mail_from || req.body?.mailFrom || '').trim();
 
-        if (!host || !port || !user || !pass) {
-            return res.status(400).json({ erro: 'Preencha smtp_host, smtp_port, smtp_user e smtp_pass.' });
+        if (!host || !port || !user) {
+            return res.status(400).json({ erro: 'Preencha smtp_host, smtp_port e smtp_user.' });
+        }
+
+        // Se senha não enviada, verifica se já existe uma salva
+        if (!pass) {
+            const [existing] = await dbQuery("SELECT valor FROM configuracoes WHERE chave = 'smtp_pass' LIMIT 1");
+            if (!existing.length || !existing[0].valor) {
+                return res.status(400).json({ erro: 'A senha SMTP é obrigatória no primeiro cadastro.' });
+            }
         }
 
         const conn = await dbGetConnection();
@@ -170,7 +178,7 @@ router.put('/smtp', async (req, res) => {
                 { chave: 'smtp_port', valor: String(port), tipo: 'numero' },
                 { chave: 'smtp_secure', valor: secure ? 'true' : 'false', tipo: 'booleano' },
                 { chave: 'smtp_user', valor: user, tipo: 'texto' },
-                { chave: 'smtp_pass', valor: pass, tipo: 'texto' },
+                ...(pass ? [{ chave: 'smtp_pass', valor: pass, tipo: 'texto' }] : []),
             ];
 
             if (mailFrom) {
@@ -233,23 +241,33 @@ router.put('/smtp/testar', async (req, res) => {
             host, port, secure,
             auth: { user, pass },
             tls: { rejectUnauthorized: false },
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 15000,
         });
 
-        await transporter.verify();
+        const withTimeout = (promise, ms, msg) =>
+            Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(msg)), ms))]);
 
-        const info = await transporter.sendMail({
-            from,
-            to: destino,
-            subject: 'Teste de e-mail — RentCarBrasil',
-            text: 'Este é um e-mail de teste enviado pelo sistema RentCarBrasil para verificar a configuração SMTP.',
-            html: '<p>Este é um e-mail de <strong>teste</strong> enviado pelo sistema <strong>RentCarBrasil</strong> para verificar a configuração SMTP.</p>',
-        });
+        await withTimeout(transporter.verify(), 12000, 'Timeout ao conectar ao servidor SMTP. Verifique host e porta.');
+
+        const info = await withTimeout(
+            transporter.sendMail({
+                from,
+                to: destino,
+                subject: 'Teste de e-mail — RentCarBrasil',
+                text: 'Este é um e-mail de teste enviado pelo sistema RentCarBrasil para verificar a configuração SMTP.',
+                html: '<p>Este é um e-mail de <strong>teste</strong> enviado pelo sistema <strong>RentCarBrasil</strong> para verificar a configuração SMTP.</p>',
+            }),
+            15000,
+            'Timeout ao enviar o e-mail. Conexão SMTP estabelecida, mas o envio não completou.'
+        );
 
         console.log(`[SMTP teste] E-mail enviado para ${destino} — messageId: ${info.messageId}`);
         res.json({ sucesso: true, mensagem: `E-mail de teste enviado para ${destino}.`, messageId: info.messageId });
     } catch (err) {
         console.error('Erro ao testar SMTP:', err);
-        res.status(400).json({ erro: `Erro na conexão SMTP: ${err.message}`, detalhe: err.code || null });
+        res.status(400).json({ erro: err.message, detalhe: err.code || null });
     }
 });
 
