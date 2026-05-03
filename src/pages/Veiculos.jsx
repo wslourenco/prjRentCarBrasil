@@ -5,7 +5,6 @@ import { usuarioFromApi } from '../services/mappers';
 import { Plus, Edit2, Trash2, X, Car, Check, Eye, EyeOff } from 'lucide-react';
 import { applyMask } from '../utils/masks';
 import PagamentoPix from '../components/PagamentoPix';
-import DebitosVeiculares from '../components/DebitosVeiculares';
 
 const COMBUSTIVEIS = ['Flex','Gasolina','Etanol','Diesel','GNV','Elétrico','Híbrido'];
 const TRANSMISSOES = ['Manual','Automático','Semi-automático','CVT'];
@@ -739,9 +738,6 @@ export default function Veiculos() {
                   <div>Locador: {nomeLocadorVeiculo(v)}</div>
                   {localVeiculo(v) && <div>Localização: <strong>{localVeiculo(v)}</strong></div>}
                 </div>
-                {(usuarioLogado?.perfil === 'locador' || usuarioLogado?.perfil === 'admin') && v.renavam && (
-                  <DebitosVeiculares veiculoId={v.id} placa={v.placa} />
-                )}
               </div>
               <div className="veiculo-card-footer">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

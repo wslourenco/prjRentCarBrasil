@@ -48,21 +48,6 @@ CREATE TABLE IF NOT EXISTS pagamentos (
 );
 
 -- ----------------------------------------------------------------
--- Tabela: debitos_veiculares_cache (Celcoin vehicledebtsapi/v1)
--- ----------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS debitos_veiculares_cache (
-  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  veiculo_id INT UNSIGNED NOT NULL,
-  transaction_id VARCHAR(100),
-  client_request_id VARCHAR(100),
-  status ENUM('processando','disponivel','sem_debitos','erro','nao_encontrado') DEFAULT 'disponivel',
-  dados_json MEDIUMTEXT,
-  consultado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_veiculo (veiculo_id),
-  INDEX idx_transaction (transaction_id)
-);
-
--- ----------------------------------------------------------------
 -- Tabela: configuracoes
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS configuracoes (
@@ -462,63 +447,6 @@ SET @sql_add_valor_diario = (
 PREPARE stmt_add_valor_diario FROM @sql_add_valor_diario;
 EXECUTE stmt_add_valor_diario;
 DEALLOCATE PREPARE stmt_add_valor_diario;
-
--- Migração: novos campos Celcoin vehicledebtsapi/v1 em debitos_veiculares_cache
-SET @sql_add_transaction_id = (
-  SELECT IF(
-    EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'debitos_veiculares_cache'
-        AND COLUMN_NAME = 'transaction_id'),
-    'SELECT 1',
-    'ALTER TABLE debitos_veiculares_cache ADD COLUMN transaction_id VARCHAR(100) AFTER veiculo_id'
-  )
-);
-PREPARE stmt_add_transaction_id FROM @sql_add_transaction_id;
-EXECUTE stmt_add_transaction_id;
-DEALLOCATE PREPARE stmt_add_transaction_id;
-
-SET @sql_add_client_request_id = (
-  SELECT IF(
-    EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'debitos_veiculares_cache'
-        AND COLUMN_NAME = 'client_request_id'),
-    'SELECT 1',
-    'ALTER TABLE debitos_veiculares_cache ADD COLUMN client_request_id VARCHAR(100) AFTER transaction_id'
-  )
-);
-PREPARE stmt_add_client_request_id FROM @sql_add_client_request_id;
-EXECUTE stmt_add_client_request_id;
-DEALLOCATE PREPARE stmt_add_client_request_id;
-
-SET @sql_add_debitos_status = (
-  SELECT IF(
-    EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'debitos_veiculares_cache'
-        AND COLUMN_NAME = 'status'),
-    'SELECT 1',
-    'ALTER TABLE debitos_veiculares_cache ADD COLUMN status ENUM(''processando'',''disponivel'',''sem_debitos'',''erro'',''nao_encontrado'') DEFAULT ''disponivel'' AFTER client_request_id'
-  )
-);
-PREPARE stmt_add_debitos_status FROM @sql_add_debitos_status;
-EXECUTE stmt_add_debitos_status;
-DEALLOCATE PREPARE stmt_add_debitos_status;
-
-SET @sql_add_idx_transaction = (
-  SELECT IF(
-    EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'debitos_veiculares_cache'
-        AND INDEX_NAME = 'idx_transaction'),
-    'SELECT 1',
-    'ALTER TABLE debitos_veiculares_cache ADD INDEX idx_transaction (transaction_id)'
-  )
-);
-PREPARE stmt_add_idx_transaction FROM @sql_add_idx_transaction;
-EXECUTE stmt_add_idx_transaction;
-DEALLOCATE PREPARE stmt_add_idx_transaction;
 
 INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento) VALUES
   ('Administrador', 'admin@rentcarbrasil.com.br',
