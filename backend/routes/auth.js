@@ -163,7 +163,7 @@ async function getLocadorProfileForUser(db, usuario) {
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
-    const { nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante } = req.body;
+    const { nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante, docCnh } = req.body;
     const perfilEscolhido = sanitizeProfile(perfil);
     const tipoDoc = (tipoDocumento === 'cnpj') ? 'cnpj' : 'cpf';
     const doc = normalizeDocumento(documento);
@@ -193,8 +193,8 @@ router.post('/register', async (req, res) => {
         // Locador e locatário entram como pendentes; admin/auxiliar criados pelo painel já ficam ativos
         const pendente = ['locador', 'locatario'].includes(perfilEscolhido);
         const [result] = await conn.query(
-            'INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento, ativo, status_aprovacao, doc_rg, doc_cpf, doc_comprovante) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-            [nome, email, hash, perfilEscolhido, tipoDoc, doc, pendente ? 0 : 1, pendente ? 'pendente' : 'aprovado', cleanDoc(docRg), cleanDoc(docCpf), cleanDoc(docComprovante)]
+            'INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento, ativo, status_aprovacao, doc_rg, doc_cpf, doc_comprovante, doc_cnh) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+            [nome, email, hash, perfilEscolhido, tipoDoc, doc, pendente ? 0 : 1, pendente ? 'pendente' : 'aprovado', cleanDoc(docRg), cleanDoc(docCpf), cleanDoc(docComprovante), cleanDoc(docCnh)]
         );
 
         if (perfilEscolhido === 'locador') {

@@ -208,8 +208,8 @@ export function AppProvider({ children }) {
         setUsuarioLogado(atualizado);
     }
 
-    async function register(nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante) {
-        const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante });
+    async function register(nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante, docCnh) {
+        const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante, docCnh });
 
         // Cadastro enviado para aprovação — sem token, sem login automático
         if (dados.pendente) return { pendente: true };

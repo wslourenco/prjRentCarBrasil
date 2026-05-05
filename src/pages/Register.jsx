@@ -10,7 +10,7 @@ export default function Register() {
   const [form, setForm] = useState({ nome: '', email: '', senha: '', perfil: 'locatario', tipoDocumento: 'cpf', documento: '', rg: '' });
   const [logo, setLogo] = useState(null);
   const [erroLogo, setErroLogo] = useState('');
-  const [docs, setDocs] = useState({ rg: null, cpf: null, comprovante: null });
+  const [docs, setDocs] = useState({ rg: null, cpf: null, comprovante: null, cnh: null });
   const [erroDocs, setErroDocs] = useState({});
 
   function handleLogoChange(e) {
@@ -128,7 +128,7 @@ export default function Register() {
     }
     setCarregando(true);
     try {
-      const resultado = await register(form.nome, form.email, form.senha, form.perfil, form.tipoDocumento, form.documento, form.rg, logo, docs.rg, docs.cpf, docs.comprovante);
+      const resultado = await register(form.nome, form.email, form.senha, form.perfil, form.tipoDocumento, form.documento, form.rg, logo, docs.rg, docs.cpf, docs.comprovante, docs.cnh);
       if (resultado?.pendente) {
         setCadastroEnviado(true);
       } else {
@@ -306,6 +306,7 @@ export default function Register() {
             {form.tipoDocumento === 'cpf' && <DocUpload campo="rg" label="Foto/Scan do RG" />}
             <DocUpload campo="cpf" label={form.tipoDocumento === 'cpf' ? 'Foto/Scan do CPF' : 'Foto/Scan do CNPJ'} />
             <DocUpload campo="comprovante" label="Comprovante de Residência" />
+            {form.perfil === 'locatario' && <DocUpload campo="cnh" label="CNH (Carteira Nacional de Habilitação)" obrigatorio />}
           </div>
 
           <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px' }} disabled={carregando}>

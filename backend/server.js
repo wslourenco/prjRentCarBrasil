@@ -155,6 +155,7 @@ app.use('/api/aprovacoes', require('./routes/aprovacoes'));
 app.use('/api/configuracoes', require('./routes/configuracoes'));
 app.use('/api/pagamentos', require('./routes/pagamentos'));
 app.use('/api/debitos', require('./routes/debitos'));
+app.use('/api/contato', require('./routes/contato'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
