@@ -18,11 +18,11 @@ const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','P
 
 const EMPTY_VEICULO = {
   placa: '', renavam: '', chassi: '', marca: '', modelo: '', anoFabricacao: '', anoModelo: '', cor: '',
-  combustivel: 'Flex', transmissao: 'Manual', nrPortas: '4', capacidade: '5',
+  combustivel: 'Flex', transmissao: 'Manual', nrPortas: '4', capacidade: '5', blindado: false, nivelBlindagem: '', carroceria: '',
   kmAtual: '', kmCompra: '',
   kmTrocaOleo: '', kmTrocaCorreia: '', kmTrocaPneu: '',
   dataCompra: '', valorCompra: '', valorFipe: '',
-  seguradora: '', nrApolice: '', vencimentoSeguro: '',
+  seguradora: '', nrApolice: '', vencimentoSeguro: '', franquia: '',
   dataLicenciamento: '', dataVistoria: '',
   bloqueador: '', nrBloqueador: '',
   locadorId: '',
@@ -1004,8 +1004,8 @@ export default function Veiculos() {
                   <div className="form-section-title">Identificação</div>
                   <div className="form-grid">
                     <div className="form-group"><label>Placa *</label><input required {...f('placa')} /></div>
-                    <div className="form-group"><label>RENAVAM</label><input {...f('renavam')} /></div>
-                    <div className="form-group"><label>Chassi</label><input {...f('chassi')} /></div>
+                    <div className="form-group"><label>RENAVAM *</label><input required {...f('renavam')} /></div>
+                    <div className="form-group"><label>Chassi *</label><input required {...f('chassi')} /></div>
                     <div className="form-group"><label>Montadora *</label>
                       <select required {...f('marca')}>
                         <option value="">Selecione a montadora</option>
@@ -1013,20 +1013,65 @@ export default function Veiculos() {
                       </select>
                     </div>
                     <div className="form-group"><label>Modelo *</label><input required {...f('modelo')} /></div>
-                    <div className="form-group"><label>Ano Fabricação</label><input type="number" min="1990" max="2030" {...f('anoFabricacao')} /></div>
-                    <div className="form-group"><label>Ano Modelo</label><input type="number" min="1990" max="2030" {...f('anoModelo')} /></div>
-                    <div className="form-group"><label>Cor</label><input {...f('cor')} /></div>
-                    <div className="form-group"><label>Combustível</label>
-                      <select {...f('combustivel')}>{COMBUSTIVEIS.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                    <div className="form-group"><label>Ano Fabricação *</label><input required type="number" min="1990" max="2030" {...f('anoFabricacao')} /></div>
+                    <div className="form-group"><label>Ano Modelo *</label><input required type="number" min="1990" max="2030" {...f('anoModelo')} /></div>
+                    <div className="form-group"><label>Cor *</label><input required {...f('cor')} /></div>
+                    <div className="form-group"><label>Combustível *</label>
+                      <select required {...f('combustivel')}>{COMBUSTIVEIS.map(c => <option key={c} value={c}>{c}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Transmissão</label>
-                      <select {...f('transmissao')}>{TRANSMISSOES.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                    <div className="form-group"><label>Transmissão *</label>
+                      <select required {...f('transmissao')}>{TRANSMISSOES.map(t => <option key={t} value={t}>{t}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Portas</label>
-                      <select {...f('nrPortas')}><option value="2">2</option><option value="4">4</option></select>
+                    <div className="form-group"><label>Portas *</label>
+                      <select required {...f('nrPortas')}><option value="2">2</option><option value="4">4</option></select>
                     </div>
-                    <div className="form-group"><label>Capacidade (pessoas)</label>
-                      <select {...f('capacidade')}>{['2','4','5','7','9','15'].map(n => <option key={n} value={n}>{n}</option>)}</select>
+                    <div className="form-group"><label>Capacidade (pessoas) *</label>
+                      <select required {...f('capacidade')}>{['2','4','5','7','9','15'].map(n => <option key={n} value={n}>{n}</option>)}</select>
+                    </div>
+                  </div>
+                  <div className="form-grid" style={{ marginTop: 12 }}>
+                    <div className="form-group">
+                      <label>Carroceria / Segmento *</label>
+                      <select required value={form.carroceria || ''} onChange={e => setForm({ ...form, carroceria: e.target.value })}>
+                        <option value="">Selecione...</option>
+                        <option value="Hatch">Hatch — compacto e urbano</option>
+                        <option value="Sedan">Sedan — confortável, porta-malas grande</option>
+                        <option value="SUV">SUV — alto e versátil</option>
+                        <option value="Crossover">Crossover — SUV urbano</option>
+                        <option value="Picape">Picape — carga</option>
+                        <option value="Minivan">Minivan — família</option>
+                        <option value="Perua">Perua — espaço + dirigibilidade</option>
+                        <option value="Cupê">Cupê — esportividade/estilo</option>
+                        <option value="Conversível">Conversível — esportividade/estilo</option>
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <input
+                        type="checkbox"
+                        id="blindado"
+                        checked={!!form.blindado}
+                        onChange={e => setForm({ ...form, blindado: e.target.checked, nivelBlindagem: e.target.checked ? (form.nivelBlindagem || 'Nível III') : '' })}
+                        style={{ width: 16, height: 16, cursor: 'pointer', flexShrink: 0 }}
+                      />
+                      <label htmlFor="blindado" style={{ marginBottom: 0, cursor: 'pointer', userSelect: 'none' }}>Veículo Blindado</label>
+                    </div>
+                    <div className="form-group">
+                      <label>Nível de Blindagem {form.blindado && '*'}</label>
+                      <select
+                        required={!!form.blindado}
+                        value={form.nivelBlindagem || ''}
+                        onChange={e => setForm({ ...form, nivelBlindagem: e.target.value })}
+                        disabled={!form.blindado}
+                        style={!form.blindado ? { opacity: 0.4, cursor: 'not-allowed' } : {}}
+                      >
+                        <option value="">Selecione...</option>
+                        <option value="Nível I">Nível I</option>
+                        <option value="Nível II">Nível II</option>
+                        <option value="Nível III">Nível III</option>
+                        <option value="Nível III-A">Nível III-A</option>
+                        <option value="Nível IV">Nível IV</option>
+                        <option value="Nível V">Nível V</option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -1035,19 +1080,19 @@ export default function Veiculos() {
                   <div className="form-section-title">Quilometragem e Manutenção</div>
                   <div className="form-grid">
                     <div className="form-group"><label>KM Atual *</label><input required type="number" {...f('kmAtual')} /></div>
-                    <div className="form-group"><label>KM na Compra</label><input type="number" {...f('kmCompra')} /></div>
-                    <div className="form-group"><label>KM Próx. Troca de Óleo</label><input type="number" {...f('kmTrocaOleo')} /></div>
-                    <div className="form-group"><label>KM Próx. Correia Dentada</label><input type="number" {...f('kmTrocaCorreia')} /></div>
-                    <div className="form-group"><label>KM Próx. Pneus</label><input type="number" {...f('kmTrocaPneu')} /></div>
+                    <div className="form-group"><label>KM na Compra *</label><input required type="number" {...f('kmCompra')} /></div>
+                    <div className="form-group"><label>KM Próx. Troca de Óleo *</label><input required type="number" {...f('kmTrocaOleo')} /></div>
+                    <div className="form-group"><label>KM Próx. Correia Dentada *</label><input required type="number" {...f('kmTrocaCorreia')} /></div>
+                    <div className="form-group"><label>KM Próx. Pneus *</label><input required type="number" {...f('kmTrocaPneu')} /></div>
                   </div>
                 </div>
 
                 <div className="form-section">
                   <div className="form-section-title">Dados de Compra e Valor</div>
                   <div className="form-grid">
-                    <div className="form-group"><label>Data de Compra</label><input type="date" {...f('dataCompra')} /></div>
-                    <div className="form-group"><label>Valor Pago (R$)</label><input type="number" step="0.01" {...f('valorCompra')} /></div>
-                    <div className="form-group"><label>Valor Locação Diária (R$)</label><input type="text" inputMode="decimal" placeholder="0,00" {...f('valorDiario')} /></div>
+                    <div className="form-group"><label>Data de Compra *</label><input required type="date" {...f('dataCompra')} /></div>
+                    <div className="form-group"><label>Valor Pago (R$) *</label><input required type="number" step="0.01" {...f('valorCompra')} /></div>
+                    <div className="form-group"><label>Valor Locação Diária (R$) *</label><input required type="text" inputMode="decimal" placeholder="0,00" {...f('valorDiario')} /></div>
                     <div className="form-group">
                       <label>
                         Valor Tabela FIPE
@@ -1070,19 +1115,20 @@ export default function Veiculos() {
                 <div className="form-section">
                   <div className="form-section-title">Seguro e Documentação</div>
                   <div className="form-grid">
-                    <div className="form-group"><label>Seguradora</label><input {...f('seguradora')} /></div>
-                    <div className="form-group"><label>Nº Apólice</label><input {...f('nrApolice')} /></div>
-                    <div className="form-group"><label>Vencimento Seguro</label><input type="date" {...f('vencimentoSeguro')} /></div>
-                    <div className="form-group"><label>Data Licenciamento</label><input type="date" {...f('dataLicenciamento')} /></div>
-                    <div className="form-group"><label>Data Vistoria</label><input type="date" {...f('dataVistoria')} /></div>
-                    <div className="form-group"><label>Empresa Bloqueador</label><input {...f('bloqueador')} /></div>
-                    <div className="form-group"><label>Nº Bloqueador/Rastreador</label><input {...f('nrBloqueador')} /></div>
+                    <div className="form-group"><label>Seguradora *</label><input required {...f('seguradora')} /></div>
+                    <div className="form-group"><label>Nº Apólice *</label><input required {...f('nrApolice')} /></div>
+                    <div className="form-group"><label>Vencimento Seguro *</label><input required type="date" {...f('vencimentoSeguro')} /></div>
+                    <div className="form-group"><label>Franquia (R$) *</label><input required type="text" inputMode="decimal" placeholder="0,00" {...f('franquia')} /></div>
+                    <div className="form-group"><label>Data Licenciamento *</label><input required type="date" {...f('dataLicenciamento')} /></div>
+                    <div className="form-group"><label>Data Vistoria *</label><input required type="date" {...f('dataVistoria')} /></div>
+                    <div className="form-group"><label>Empresa Bloqueador *</label><input required {...f('bloqueador')} /></div>
+                    <div className="form-group"><label>Nº Bloqueador/Rastreador *</label><input required {...f('nrBloqueador')} /></div>
                   </div>
                 </div>
 
                 <div className="form-section">
                   <div className="form-section-title">Observações</div>
-                  <div className="form-group"><label>Observações</label><textarea {...f('observacoes')} /></div>
+                  <div className="form-group"><label>Observações *</label><textarea required {...f('observacoes')} /></div>
                 </div>
 
                 {erroCrud && <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 8 }}>{erroCrud}</p>}

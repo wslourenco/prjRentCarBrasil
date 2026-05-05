@@ -80,13 +80,21 @@ router.get('/:veiculoId', authMiddleware, async (req, res) => {
 
         res.json({ ...dados, cache: false, consultado_em: new Date() });
     } catch (err) {
-        console.error('[APIBrasil multas] erro:', err.response?.data || err.message);
-        const status = err.response?.status;
+        const apiData = err.response?.data;
+        const status  = err.response?.status;
+        console.error('[APIBrasil multas] erro HTTP=%s msg=%s data=%j', status || '-', err.message, apiData);
+
         if (status === 429) {
             return res.status(429).json({ erro: 'Limite de consultas atingido. Tente novamente em alguns minutos.' });
         }
-        const msg = err.message.includes('APIBRASIL_TOKEN') ? err.message : 'Erro ao consultar multas veiculares.';
-        res.status(500).json({ erro: msg });
+        if (err.message.includes('APIBRASIL_TOKEN')) {
+            return res.status(500).json({ erro: err.message });
+        }
+        if (err.code === 'ER_NO_SUCH_TABLE') {
+            return res.status(500).json({ erro: 'Tabela de cache não encontrada. Reinicie o servidor para rodar as migrations.' });
+        }
+        const detalhe = apiData?.message || apiData?.error || null;
+        res.status(500).json({ erro: 'Erro ao consultar multas veiculares.', detalhe });
     }
 });
 

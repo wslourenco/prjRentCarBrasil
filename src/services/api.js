@@ -35,7 +35,9 @@ async function parseResponse(res, path) {
     }
 
     if (!res.ok) {
-        throw new Error(data.erro || `Erro ${res.status}`);
+        const err = new Error(data.erro || `Erro ${res.status}`);
+        if (data.detalhe) err.detalhe = data.detalhe;
+        throw err;
     }
 
     return data;

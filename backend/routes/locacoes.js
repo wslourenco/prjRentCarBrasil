@@ -234,6 +234,50 @@ function parseLikertAnswers(avaliacaoLikert) {
     return respostas;
 }
 
+// Calcula os valores dinâmicos da Cláusula 4 com base no veículo e periodicidade
+function calcularValoresClausula4(veiculo, periodicidade, quantidadePeriodos, dataInicio) {
+    const valorDiaria = Number(veiculo?.valor_diario || 0);
+    const caucao = Number(veiculo?.franquia || 0);
+    const seguradora = veiculo?.seguradora || '';
+    const nrApolice = veiculo?.nr_apolice || '';
+    const qtd = Math.max(1, Number(quantidadePeriodos || 1));
+    const base = { caucao, seguradora, nrApolice };
+
+    if (!valorDiaria) return { valorDiaria: 0, ...base };
+
+    if (periodicidade === 'dia') {
+        return { valorDiaria, periodicidade: 'dia', diasPeriodo: qtd, valorPeriodo: Number((valorDiaria * qtd).toFixed(2)), descontoAplicado: false, ...base };
+    }
+
+    if (periodicidade === 'semana') {
+        return { valorDiaria, periodicidade: 'semana', diasPeriodo: 7, valorPeriodo: Number((valorDiaria * 7).toFixed(2)), descontoAplicado: false, ...base };
+    }
+
+    if (periodicidade === 'quinzenal') {
+        const bruto = valorDiaria * 15;
+        return { valorDiaria, periodicidade: 'quinzenal', diasPeriodo: 15, valorPeriodo: Number((bruto * 0.95).toFixed(2)), descontoAplicado: true, ...base };
+    }
+
+    if (periodicidade === 'mensal') {
+        let diasTotal = 0;
+        try {
+            const inicio = dataInicio ? new Date(`${dataInicio}T00:00:00`) : new Date();
+            for (let i = 0; i < qtd; i++) {
+                const ano = inicio.getFullYear();
+                const mes = inicio.getMonth() + i;
+                diasTotal += new Date(ano, mes + 1, 0).getDate();
+            }
+        } catch {
+            diasTotal = 30 * qtd;
+        }
+        const diasPeriodo = Math.round(diasTotal / qtd);
+        const bruto = valorDiaria * diasPeriodo;
+        return { valorDiaria, periodicidade: 'mensal', diasPeriodo, valorPeriodo: Number((bruto * 0.95).toFixed(2)), descontoAplicado: true, ...base };
+    }
+
+    return { valorDiaria, ...base };
+}
+
 function estimateWeeklyValue(veiculo) {
     const fipe = Number(veiculo?.valor_fipe || 0);
     if (fipe > 0) {
@@ -284,7 +328,7 @@ async function gerarContratoPdfBuffer(dados) {
         const doc = new PDFDocument({ margin: 42 });
         const chunks = [];
         const clausulasComplementares = readContractClauses();
-        const clausulas = buildContractClauses(clausulasComplementares);
+        const clausulas = buildContractClauses(clausulasComplementares, dados.valoresClausula4 || {});
 
         doc.on('data', chunk => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -694,7 +738,7 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
         let statusValue = 'ativa';
 
         const [veiculoRows] = await conn.query(
-            'SELECT id, placa, marca, modelo, valor_fipe, valor_diario, km_atual FROM veiculos WHERE id = ? LIMIT 1',
+            'SELECT id, placa, marca, modelo, valor_fipe, valor_diario, km_atual, franquia, seguradora, nr_apolice FROM veiculos WHERE id = ? LIMIT 1',
             [veiculo_id]
         );
         if (veiculoRows.length === 0) {
@@ -847,6 +891,10 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
                 );
                 const locador = locadorRows[0] || {};
 
+                const valoresClausula4 = calcularValoresClausula4(
+                    veiculo, periodicidade, quantidade_periodos, data_inicio
+                );
+
                 const contratoPayload = {
                     locatario: {
                         nome: contrato?.nome || locatario.nome || req.usuario?.nome || '',
@@ -876,6 +924,7 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
                         quantidadePeriodos: quantidade_periodos || '',
                         condicoes: condicoesValue,
                     },
+                    valoresClausula4,
                 };
 
                 const emailDestino = contratoPayload.locatario.email;

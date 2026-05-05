@@ -1,4 +1,40 @@
-const CLAUSULAS_OBRIGATORIAS_CONTRATO = [
+function fmt(value) {
+    return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+// Gera as linhas da Cláusula 4 dinamicamente com base nos valores reais da locação
+function gerarClausula4(valores = {}) {
+    const { valorDiaria = 0, periodicidade, diasPeriodo, valorPeriodo, caucao = 0, descontoAplicado = false } = valores;
+
+    const linhas = ['CLAUSULA 4 - VALORES E COBRANCA'];
+
+    if (!valorDiaria) {
+        linhas.push(
+            '4.1 Valores definidos por diaria/mensalidade conforme tabela vigente:',
+            '- Diaria: a definir conforme contrato',
+        );
+    } else {
+        const descLabel = descontoAplicado ? ' (desconto de 5% aplicado)' : '';
+        linhas.push('4.1 Valores definidos por diaria/periodicidade conforme tabela vigente:');
+        linhas.push(`- Diaria: ${fmt(valorDiaria)}`);
+
+        if (periodicidade === 'semana') {
+            linhas.push(`- Semanal (7 dias): ${fmt(valorPeriodo)}`);
+        } else if (periodicidade === 'quinzenal') {
+            linhas.push(`- Quinzenal (15 dias): ${fmt(valorPeriodo)}${descLabel}`);
+        } else if (periodicidade === 'mensal') {
+            linhas.push(`- Mensalidade (${diasPeriodo} dias): ${fmt(valorPeriodo)}${descLabel}`);
+        }
+    }
+
+    const caucaoStr = caucao > 0 ? fmt(caucao) : 'a definir conforme contrato';
+    linhas.push(`4.2 Caucao obrigatoria no valor de ${caucaoStr}, a ser devolvida apos vistoria final sem ressalvas.`);
+    linhas.push('4.3 Em caso de atraso no pagamento, incidirao juros de 1% ao mes e multa de 2% sobre o valor devido.');
+
+    return linhas;
+}
+
+const CLAUSULAS_ANTES_4 = [
     'CLAUSULA 1 - DO OBJETO',
     '1.1 Locacao de veiculos pertencentes a frota do LOCADOR, destinados ao uso comercial ou particular, conforme autorizacao expressa.',
     '1.2 Os veiculos serao especificados em anexos operacionais (OS/Checklist), com descricao de modelo, placa, quilometragem inicial, acessorios e condicoes gerais.',
@@ -27,12 +63,23 @@ const CLAUSULAS_OBRIGATORIAS_CONTRATO = [
     '3.1 O prazo de locacao sera definido por ordem de servico vinculada a este contrato, com inicio e termino registrados digitalmente.',
     '3.2 A renovacao podera ocorrer mediante aceite digital, condicionada a analise de credito e disponibilidade do veiculo.',
     '',
-    'CLAUSULA 4 - VALORES E COBRANCA',
-    '4.1 Valores definidos por diaria/mensalidade conforme tabela vigente:',
-    '- Diaria: R$ 120,00',
-    '- Mensalidade (30 dias): R$ 2.990,00',
-    '4.2 Caucao obrigatoria no valor de R$ 1.500,00, a ser devolvida apos vistoria final sem ressalvas.',
-    '4.3 Em caso de atraso no pagamento, incidirao juros de 1% ao mes e multa de 2% sobre o valor devido.',
+];
+
+function gerarClausula7(valores = {}) {
+    const { seguradora, nrApolice, caucao } = valores;
+
+    const nomeSeguradora = seguradora || 'Seguradora conforme apólice vigente';
+    const apoliceStr = nrApolice ? `, n ${nrApolice}` : '';
+    const franquiaStr = caucao > 0 ? fmt(caucao) : 'a definir conforme apólice';
+
+    return [
+        'CLAUSULA 7 - SEGURO',
+        `7.1 Cobertura conforme apolice vigente da ${nomeSeguradora}${apoliceStr}.`,
+        `7.2 Franquia de ${franquiaStr} para sinistros, sob responsabilidade do LOCATARIO.`,
+    ];
+}
+
+const CLAUSULAS_DEPOIS_4 = [
     '',
     'CLAUSULA 5 - USO DO VEICULO',
     '5.1 Permitido uso em aplicativos (Uber/99), desde que autorizado formalmente no ato da locacao.',
@@ -42,10 +89,7 @@ const CLAUSULAS_OBRIGATORIAS_CONTRATO = [
     '6.1 O LOCATARIO responde por danos, perdas, furtos, roubos e prejuizos causados a terceiros, salvo cobertura expressa da apolice de seguro.',
     '6.2 Deve comunicar incidentes imediatamente a LOCADORA e registrar boletim de ocorrencia quando aplicavel.',
     '',
-    'CLAUSULA 7 - SEGURO',
-    '7.1 Cobertura conforme apolice vigente da Seguradora Protege Auto S.A., n 2024.001234-5.',
-    '7.2 Franquia de R$ 3.000,00 para sinistros, sob responsabilidade do LOCATARIO.',
-    '',
+    // Cláusula 7 é inserida dinamicamente por buildContractClauses — não consta aqui
     'CLAUSULA 8 - MULTAS',
     '8.1 Infracoes de transito serao transferidas ao condutor infrator via sistema digital do DETRAN.',
     '8.2 Taxa administrativa de R$ 50,00 por notificacao de infracao recebida.',
@@ -74,15 +118,39 @@ const CLAUSULAS_OBRIGATORIAS_CONTRATO = [
     '13.2 Rescisao imediata por descumprimento de quaisquer clausulas contratuais ou uso indevido do veiculo.',
     '',
     'CLAUSULA 14 - FORO',
-    '14.1 Fica eleito o foro da comarca de Campinas/SP para dirimir quaisquer duvidas ou litigios decorrentes deste contrato.',
+    '14.1 Fica eleito o foro da comarca de Sao Paulo/SP para dirimir quaisquer duvidas ou litigios decorrentes deste contrato.',
 ];
 
-function buildContractClauses(extraClauses = []) {
+// Mantido para compatibilidade com testes existentes
+const CLAUSULAS_OBRIGATORIAS_CONTRATO = [
+    ...CLAUSULAS_ANTES_4,
+    ...gerarClausula4(),
+    ...CLAUSULAS_DEPOIS_4,
+];
+
+function buildContractClauses(extraClauses = [], valores = {}) {
     const extras = Array.isArray(extraClauses) ? extraClauses.filter(Boolean) : [];
-    if (extras.length === 0) return [...CLAUSULAS_OBRIGATORIAS_CONTRATO];
+    const clausula4 = gerarClausula4(valores);
+    const clausula7 = gerarClausula7(valores);
+
+    // Divide CLAUSULAS_DEPOIS_4 em: antes da cláusula 8 (para inserir a 7) e o restante
+    const idx8 = CLAUSULAS_DEPOIS_4.findIndex(l => l.startsWith('CLAUSULA 8'));
+    const antes8 = CLAUSULAS_DEPOIS_4.slice(0, idx8);
+    const depois8 = CLAUSULAS_DEPOIS_4.slice(idx8);
+
+    const base = [
+        ...CLAUSULAS_ANTES_4,
+        ...clausula4,
+        ...antes8,
+        ...clausula7,
+        '',
+        ...depois8,
+    ];
+
+    if (extras.length === 0) return base;
 
     return [
-        ...CLAUSULAS_OBRIGATORIAS_CONTRATO,
+        ...base,
         '',
         'CLAUSULAS COMPLEMENTARES (DOCUMENTO BASE):',
         ...extras,
@@ -92,4 +160,6 @@ function buildContractClauses(extraClauses = []) {
 module.exports = {
     CLAUSULAS_OBRIGATORIAS_CONTRATO,
     buildContractClauses,
+    gerarClausula4,
+    gerarClausula7,
 };

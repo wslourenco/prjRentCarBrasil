@@ -11,11 +11,11 @@ export default function DebitosVeiculares({ veiculoId, placa }) {
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
-  const [expandido, setExpandido] = useState(false);
+  const [expandido, setExpandido] = useState(true);
 
   useEffect(() => {
-    if (expandido && !dados) buscar();
-  }, [expandido]);
+    buscar();
+  }, []);
 
   async function buscar(forcar = false) {
     setCarregando(true);
@@ -25,7 +25,7 @@ export default function DebitosVeiculares({ veiculoId, placa }) {
       const res = await api.get(`/debitos/${veiculoId}${forcar ? '?forcar=1' : ''}`);
       setDados(res);
     } catch (e) {
-      setErro(e.message || 'Erro ao consultar multas.');
+      setErro({ msg: e.message || 'Erro ao consultar multas.', detalhe: e.detalhe || null });
     } finally {
       setCarregando(false);
     }
@@ -71,9 +71,14 @@ export default function DebitosVeiculares({ veiculoId, placa }) {
           )}
 
           {erro && (
-            <div style={{ padding: 12, background: '#fee2e2', borderRadius: 8, fontSize: 13, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <XCircle size={14} />
-              {erro}
+            <div style={{ padding: 12, background: '#fee2e2', borderRadius: 8, fontSize: 13, color: '#dc2626' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <XCircle size={14} />
+                {erro.msg || erro}
+              </div>
+              {erro.detalhe && (
+                <div style={{ fontSize: 11, color: '#991b1b', marginTop: 4, paddingLeft: 22 }}>{erro.detalhe}</div>
+              )}
             </div>
           )}
 
