@@ -65,6 +65,17 @@ const CLAUSULAS_ANTES_4 = [
     '',
 ];
 
+function gerarClausula14(valores = {}) {
+    const { cidadeLocador, estadoLocador } = valores;
+    const comarca = cidadeLocador && estadoLocador
+        ? `${cidadeLocador}/${estadoLocador}`
+        : cidadeLocador || estadoLocador || 'Sao Paulo/SP';
+    return [
+        'CLAUSULA 14 - FORO',
+        `14.1 Fica eleito o foro da comarca de ${comarca} para dirimir quaisquer duvidas ou litigios decorrentes deste contrato.`,
+    ];
+}
+
 function gerarClausula7(valores = {}) {
     const { seguradora, nrApolice, caucao } = valores;
 
@@ -117,8 +128,8 @@ const CLAUSULAS_DEPOIS_4 = [
     '13.1 Multa de 30% sobre o valor restante do contrato em caso de rescisao antecipada pelo LOCATARIO.',
     '13.2 Rescisao imediata por descumprimento de quaisquer clausulas contratuais ou uso indevido do veiculo.',
     '',
-    'CLAUSULA 14 - FORO',
-    '14.1 Fica eleito o foro da comarca de Sao Paulo/SP para dirimir quaisquer duvidas ou litigios decorrentes deste contrato.',
+    // Cláusula 14 é inserida dinamicamente por buildContractClauses
+
 ];
 
 // Mantido para compatibilidade com testes existentes
@@ -132,8 +143,9 @@ function buildContractClauses(extraClauses = [], valores = {}) {
     const extras = Array.isArray(extraClauses) ? extraClauses.filter(Boolean) : [];
     const clausula4 = gerarClausula4(valores);
     const clausula7 = gerarClausula7(valores);
+    const clausula14 = gerarClausula14(valores);
 
-    // Divide CLAUSULAS_DEPOIS_4 em: antes da cláusula 8 (para inserir a 7) e o restante
+    // Insere cláusula 7 antes da cláusula 8
     const idx8 = CLAUSULAS_DEPOIS_4.findIndex(l => l.startsWith('CLAUSULA 8'));
     const antes8 = CLAUSULAS_DEPOIS_4.slice(0, idx8);
     const depois8 = CLAUSULAS_DEPOIS_4.slice(idx8);
@@ -145,6 +157,7 @@ function buildContractClauses(extraClauses = [], valores = {}) {
         ...clausula7,
         '',
         ...depois8,
+        ...clausula14,
     ];
 
     if (extras.length === 0) return base;
@@ -162,4 +175,5 @@ module.exports = {
     buildContractClauses,
     gerarClausula4,
     gerarClausula7,
+    gerarClausula14,
 };

@@ -886,14 +886,16 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
 
                 // Obter email do locador
                 const [locadorRows] = await pool.query(
-                    `SELECT id, nome, email FROM locadores WHERE id = ? LIMIT 1`,
+                    `SELECT id, nome, email, cidade, estado FROM locadores WHERE id = ? LIMIT 1`,
                     [veiculo.locador_id]
                 );
                 const locador = locadorRows[0] || {};
 
-                const valoresClausula4 = calcularValoresClausula4(
-                    veiculo, periodicidade, quantidade_periodos, data_inicio
-                );
+                const valoresClausula4 = {
+                    ...calcularValoresClausula4(veiculo, periodicidade, quantidade_periodos, data_inicio),
+                    cidadeLocador: locador.cidade || '',
+                    estadoLocador: locador.estado || '',
+                };
 
                 const contratoPayload = {
                     locatario: {
