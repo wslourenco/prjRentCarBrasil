@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Car, Eye, EyeOff, UserPlus, ImagePlus, X } from 'lucide-react';
-import { maskRg, isValidRG } from '../utils/masks';
+import { maskRg, isValidRG, isValidCPF, isValidCNPJ } from '../utils/masks';
 
 export default function Register() {
   const { register } = useApp();
@@ -76,44 +76,6 @@ export default function Register() {
       return v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, (m, a, b, c, d, e) => e ? `${a}.${b}.${c}/${d}-${e}` : d ? `${a}.${b}.${c}/${d}` : c ? `${a}.${b}.${c}` : b ? `${a}.${b}` : a);
     }
   }
-  function isValidCPF(cpf) {
-    cpf = cpf.replace(/\D/g, '');
-    if (cpf.length !== 11 || /^([0-9])\1+$/.test(cpf)) return false;
-    let sum = 0, rest;
-    for (let i = 1; i <= 9; i++) sum += parseInt(cpf.substring(i-1, i)) * (11 - i);
-    rest = (sum * 10) % 11;
-    if (rest === 10 || rest === 11) rest = 0;
-    if (rest !== parseInt(cpf.substring(9, 10))) return false;
-    sum = 0;
-    for (let i = 1; i <= 10; i++) sum += parseInt(cpf.substring(i-1, i)) * (12 - i);
-    rest = (sum * 10) % 11;
-    if (rest === 10 || rest === 11) rest = 0;
-    return rest === parseInt(cpf.substring(10, 11));
-  }
-  function isValidCNPJ(cnpj) {
-    cnpj = cnpj.replace(/\D/g, '');
-    if (cnpj.length !== 14) return false;
-    let size = cnpj.length - 2;
-    let numbers = cnpj.substring(0, size);
-    let digits = cnpj.substring(size);
-    let sum = 0, pos = size - 7;
-    for (let i = size; i >= 1; i--) {
-      sum += numbers.charAt(size - i) * pos--;
-      if (pos < 2) pos = 9;
-    }
-    let result = sum % 11 < 2 ? 0 : 11 - sum % 11;
-    if (result !== parseInt(digits.charAt(0))) return false;
-    size++;
-    numbers = cnpj.substring(0, size);
-    sum = 0; pos = size - 7;
-    for (let i = size; i >= 1; i--) {
-      sum += numbers.charAt(size - i) * pos--;
-      if (pos < 2) pos = 9;
-    }
-    result = sum % 11 < 2 ? 0 : 11 - sum % 11;
-    return result === parseInt(digits.charAt(1));
-  }
-
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [showSenha, setShowSenha] = useState(false);
@@ -122,8 +84,17 @@ export default function Register() {
   async function handleSubmit(e) {
     e.preventDefault();
     setErro('');
-    if (form.tipoDocumento === 'cpf' && !isValidRG(form.rg)) {
-      setErro('RG inválido. Digite o RG conforme seu documento (mínimo 5 caracteres).');
+    if (form.tipoDocumento === 'cpf') {
+      if (!isValidCPF(form.documento)) {
+        setErro('CPF inválido. Verifique o número digitado.');
+        return;
+      }
+      if (!isValidRG(form.rg)) {
+        setErro('RG inválido. Digite o RG conforme seu documento (mínimo 5 caracteres).');
+        return;
+      }
+    } else if (!isValidCNPJ(form.documento)) {
+      setErro('CNPJ inválido. Verifique o número digitado.');
       return;
     }
     setCarregando(true);

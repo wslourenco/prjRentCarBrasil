@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus, Edit2, Trash2, X, Check, ImagePlus } from 'lucide-react';
-import { applyMask } from '../utils/masks';
+import { applyMask, isValidCPF, isValidCNPJ, isValidRG } from '../utils/masks';
 
 const EMPTY = {
   tipo: 'fisica',
@@ -44,6 +44,12 @@ export default function Locadores() {
   async function handleSubmit(e) {
     e.preventDefault();
     setErroCrud('');
+    if (form.tipo === 'fisica') {
+      if (!isValidCPF(form.cpf)) { setErroCrud('CPF inválido. Verifique o número digitado.'); return; }
+      if (form.rg && !isValidRG(form.rg)) { setErroCrud('RG inválido. Verifique o número digitado.'); return; }
+    } else if (form.tipo === 'juridica') {
+      if (!isValidCNPJ(form.cnpj)) { setErroCrud('CNPJ inválido. Verifique o número digitado.'); return; }
+    }
     try {
       if (editId) await updateLocador(editId, form);
       else await addLocador(form);

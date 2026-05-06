@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus, Edit2, Trash2, X, Check, Shield } from 'lucide-react';
+import { isValidCPF, isValidCNPJ } from '../utils/masks';
 
 const PERFIS = [
   { value: 'admin', label: 'Administrador', desc: 'Acesso total ao sistema' },
@@ -20,43 +21,6 @@ function maskDoc(value, tipo) {
     v = v.slice(0, 14);
     return v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, (m, a, b, c, d, e) => e ? `${a}.${b}.${c}/${d}-${e}` : d ? `${a}.${b}.${c}/${d}` : c ? `${a}.${b}.${c}` : b ? `${a}.${b}` : a);
   }
-}
-function isValidCPF(cpf) {
-  cpf = cpf.replace(/\D/g, '');
-  if (cpf.length !== 11 || /^([0-9])\1+$/.test(cpf)) return false;
-  let sum = 0, rest;
-  for (let i = 1; i <= 9; i++) sum += parseInt(cpf.substring(i-1, i)) * (11 - i);
-  rest = (sum * 10) % 11;
-  if (rest === 10 || rest === 11) rest = 0;
-  if (rest !== parseInt(cpf.substring(9, 10))) return false;
-  sum = 0;
-  for (let i = 1; i <= 10; i++) sum += parseInt(cpf.substring(i-1, i)) * (12 - i);
-  rest = (sum * 10) % 11;
-  if (rest === 10 || rest === 11) rest = 0;
-  return rest === parseInt(cpf.substring(10, 11));
-}
-function isValidCNPJ(cnpj) {
-  cnpj = cnpj.replace(/\D/g, '');
-  if (cnpj.length !== 14) return false;
-  let size = cnpj.length - 2;
-  let numbers = cnpj.substring(0, size);
-  let digits = cnpj.substring(size);
-  let sum = 0, pos = size - 7;
-  for (let i = size; i >= 1; i--) {
-    sum += numbers.charAt(size - i) * pos--;
-    if (pos < 2) pos = 9;
-  }
-  let result = sum % 11 < 2 ? 0 : 11 - sum % 11;
-  if (result !== parseInt(digits.charAt(0))) return false;
-  size++;
-  numbers = cnpj.substring(0, size);
-  sum = 0; pos = size - 7;
-  for (let i = size; i >= 1; i--) {
-    sum += numbers.charAt(size - i) * pos--;
-    if (pos < 2) pos = 9;
-  }
-  result = sum % 11 < 2 ? 0 : 11 - sum % 11;
-  return result === parseInt(digits.charAt(1));
 }
 
 export default function Admin() {
