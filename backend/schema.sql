@@ -22,9 +22,44 @@ CREATE TABLE IF NOT EXISTS usuarios (
   documento   VARCHAR(20) NOT NULL DEFAULT '',
   ativo       TINYINT(1) NOT NULL DEFAULT 1,
   senha_deve_trocar TINYINT(1) NOT NULL DEFAULT 0,
+  status_aprovacao ENUM('pendente','aprovado','rejeitado') NOT NULL DEFAULT 'aprovado',
+  motivo_rejeicao VARCHAR(500) DEFAULT NULL,
+  doc_rg      MEDIUMTEXT,
+  doc_cpf     MEDIUMTEXT,
+  doc_comprovante MEDIUMTEXT,
+  doc_cnh     MEDIUMTEXT,
   criado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+-- ----------------------------------------------------------------
+-- Tabela: pagamentos (Mercado Pago)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pagamentos (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  locacao_id INT UNSIGNED,
+  mp_payment_id BIGINT,
+  valor DECIMAL(10,2) NOT NULL,
+  status ENUM('pendente','aprovado','cancelado','rejeitado','em_processo') DEFAULT 'pendente',
+  qr_code TEXT,
+  qr_code_base64 MEDIUMTEXT,
+  pix_copia_cola TEXT,
+  email_pagador VARCHAR(120),
+  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ----------------------------------------------------------------
+-- Tabela: debitos_cache (APIBrasil multas veiculares)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS debitos_cache (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  veiculo_id   INT UNSIGNED NOT NULL,
+  estado       VARCHAR(2) NOT NULL,
+  dados_json   MEDIUMTEXT,
+  consultado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_veiculo (veiculo_id)
+);
+
 -- ----------------------------------------------------------------
 -- Tabela: configuracoes
 -- ----------------------------------------------------------------
@@ -68,6 +103,7 @@ CREATE TABLE IF NOT EXISTS locadores (
   tipo_conta      ENUM('corrente','poupanca') DEFAULT 'corrente',
   pix_chave       VARCHAR(120),
   observacoes     TEXT,
+  logo            MEDIUMTEXT,
   criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -187,6 +223,10 @@ CREATE TABLE IF NOT EXISTS veiculos (
   data_vistoria       DATE,
   bloqueador          VARCHAR(80),
   nr_bloqueador       VARCHAR(40),
+  franquia            DECIMAL(10,2) DEFAULT NULL,
+  carroceria          VARCHAR(20) DEFAULT NULL,
+  blindado            TINYINT(1) NOT NULL DEFAULT 0,
+  nivel_blindagem     VARCHAR(20) DEFAULT NULL,
   locador_id          INT UNSIGNED,
   valor_diario        DECIMAL(10,2),
   foto                VARCHAR(255),

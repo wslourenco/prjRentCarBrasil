@@ -1,11 +1,34 @@
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 dotenv.config({ path: path.join(__dirname, '.env.local') });
 
 const express = require('express');
 const cors = require('cors');
+
+// Executa migrations pendentes ao iniciar
+(async () => {
+    try {
+        const pool = require('./db');
+        const migDir = path.join(__dirname, 'migrations');
+        if (fs.existsSync(migDir)) {
+            const files = fs.readdirSync(migDir).filter(f => f.endsWith('.sql')).sort();
+            for (const file of files) {
+                const sql = fs.readFileSync(path.join(migDir, file), 'utf8');
+                const statements = sql.split(';').map(s => s.trim()).filter(Boolean);
+                for (const stmt of statements) {
+                    await pool.query(stmt).catch(err => {
+                        console.warn(`[migration] ${file}: ${err.message}`);
+                    });
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('[migration] Erro ao executar migrations:', err.message);
+    }
+})();
 
 const app = express();
 
@@ -75,6 +98,51 @@ app.use(cors((req, callback) => {
 app.use(express.json({ limit: '20mb' }));
 
 // Rotas
+// PUT /api/configuracoes/brevo — registrado aqui para garantir prioridade sobre PUT /:chave (admin)
+app.put('/api/configuracoes/brevo', require('./middleware/auth').authMiddleware, async (req, res) => {
+    try {
+        const pool = require('./db');
+        const apiKey = String(req.body?.api_key || '').trim();
+        const senderEmail = String(req.body?.sender_email || '').trim();
+        const senderName = String(req.body?.sender_name || 'RentCarBrasil').trim();
+
+        if (!senderEmail) return res.status(400).json({ erro: 'E-mail remetente é obrigatório.' });
+
+        if (!apiKey) {
+            const [ex] = await pool.query("SELECT valor FROM configuracoes WHERE chave='brevo_api_key' LIMIT 1");
+            if (!ex.length || !ex[0].valor) return res.status(400).json({ erro: 'A API Key do Brevo é obrigatória no primeiro cadastro.' });
+        }
+
+        const upsert = (chave, valor, tipo) => pool.query(
+            'INSERT INTO configuracoes (chave,valor,tipo,descricao) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor=VALUES(valor),tipo=VALUES(tipo),atualizado_em=CURRENT_TIMESTAMP',
+            [chave, valor, tipo, `Configuração ${chave}`]
+        );
+        await upsert('email_provider', 'brevo', 'texto');
+        if (apiKey) await upsert('brevo_api_key', apiKey, 'texto');
+        await upsert('brevo_sender_email', senderEmail, 'texto');
+        await upsert('brevo_sender_name', senderName, 'texto');
+
+        res.json({ mensagem: 'Configuração Brevo salva. Agora clique em Testar Envio.', configurado: true });
+    } catch (err) {
+        console.error('[brevo save]', err.message);
+        res.status(500).json({ erro: 'Erro ao salvar configuração Brevo: ' + err.message });
+    }
+});
+
+// PUT /api/configuracoes/smtp/ativar — idem
+app.put('/api/configuracoes/smtp/ativar', require('./middleware/auth').authMiddleware, async (req, res) => {
+    try {
+        const pool = require('./db');
+        await pool.query(
+            'INSERT INTO configuracoes (chave,valor,tipo,descricao) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor=VALUES(valor),atualizado_em=CURRENT_TIMESTAMP',
+            ['email_provider', 'smtp', 'texto', 'Provedor de e-mail ativo']
+        );
+        res.json({ mensagem: 'Provedor SMTP ativado.' });
+    } catch (err) {
+        res.status(500).json({ erro: 'Erro ao ativar SMTP.' });
+    }
+});
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/locadores', require('./routes/locadores'));
 app.use('/api/locatarios', require('./routes/locatarios'));
@@ -83,10 +151,52 @@ app.use('/api/veiculos', require('./routes/veiculos'));
 app.use('/api/financeiro', require('./routes/financeiro'));
 app.use('/api/locacoes', require('./routes/locacoes'));
 app.use('/api/usuarios', require('./routes/usuarios'));
+app.use('/api/aprovacoes', require('./routes/aprovacoes'));
 app.use('/api/configuracoes', require('./routes/configuracoes'));
+app.use('/api/pagamentos', require('./routes/pagamentos'));
+app.use('/api/debitos', require('./routes/debitos'));
+app.use('/api/contato', require('./routes/contato'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
+// Diagnóstico SMTP — sem auth, protegido por chave (remover após teste)
+app.get('/api/smtp-ping', async (req, res) => {
+    if (req.query.key !== 'rcb-diag-2026') return res.status(403).json({ erro: 'Proibido.' });
+    try {
+        const nodemailer = require('nodemailer');
+        const pool = require('./db');
+        const dbInfo = {
+            DB_HOST: process.env.DB_HOST || 'não definido',
+            DB_NAME: process.env.DB_NAME || 'não definido',
+            MYSQLHOST: process.env.MYSQLHOST || 'não definido',
+            MYSQLDATABASE: process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || 'não definido',
+        };
+        // Testa conexão direta ao MySQL
+        let dbStatus = 'desconhecido';
+        try {
+            const [testRows] = await pool.query('SELECT 1 AS ok');
+            dbStatus = 'conectado';
+        } catch(dbErr) {
+            dbStatus = 'erro: ' + dbErr.message;
+        }
+        const [rows] = await pool.query("SELECT chave,valor FROM configuracoes WHERE chave LIKE 'smtp_%' OR chave='mail_from'");
+        const cfg = {};
+        rows.forEach(r => cfg[r.chave] = r.valor);
+        const host=cfg.smtp_host, user=cfg.smtp_user, pass=String(cfg.smtp_pass||'').replace(/\s+/g,'');
+        const port=Number(cfg.smtp_port||587);
+        const secure=String(cfg.smtp_secure||'false').toLowerCase()==='true';
+        const from=cfg.mail_from||user;
+        if (!host||!user||!pass) return res.json({smtp:'não configurado', dbInfo, dbStatus, cfgKeys: Object.keys(cfg)});
+        const t=nodemailer.createTransport({host,port,secure,auth:{user,pass},tls:{rejectUnauthorized:false}});
+        await t.verify();
+        const destino=req.query.to||from;
+        const info=await t.sendMail({from,to:destino,subject:'[Diagnóstico Railway] RentCarBrasil',html:'<p>Teste do servidor <strong>Railway</strong>.</p>'});
+        res.json({ok:true,messageId:info.messageId,para:destino,host,port,dbInfo,dbStatus});
+    } catch(e) {
+        res.json({ok:false,erro:e.message,code:e.code});
+    }
+});
 
 // Servir frontend React
 const publicDir = path.join(__dirname, 'public');

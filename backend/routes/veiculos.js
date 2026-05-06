@@ -129,7 +129,9 @@ router.get('/', async (req, res) => {
     try {
         let sql = `
             SELECT v.*,
-                   COALESCE(l.razao_social, l.nome) AS nome_locador
+                   COALESCE(l.razao_social, l.nome) AS nome_locador,
+                   l.cidade AS cidade_locador,
+                   l.estado AS estado_locador
             FROM veiculos v
             LEFT JOIN locadores l ON v.locador_id = l.id
         `;
@@ -237,9 +239,10 @@ router.post('/', requireProfiles('admin', 'locador', 'auxiliar'), async (req, re
         transmissao, nr_portas, capacidade,
         renavam, chassi, km_atual, km_compra, km_troca_oleo, km_troca_correia, km_troca_pneu,
         data_compra, valor_compra, valor_fipe,
-        seguradora, nr_apolice, vencimento_seguro,
+        seguradora, nr_apolice, vencimento_seguro, franquia,
         data_licenciamento, data_vistoria,
-        bloqueador, nr_bloqueador, locador_id, valor_diario, foto, observacoes
+        bloqueador, nr_bloqueador, locador_id, valor_diario, foto, observacoes,
+        carroceria, blindado, nivel_blindagem
     } = req.body;
 
     if (!placa || !marca || !modelo) {
@@ -260,19 +263,21 @@ router.post('/', requireProfiles('admin', 'locador', 'auxiliar'), async (req, re
              transmissao, nr_portas, capacidade,
              renavam, chassi, km_atual, km_compra, km_troca_oleo, km_troca_correia, km_troca_pneu,
              data_compra, valor_compra, valor_fipe,
-             seguradora, nr_apolice, vencimento_seguro,
+             seguradora, nr_apolice, vencimento_seguro, franquia,
              data_licenciamento, data_vistoria,
-             bloqueador, nr_bloqueador, locador_id, valor_diario, foto, observacoes)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+             bloqueador, nr_bloqueador, locador_id, valor_diario, foto, observacoes,
+             carroceria, blindado, nivel_blindagem)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [placa, marca, modelo,
                 ano_fabricacao || null, ano_modelo || null, cor, combustivel || 'Flex',
                 transmissao || 'Manual', nr_portas || 4, capacidade || 5,
                 renavam, chassi, km_atual || 0, km_compra || 0,
                 km_troca_oleo || null, km_troca_correia || null, km_troca_pneu || null,
                 data_compra || null, valor_compra || null, valor_fipe || null,
-                seguradora, nr_apolice, vencimento_seguro || null,
+                seguradora, nr_apolice, vencimento_seguro || null, franquia || null,
                 data_licenciamento || null, data_vistoria || null,
-                bloqueador, nr_bloqueador, locadorIdValue, valor_diario || null, foto, observacoes]
+                bloqueador, nr_bloqueador, locadorIdValue, valor_diario || null, foto, observacoes,
+                carroceria || null, blindado ? 1 : 0, (blindado ? nivel_blindagem : null) || null]
         );
         const [novo] = await pool.query(`
             SELECT v.*, COALESCE(l.razao_social, l.nome) AS nome_locador
@@ -296,9 +301,10 @@ router.put('/:id', requireProfiles('admin', 'locador', 'auxiliar'), async (req, 
         transmissao, nr_portas, capacidade,
         renavam, chassi, km_atual, km_compra, km_troca_oleo, km_troca_correia, km_troca_pneu,
         data_compra, valor_compra, valor_fipe,
-        seguradora, nr_apolice, vencimento_seguro,
+        seguradora, nr_apolice, vencimento_seguro, franquia,
         data_licenciamento, data_vistoria,
-        bloqueador, nr_bloqueador, locador_id, valor_diario, foto, observacoes
+        bloqueador, nr_bloqueador, locador_id, valor_diario, foto, observacoes,
+        carroceria, blindado, nivel_blindagem
     } = req.body;
 
     try {
@@ -338,9 +344,10 @@ router.put('/:id', requireProfiles('admin', 'locador', 'auxiliar'), async (req, 
              transmissao=?, nr_portas=?, capacidade=?,
              renavam=?, chassi=?, km_atual=?, km_compra=?, km_troca_oleo=?, km_troca_correia=?, km_troca_pneu=?,
              data_compra=?, valor_compra=?, valor_fipe=?,
-             seguradora=?, nr_apolice=?, vencimento_seguro=?,
+             seguradora=?, nr_apolice=?, vencimento_seguro=?, franquia=?,
              data_licenciamento=?, data_vistoria=?,
-             bloqueador=?, nr_bloqueador=?, locador_id=?, valor_diario=?, foto=?, observacoes=?
+             bloqueador=?, nr_bloqueador=?, locador_id=?, valor_diario=?, foto=?, observacoes=?,
+             carroceria=?, blindado=?, nivel_blindagem=?
              WHERE id=?`,
             [placa, marca, modelo,
                 ano_fabricacao || null, ano_modelo || null, cor, combustivel || 'Flex',
@@ -348,9 +355,10 @@ router.put('/:id', requireProfiles('admin', 'locador', 'auxiliar'), async (req, 
                 renavam, chassi, km_atual || 0, km_compra || 0,
                 km_troca_oleo || null, km_troca_correia || null, km_troca_pneu || null,
                 data_compra || null, valor_compra || null, valor_fipe || null,
-                seguradora, nr_apolice, vencimento_seguro || null,
+                seguradora, nr_apolice, vencimento_seguro || null, franquia || null,
                 data_licenciamento || null, data_vistoria || null,
                 bloqueador, nr_bloqueador, locadorIdValue, valor_diario || null, foto, observacoes,
+                carroceria || null, blindado ? 1 : 0, (blindado ? nivel_blindagem : null) || null,
                 req.params.id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ erro: 'Veículo não encontrado.' });

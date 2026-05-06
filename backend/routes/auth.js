@@ -109,7 +109,7 @@ async function getAuxiliarLocadorForUser(db, usuario) {
         if (!locadorId) continue;
 
         const [locadorRows] = await db.query(
-            `SELECT id, nome, email, tipo, cpf, cnpj
+            `SELECT id, nome, razao_social, email, tipo, cpf, cnpj, logo
              FROM locadores
              WHERE id = ?
              LIMIT 1`,
@@ -120,7 +120,7 @@ async function getAuxiliarLocadorForUser(db, usuario) {
     }
 
     const [locadores] = await db.query(
-        'SELECT id, nome, email, tipo, cpf, cnpj FROM locadores ORDER BY id ASC'
+        'SELECT id, nome, razao_social, email, tipo, cpf, cnpj, logo FROM locadores ORDER BY id ASC'
     );
     if (locadores.length === 1) return locadores[0];
 
@@ -136,7 +136,7 @@ async function getLocadorProfileForUser(db, usuario) {
     if (!email && !documento) return null;
 
     const [rows] = await db.query(
-        `SELECT id, nome, email, tipo, cpf, cnpj
+        `SELECT id, nome, razao_social, email, tipo, cpf, cnpj, logo
          FROM locadores
          WHERE LOWER(TRIM(email)) = LOWER(?)
          ORDER BY id ASC
@@ -148,7 +148,7 @@ async function getLocadorProfileForUser(db, usuario) {
     if (!documento) return null;
 
     const [docRows] = await db.query(
-        `SELECT id, nome, email, tipo, cpf, cnpj
+        `SELECT id, nome, razao_social, email, tipo, cpf, cnpj, logo
          FROM locadores
          WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(IFNULL(cpf, '')), '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?
             OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(IFNULL(cnpj, '')), '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?
@@ -163,7 +163,7 @@ async function getLocadorProfileForUser(db, usuario) {
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
-    const { nome, email, senha, perfil, tipoDocumento, documento, rg } = req.body;
+    const { nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante, docCnh } = req.body;
     const perfilEscolhido = sanitizeProfile(perfil);
     const tipoDoc = (tipoDocumento === 'cnpj') ? 'cnpj' : 'cpf';
     const doc = normalizeDocumento(documento);
@@ -188,17 +188,25 @@ router.post('/register', async (req, res) => {
         }
 
         const hash = await bcrypt.hash(senha, 10);
+        const cleanDoc = v => (typeof v === 'string' && v.startsWith('data:') ? v : null);
+
+        // Locador e locatário entram como pendentes; admin/auxiliar criados pelo painel já ficam ativos
+        const pendente = ['locador', 'locatario'].includes(perfilEscolhido);
         const [result] = await conn.query(
-            'INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento) VALUES (?,?,?,?,?,?)',
-            [nome, email, hash, perfilEscolhido, tipoDoc, doc]
+            'INSERT INTO usuarios (nome, email, senha_hash, perfil, tipo_documento, documento, ativo, status_aprovacao, doc_rg, doc_cpf, doc_comprovante, doc_cnh) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+            [nome, email, hash, perfilEscolhido, tipoDoc, doc, pendente ? 0 : 1, pendente ? 'pendente' : 'aprovado', cleanDoc(docRg), cleanDoc(docCpf), cleanDoc(docComprovante), cleanDoc(docCnh)]
         );
 
         if (perfilEscolhido === 'locador') {
+            const tipoLocador = tipoDoc === 'cnpj' ? 'juridica' : 'fisica';
+            const logoLimpo = typeof logo === 'string' && logo.startsWith('data:image/') ? logo : null;
             await conn.query(
-                'INSERT INTO locadores (tipo, nome, email, cpf, rg) VALUES (?,?,?,?,?)',
-                ['fisica', nome, email, tipoDoc === 'cpf' ? doc : null, rgLimpo || null]
+                'INSERT INTO locadores (tipo, nome, razao_social, email, cpf, cnpj, rg, logo) VALUES (?,?,?,?,?,?,?,?)',
+                [tipoLocador, nome, tipoLocador === 'juridica' ? nome : null, email,
+                 tipoDoc === 'cpf' ? doc : null, tipoDoc === 'cnpj' ? doc : null,
+                 rgLimpo || null, logoLimpo]
             );
-        } else {
+        } else if (perfilEscolhido === 'locatario') {
             await conn.query(
                 'INSERT INTO locatarios (tipo, nome, email, cpf, rg, categoria_cnh, motorist_app) VALUES (?,?,?,?,?,?,?)',
                 ['fisica', nome, email, tipoDoc === 'cpf' ? doc : null, rgLimpo || null, 'B', 0]
@@ -206,6 +214,10 @@ router.post('/register', async (req, res) => {
         }
 
         await conn.commit();
+
+        if (pendente) {
+            return res.status(201).json({ pendente: true, mensagem: 'Cadastro enviado com sucesso! Aguarde a aprovação do administrador para acessar o sistema.' });
+        }
 
         const usuario = {
             id: result.insertId,
@@ -218,7 +230,8 @@ router.post('/register', async (req, res) => {
         };
         const token = buildJwtToken(usuario);
         const locatario = await getLocatarioProfileForUser(conn, usuario);
-        return res.status(201).json({ token, usuario, locatario });
+        const locador_proprio = await getLocadorProfileForUser(conn, usuario);
+        return res.status(201).json({ token, usuario, locatario, locador_proprio });
     } catch (err) {
         await conn.rollback();
         console.error(err);
@@ -237,7 +250,7 @@ router.post('/login', async (req, res) => {
 
     try {
         const [rows] = await pool.query(
-            'SELECT * FROM usuarios WHERE email = ? AND ativo = TRUE',
+            'SELECT * FROM usuarios WHERE email = ?',
             [email]
         );
         if (rows.length === 0) {
@@ -248,6 +261,18 @@ router.post('/login', async (req, res) => {
         const senhaCorreta = await bcrypt.compare(senha, usuario.senha_hash);
         if (!senhaCorreta) {
             return res.status(401).json({ erro: 'Credenciais inválidas.' });
+        }
+
+        const statusAprovacao = usuario.status_aprovacao || 'aprovado';
+        if (statusAprovacao === 'pendente') {
+            return res.status(403).json({ erro: 'Seu cadastro está aguardando aprovação do administrador. Você receberá acesso assim que for aprovado.' });
+        }
+        if (statusAprovacao === 'rejeitado') {
+            const motivo = usuario.motivo_rejeicao ? ` Motivo: ${usuario.motivo_rejeicao}` : '';
+            return res.status(403).json({ erro: `Seu cadastro foi rejeitado e não pode acessar o sistema.${motivo}` });
+        }
+        if (!usuario.ativo) {
+            return res.status(403).json({ erro: 'Usuário inativo. Entre em contato com o administrador.' });
         }
 
         const token = buildJwtToken(usuario);

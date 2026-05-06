@@ -5,7 +5,7 @@ const { CLAUSULAS_OBRIGATORIAS_CONTRATO, buildContractClauses } = require('../ut
 test('cláusulas obrigatórias devem sempre existir', () => {
     assert.ok(Array.isArray(CLAUSULAS_OBRIGATORIAS_CONTRATO));
     assert.ok(CLAUSULAS_OBRIGATORIAS_CONTRATO.length > 20);
-    assert.equal(CLAUSULAS_OBRIGATORIAS_CONTRATO[0], 'CLAUSULA 2 - DO OBJETO');
+    assert.equal(CLAUSULAS_OBRIGATORIAS_CONTRATO[0], 'CLAUSULA 1 - DO OBJETO');
 });
 
 test('buildContractClauses sem complemento retorna apenas obrigatórias', () => {

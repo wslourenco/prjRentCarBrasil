@@ -12,8 +12,11 @@ import Financeiro from './pages/Financeiro';
 import Aquisicoes from './pages/Aquisicoes';
 import Painel from './pages/Painel';
 import Admin from './pages/Admin';
+import AprovacoesAdmin from './pages/AprovacoesAdmin';
 import ConfigSmtp from './pages/ConfigSmtp';
 import TrocarSenha from './pages/TrocarSenha';
+import MeuCadastro from './pages/MeuCadastro';
+import FaleConosco from './pages/FaleConosco';
 import './styles/global.css';
 
 function RoleRoute({ allowed, element }) {
@@ -55,6 +58,9 @@ function App() {
             <Route path="financeiro" element={<RoleRoute allowed={['admin', 'locador', 'locatario', 'auxiliar']} element={<Financeiro />} />} />
             <Route path="aquisicoes" element={<RoleRoute allowed={['admin', 'locador']} element={<Aquisicoes />} />} />
             <Route path="admin" element={<RoleRoute allowed={['admin']} element={<Admin />} />} />
+            <Route path="aprovacoes" element={<RoleRoute allowed={['admin']} element={<AprovacoesAdmin />} />} />
+            <Route path="meu-cadastro" element={<MeuCadastro />} />
+            <Route path="fale-conosco" element={<RoleRoute allowed={['locador', 'locatario', 'auxiliar']} element={<FaleConosco />} />} />
           </Route>
           <Route path="*" element={<HomeRedirect />} />
         </Routes>

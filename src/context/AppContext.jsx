@@ -208,9 +208,13 @@ export function AppProvider({ children }) {
         setUsuarioLogado(atualizado);
     }
 
-    async function register(nome, email, senha, perfil, tipoDocumento, documento, rg) {
-        const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento, rg });
-        const usuarioBase = usuarioFromApi({ ...(dados.usuario || {}), locatario: dados.locatario || null });
+    async function register(nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante, docCnh) {
+        const dados = await api.post('/auth/register', { nome, email, senha, perfil, tipoDocumento, documento, rg, logo, docRg, docCpf, docComprovante, docCnh });
+
+        // Cadastro enviado para aprovação — sem token, sem login automático
+        if (dados.pendente) return { pendente: true };
+
+        const usuarioBase = usuarioFromApi({ ...(dados.usuario || {}), locatario: dados.locatario || null, locador_proprio: dados.locador_proprio || null });
         sessionStorage.setItem('sislove_token', dados.token);
         sessionStorage.setItem('sislove_usuario', JSON.stringify(usuarioBase));
         localStorage.removeItem('sislove_token');
@@ -247,8 +251,13 @@ export function AppProvider({ children }) {
     }
     async function updateLocador(id, dados) {
         const atualizado = await api.put(`/locadores/${id}`, locadorToApi(dados));
-        setLocadores(prev => prev.map(l => l.id === id ? locadorFromApi(atualizado) : l));
-        return locadorFromApi(atualizado);
+        const locadorAtualizado = locadorFromApi(atualizado);
+        setLocadores(prev => prev.map(l => l.id === id ? locadorAtualizado : l));
+        // Atualiza logo do usuário logado se for o próprio locador
+        if (usuarioLogado?.locadorProprio?.id === id) {
+            await sincronizarUsuarioAtual().catch(() => {});
+        }
+        return locadorAtualizado;
     }
     async function removeLocador(id) {
         await api.delete(`/locadores/${id}`);
@@ -416,7 +425,7 @@ export function AppProvider({ children }) {
 
     return (
         <AppContext.Provider value={{
-            usuarioLogado, login, register, logout, trocarSenha,
+            usuarioLogado, login, register, logout, trocarSenha, sincronizarUsuarioAtual,
             locadores,        addLocador,        updateLocador,        removeLocador,
             locatarios,       addLocatario,       updateLocatario,       removeLocatario,
             colaboradores,    addColaborador,    updateColaborador,    removeColaborador,

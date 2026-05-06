@@ -1,9 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { usuarioFromApi } from '../services/mappers';
-import { Plus, Edit2, Trash2, X, Car, Check } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Car, Check, Eye, EyeOff } from 'lucide-react';
 import { applyMask } from '../utils/masks';
+import PagamentoPix from '../components/PagamentoPix';
+import DebitosVeiculares from '../components/DebitosVeiculares';
 
 const COMBUSTIVEIS = ['Flex','Gasolina','Etanol','Diesel','GNV','Elétrico','Híbrido'];
 const TRANSMISSOES = ['Manual','Automático','Semi-automático','CVT'];
@@ -16,11 +18,11 @@ const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','P
 
 const EMPTY_VEICULO = {
   placa: '', renavam: '', chassi: '', marca: '', modelo: '', anoFabricacao: '', anoModelo: '', cor: '',
-  combustivel: 'Flex', transmissao: 'Manual', nrPortas: '4', capacidade: '5',
+  combustivel: 'Flex', transmissao: 'Manual', nrPortas: '4', capacidade: '5', blindado: false, nivelBlindagem: '', carroceria: '',
   kmAtual: '', kmCompra: '',
   kmTrocaOleo: '', kmTrocaCorreia: '', kmTrocaPneu: '',
   dataCompra: '', valorCompra: '', valorFipe: '',
-  seguradora: '', nrApolice: '', vencimentoSeguro: '',
+  seguradora: '', nrApolice: '', vencimentoSeguro: '', franquia: '',
   dataLicenciamento: '', dataVistoria: '',
   bloqueador: '', nrBloqueador: '',
   locadorId: '',
@@ -73,13 +75,57 @@ export default function Veiculos() {
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_VEICULO);
+  const [fipeStatus, setFipeStatus] = useState(''); // '' | 'buscando' | 'encontrado' | 'nao_encontrado' | 'erro'
+  const [showSmtpPass, setShowSmtpPass] = useState(false);
+  const fipeDebounceRef = useRef(null);
+
+  useEffect(() => {
+    const { marca, modelo, anoModelo } = form;
+    if (!modal) return;
+    clearTimeout(fipeDebounceRef.current);
+    if (!marca || !modelo || !anoModelo) { setFipeStatus(''); return; }
+    setFipeStatus('buscando');
+    fipeDebounceRef.current = setTimeout(async () => {
+      try {
+        const FIPE = 'https://parallelum.com.br/fipe/api/v1/carros';
+        const marcas = await fetch(`${FIPE}/marcas`).then(r => r.json());
+        const nomeMarca = marca.toLowerCase();
+        const marcaFipe = marcas.find(m =>
+          m.nome.toLowerCase().includes(nomeMarca) || nomeMarca.includes(m.nome.toLowerCase())
+        );
+        if (!marcaFipe) { setFipeStatus('nao_encontrado'); return; }
+
+        const { modelos } = await fetch(`${FIPE}/marcas/${marcaFipe.codigo}/modelos`).then(r => r.json());
+        const nomeModelo = modelo.toLowerCase();
+        const modeloFipe = modelos.find(m =>
+          m.nome.toLowerCase().includes(nomeModelo) || nomeModelo.includes(m.nome.toLowerCase())
+        );
+        if (!modeloFipe) { setFipeStatus('nao_encontrado'); return; }
+
+        const anos = await fetch(`${FIPE}/marcas/${marcaFipe.codigo}/modelos/${modeloFipe.codigo}/anos`).then(r => r.json());
+        const anoFipe = anos.find(a => a.nome.includes(String(anoModelo))) || anos[0];
+        if (!anoFipe) { setFipeStatus('nao_encontrado'); return; }
+
+        const dado = await fetch(`${FIPE}/marcas/${marcaFipe.codigo}/modelos/${modeloFipe.codigo}/anos/${anoFipe.codigo}`).then(r => r.json());
+        const valor = parseFloat(dado.Valor.replace('R$ ', '').replace('R$ ', '').replace(/\./g, '').replace(',', '.'));
+        setForm(prev => ({ ...prev, valorFipe: isNaN(valor) ? '' : valor }));
+        setFipeStatus('encontrado');
+      } catch {
+        setFipeStatus('erro');
+      }
+    }, 900);
+    return () => clearTimeout(fipeDebounceRef.current);
+  }, [form.marca, form.modelo, form.anoModelo, modal]);
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
   const [deletandoVeiculo, setDeletandoVeiculo] = useState(false);
   const [erroDelecaoVeiculo, setErroDelecaoVeiculo] = useState('');
   const [view, setView] = useState('cards'); // 'cards' | 'table'
   const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('');
+  const [filtroCidade, setFiltroCidade] = useState('');
   const [veiculoSelecionadoLocacao, setVeiculoSelecionadoLocacao] = useState('');
   const [locandoVeiculo, setLocandoVeiculo] = useState(false);
+  const [modalPix, setModalPix] = useState(null); // { valor, descricao, emailPagador, locacaoId }
   const [erroLocacaoRapida, setErroLocacaoRapida] = useState('');
   const [sucessoLocacaoRapida, setSucessoLocacaoRapida] = useState('');
   const [modalContrato, setModalContrato] = useState(false);
@@ -128,24 +174,37 @@ export default function Veiculos() {
     return Array.from(new Set(todas)).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   }, [veiculos, form.marca]);
 
+  const estadosDisponiveis = useMemo(() =>
+    [...new Set(listaVeiculos.map(v => v.estadoLocador).filter(Boolean))].sort()
+  , [listaVeiculos]);
+
+  const cidadesDisponiveis = useMemo(() =>
+    [...new Set(listaVeiculos
+      .filter(v => !filtroEstado || v.estadoLocador === filtroEstado)
+      .map(v => v.cidadeLocador).filter(Boolean))].sort()
+  , [listaVeiculos, filtroEstado]);
+
   const listaVeiculosFiltrada = useMemo(() => {
-    // Primeiro, filtra por categoria
     let resultado = listaVeiculos;
     if (filtroCategoria) {
       resultado = resultado.filter(v => (String(v.marca || '').trim() || 'Sem categoria') === filtroCategoria);
     }
+    if (filtroEstado) {
+      resultado = resultado.filter(v => v.estadoLocador === filtroEstado);
+    }
+    if (filtroCidade) {
+      resultado = resultado.filter(v => v.cidadeLocador === filtroCidade);
+    }
 
-    // Se o usuário é locatário, remove veículos que têm locação pendente de aprovação
     if (usuarioLogado?.perfil === 'locatario' && locacoes && locacoes.length > 0) {
       const idsVeiculosPendentes = locacoes
         .filter(l => l.status === 'pendente_aprovacao')
         .map(l => l.veiculoId);
-
       resultado = resultado.filter(v => !idsVeiculosPendentes.includes(v.id));
     }
 
     return resultado;
-  }, [listaVeiculos, filtroCategoria, usuarioLogado, locacoes]);
+  }, [listaVeiculos, filtroCategoria, filtroEstado, filtroCidade, usuarioLogado, locacoes]);
 
   const veiculoEmExclusao = useMemo(
     () => listaVeiculos.find(v => String(v.id) === String(confirmarExclusao)) || null,
@@ -200,9 +259,9 @@ export default function Veiculos() {
 
   const [erroCrud, setErroCrud] = useState('');
 
-  function abrirNovo() { setForm(EMPTY_VEICULO); setEditId(null); setModal(true); setErroCrud(''); }
-  function abrirEditar(v) { setForm({ ...EMPTY_VEICULO, ...v }); setEditId(v.id); setModal(true); setErroCrud(''); }
-  function fecharModal() { setModal(false); setEditId(null); setErroCrud(''); }
+  function abrirNovo() { setForm(EMPTY_VEICULO); setEditId(null); setModal(true); setErroCrud(''); setFipeStatus(''); }
+  function abrirEditar(v) { setForm({ ...EMPTY_VEICULO, ...v }); setEditId(v.id); setModal(true); setErroCrud(''); setFipeStatus(v.valorFipe ? 'encontrado' : ''); }
+  function fecharModal() { setModal(false); setEditId(null); setErroCrud(''); setFipeStatus(''); }
 
   async function handleRemoveVeiculo(id) {
     setDeletandoVeiculo(true);
@@ -242,6 +301,11 @@ export default function Veiculos() {
     const nomeViaApi = String(veiculo?.nomeLocador || '').trim();
     if (nomeViaApi) return nomeViaApi;
     return nomeLocador(veiculo?.locadorId);
+  }
+
+  function localVeiculo(veiculo) {
+    const partes = [veiculo?.cidadeLocador, veiculo?.estadoLocador].filter(Boolean);
+    return partes.length ? partes.join(' - ') : null;
   }
 
   function preencherContratoComUsuario(usuario, manterObservacoes = true) {
@@ -493,6 +557,20 @@ export default function Veiculos() {
       setVeiculoSelecionadoLocacao('');
       fecharModalContratoLocacao();
 
+      // Abre pagamento PIX após criar locação
+      if (resposta?.locacao?.id) {
+        const veiculo = veiculos.find(v => String(v.id) === String(veiculoSelecionadoLocacao));
+        const valorSemanal = veiculo?.valorDiario ? Number(veiculo.valorDiario) * 7 : 0;
+        if (valorSemanal > 0) {
+          setModalPix({
+            valor: valorSemanal,
+            descricao: `Locação ${veiculo?.marca || ''} ${veiculo?.modelo || ''} - ${veiculo?.placa || ''}`,
+            emailPagador: contratoForm.email || usuarioLogado?.email || '',
+            locacaoId: resposta.locacao.id,
+          });
+        }
+      }
+
       if (resposta?.contratoEmailStatus === 'enviado') {
         setSucessoLocacaoRapida('Contrato enviado por e-mail em PDF para assinatura via gov.br. Uma cópia também foi enviada para o locador. A locação está pendente de aprovação do locador.');
       } else if (resposta?.contratoEmailStatus === 'download') {
@@ -516,6 +594,16 @@ export default function Veiculos() {
 
   return (
     <div className="page-content">
+      {modalPix && (
+        <PagamentoPix
+          valor={modalPix.valor}
+          descricao={modalPix.descricao}
+          emailPagador={modalPix.emailPagador}
+          locacaoId={modalPix.locacaoId}
+          onPago={() => setModalPix(null)}
+          onFechar={() => setModalPix(null)}
+        />
+      )}
       {carregando && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="empty-state"><p>Carregando veículos...</p></div>
@@ -594,6 +682,18 @@ export default function Veiculos() {
             <option value="">Todas as montadoras</option>
             {categoriasVeiculo.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
           </select>
+          {usuarioLogado?.perfil === 'locatario' && estadosDisponiveis.length > 0 && (
+            <select aria-label="Estado" value={filtroEstado} onChange={e => { setFiltroEstado(e.target.value); setFiltroCidade(''); }} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13 }}>
+              <option value="">Todos os estados</option>
+              {estadosDisponiveis.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+            </select>
+          )}
+          {usuarioLogado?.perfil === 'locatario' && cidadesDisponiveis.length > 0 && (
+            <select aria-label="Cidade" value={filtroCidade} onChange={e => setFiltroCidade(e.target.value)} style={{ padding: '7px 12px', border: '1.5px solid var(--gray-300)', borderRadius: 'var(--radius)', fontSize: 13 }}>
+              <option value="">Todas as cidades</option>
+              {cidadesDisponiveis.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
           <div className="toggle-group">
             <button type="button" className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')}>Cards</button>
             <button type="button" className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>Tabela</button>
@@ -637,7 +737,11 @@ export default function Veiculos() {
                   <div>Valor FIPE: <strong>{v.valorFipe != null ? Number(v.valorFipe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</strong></div>
                   <div>Locação diária: <strong>{v.valorDiario != null ? Number(v.valorDiario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</strong></div>
                   <div>Locador: {nomeLocadorVeiculo(v)}</div>
+                  {localVeiculo(v) && <div>Localização: <strong>{localVeiculo(v)}</strong></div>}
                 </div>
+                {(usuarioLogado?.perfil === 'locador' || usuarioLogado?.perfil === 'admin') && (
+                  <DebitosVeiculares veiculoId={v.id} placa={v.placa} />
+                )}
               </div>
               <div className="veiculo-card-footer">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -838,7 +942,15 @@ export default function Veiculos() {
                     </select>
                   </div>
                   <div className="form-group"><label>SMTP_USER *</label><input required type="email" value={smtpForm.user} onChange={e => setSmtpForm(prev => ({ ...prev, user: e.target.value }))} /></div>
-                  <div className="form-group"><label>SMTP_PASS *</label><input required type="password" value={smtpForm.pass} onChange={e => setSmtpForm(prev => ({ ...prev, pass: e.target.value }))} /></div>
+                  <div className="form-group">
+                    <label>SMTP_PASS *</label>
+                    <div style={{ position: 'relative' }}>
+                      <input required type={showSmtpPass ? 'text' : 'password'} value={smtpForm.pass} onChange={e => setSmtpForm(prev => ({ ...prev, pass: e.target.value }))} style={{ width: '100%', paddingRight: 40 }} />
+                      <button type="button" onClick={() => setShowSmtpPass(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', padding: 0 }}>
+                        {showSmtpPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
                   <div className="form-group"><label>MAIL_FROM (opcional)</label><input value={smtpForm.mailFrom} onChange={e => setSmtpForm(prev => ({ ...prev, mailFrom: e.target.value }))} /></div>
                 </div>
 
@@ -892,8 +1004,8 @@ export default function Veiculos() {
                   <div className="form-section-title">Identificação</div>
                   <div className="form-grid">
                     <div className="form-group"><label>Placa *</label><input required {...f('placa')} /></div>
-                    <div className="form-group"><label>RENAVAM</label><input {...f('renavam')} /></div>
-                    <div className="form-group"><label>Chassi</label><input {...f('chassi')} /></div>
+                    <div className="form-group"><label>RENAVAM *</label><input required {...f('renavam')} /></div>
+                    <div className="form-group"><label>Chassi *</label><input required {...f('chassi')} /></div>
                     <div className="form-group"><label>Montadora *</label>
                       <select required {...f('marca')}>
                         <option value="">Selecione a montadora</option>
@@ -901,28 +1013,66 @@ export default function Veiculos() {
                       </select>
                     </div>
                     <div className="form-group"><label>Modelo *</label><input required {...f('modelo')} /></div>
-                    <div className="form-group"><label>Ano Fabricação</label><input type="number" min="1990" max="2030" {...f('anoFabricacao')} /></div>
-                    <div className="form-group"><label>Ano Modelo</label><input type="number" min="1990" max="2030" {...f('anoModelo')} /></div>
-                    <div className="form-group"><label>Cor</label><input {...f('cor')} /></div>
-                    <div className="form-group"><label>Combustível</label>
-                      <select {...f('combustivel')}>{COMBUSTIVEIS.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                    <div className="form-group"><label>Ano Fabricação *</label><input required type="number" min="1990" max="2030" {...f('anoFabricacao')} /></div>
+                    <div className="form-group"><label>Ano Modelo *</label><input required type="number" min="1990" max="2030" {...f('anoModelo')} /></div>
+                    <div className="form-group"><label>Cor *</label><input required {...f('cor')} /></div>
+                    <div className="form-group"><label>Combustível *</label>
+                      <select required {...f('combustivel')}>{COMBUSTIVEIS.map(c => <option key={c} value={c}>{c}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Transmissão</label>
-                      <select {...f('transmissao')}>{TRANSMISSOES.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                    <div className="form-group"><label>Transmissão *</label>
+                      <select required {...f('transmissao')}>{TRANSMISSOES.map(t => <option key={t} value={t}>{t}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Portas</label>
-                      <select {...f('nrPortas')}><option value="2">2</option><option value="4">4</option></select>
+                    <div className="form-group"><label>Portas *</label>
+                      <select required {...f('nrPortas')}><option value="2">2</option><option value="4">4</option></select>
                     </div>
-                    <div className="form-group"><label>Capacidade (pessoas)</label>
-                      <select {...f('capacidade')}>{['2','4','5','7','9','15'].map(n => <option key={n} value={n}>{n}</option>)}</select>
+                    <div className="form-group"><label>Capacidade (pessoas) *</label>
+                      <select required {...f('capacidade')}>{['2','4','5','7','9','15'].map(n => <option key={n} value={n}>{n}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Locador (proprietário)</label>
-                      <select {...f('locadorId')}>
-                        <option value="">Selecione</option>
-                        {locadores.map(l => <option key={l.id} value={l.id}>{l.tipo === 'juridica' ? l.razaoSocial : l.nome}</option>)}
+                  </div>
+                  <div className="form-grid" style={{ marginTop: 12 }}>
+                    <div className="form-group">
+                      <label>Carroceria / Segmento *</label>
+                      <select required value={form.carroceria || ''} onChange={e => setForm({ ...form, carroceria: e.target.value })}>
+                        <option value="">Selecione...</option>
+                        <option value="Hatch">Hatch — compacto e urbano</option>
+                        <option value="Sedan">Sedan — confortável, porta-malas grande</option>
+                        <option value="SUV">SUV — alto e versátil</option>
+                        <option value="Crossover">Crossover — SUV urbano</option>
+                        <option value="Picape">Picape — carga</option>
+                        <option value="Minivan">Minivan — família</option>
+                        <option value="Perua">Perua — espaço + dirigibilidade</option>
+                        <option value="Cupê">Cupê — esportividade/estilo</option>
+                        <option value="Conversível">Conversível — esportividade/estilo</option>
                       </select>
                     </div>
-                    <div className="form-group"><label>URL da foto</label><input type="url" {...f('foto')} /></div>
+                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <input
+                        type="checkbox"
+                        id="blindado"
+                        checked={!!form.blindado}
+                        onChange={e => setForm({ ...form, blindado: e.target.checked, nivelBlindagem: e.target.checked ? (form.nivelBlindagem || 'Nível III') : '' })}
+                        style={{ width: 16, height: 16, cursor: 'pointer', flexShrink: 0 }}
+                      />
+                      <label htmlFor="blindado" style={{ marginBottom: 0, cursor: 'pointer', userSelect: 'none' }}>Veículo Blindado</label>
+                    </div>
+                    <div className="form-group">
+                      <label>Nível de Blindagem {form.blindado && '*'}</label>
+                      <select
+                        required={!!form.blindado}
+                        value={form.nivelBlindagem || ''}
+                        onChange={e => setForm({ ...form, nivelBlindagem: e.target.value })}
+                        disabled={!form.blindado}
+                        style={!form.blindado ? { opacity: 0.4, cursor: 'not-allowed' } : {}}
+                      >
+                        <option value="">Selecione...</option>
+                        <option value="Nível I">Nível I</option>
+                        <option value="Nível II">Nível II</option>
+                        <option value="Nível III">Nível III</option>
+                        <option value="Nível III-A">Nível III-A</option>
+                        <option value="Nível IV">Nível IV</option>
+                        <option value="Nível V">Nível V</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -930,39 +1080,55 @@ export default function Veiculos() {
                   <div className="form-section-title">Quilometragem e Manutenção</div>
                   <div className="form-grid">
                     <div className="form-group"><label>KM Atual *</label><input required type="number" {...f('kmAtual')} /></div>
-                    <div className="form-group"><label>KM na Compra</label><input type="number" {...f('kmCompra')} /></div>
-                    <div className="form-group"><label>KM Próx. Troca de Óleo</label><input type="number" {...f('kmTrocaOleo')} /></div>
-                    <div className="form-group"><label>KM Próx. Correia Dentada</label><input type="number" {...f('kmTrocaCorreia')} /></div>
-                    <div className="form-group"><label>KM Próx. Pneus</label><input type="number" {...f('kmTrocaPneu')} /></div>
+                    <div className="form-group"><label>KM na Compra *</label><input required type="number" {...f('kmCompra')} /></div>
+                    <div className="form-group"><label>KM Próx. Troca de Óleo *</label><input required type="number" {...f('kmTrocaOleo')} /></div>
+                    <div className="form-group"><label>KM Próx. Correia Dentada *</label><input required type="number" {...f('kmTrocaCorreia')} /></div>
+                    <div className="form-group"><label>KM Próx. Pneus *</label><input required type="number" {...f('kmTrocaPneu')} /></div>
                   </div>
                 </div>
 
                 <div className="form-section">
                   <div className="form-section-title">Dados de Compra e Valor</div>
                   <div className="form-grid">
-                    <div className="form-group"><label>Data de Compra</label><input type="date" {...f('dataCompra')} /></div>
-                    <div className="form-group"><label>Valor Pago (R$)</label><input type="number" step="0.01" {...f('valorCompra')} /></div>
-                    <div className="form-group"><label>Valor Tabela FIPE (R$)</label><input type="number" step="0.01" {...f('valorFipe')} /></div>
-                    <div className="form-group"><label>Valor Locação Diária (R$)</label><input type="text" inputMode="decimal" placeholder="0,00" {...f('valorDiario')} /></div>
+                    <div className="form-group"><label>Data de Compra *</label><input required type="date" {...f('dataCompra')} /></div>
+                    <div className="form-group"><label>Valor Pago (R$) *</label><input required type="number" step="0.01" {...f('valorCompra')} /></div>
+                    <div className="form-group"><label>Valor Locação Diária (R$) *</label><input required type="text" inputMode="decimal" placeholder="0,00" {...f('valorDiario')} /></div>
+                    <div className="form-group">
+                      <label>
+                        Valor Tabela FIPE
+                        {fipeStatus === 'buscando' && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--primary)', fontWeight: 400 }}>Buscando...</span>}
+                        {fipeStatus === 'encontrado' && <span style={{ marginLeft: 8, fontSize: 11, color: 'green', fontWeight: 400 }}>✓ Atualizado</span>}
+                        {fipeStatus === 'nao_encontrado' && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--gray-400)', fontWeight: 400 }}>Não encontrado</span>}
+                        {fipeStatus === 'erro' && <span style={{ marginLeft: 8, fontSize: 11, color: 'red', fontWeight: 400 }}>Erro na busca</span>}
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={form.valorFipe ? Number(form.valorFipe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : ''}
+                        placeholder={fipeStatus === 'buscando' ? 'Consultando FIPE...' : 'Preencha montadora, modelo e ano'}
+                        style={{ background: 'var(--gray-50)', cursor: 'default' }}
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div className="form-section">
                   <div className="form-section-title">Seguro e Documentação</div>
                   <div className="form-grid">
-                    <div className="form-group"><label>Seguradora</label><input {...f('seguradora')} /></div>
-                    <div className="form-group"><label>Nº Apólice</label><input {...f('nrApolice')} /></div>
-                    <div className="form-group"><label>Vencimento Seguro</label><input type="date" {...f('vencimentoSeguro')} /></div>
-                    <div className="form-group"><label>Data Licenciamento</label><input type="date" {...f('dataLicenciamento')} /></div>
-                    <div className="form-group"><label>Data Vistoria</label><input type="date" {...f('dataVistoria')} /></div>
-                    <div className="form-group"><label>Empresa Bloqueador</label><input {...f('bloqueador')} /></div>
-                    <div className="form-group"><label>Nº Bloqueador/Rastreador</label><input {...f('nrBloqueador')} /></div>
+                    <div className="form-group"><label>Seguradora *</label><input required {...f('seguradora')} /></div>
+                    <div className="form-group"><label>Nº Apólice *</label><input required {...f('nrApolice')} /></div>
+                    <div className="form-group"><label>Vencimento Seguro *</label><input required type="date" {...f('vencimentoSeguro')} /></div>
+                    <div className="form-group"><label>Franquia (R$) *</label><input required type="text" inputMode="decimal" placeholder="0,00" {...f('franquia')} /></div>
+                    <div className="form-group"><label>Data Licenciamento *</label><input required type="date" {...f('dataLicenciamento')} /></div>
+                    <div className="form-group"><label>Data Vistoria *</label><input required type="date" {...f('dataVistoria')} /></div>
+                    <div className="form-group"><label>Empresa Bloqueador *</label><input required {...f('bloqueador')} /></div>
+                    <div className="form-group"><label>Nº Bloqueador/Rastreador *</label><input required {...f('nrBloqueador')} /></div>
                   </div>
                 </div>
 
                 <div className="form-section">
                   <div className="form-section-title">Observações</div>
-                  <div className="form-group"><label>Observações</label><textarea {...f('observacoes')} /></div>
+                  <div className="form-group"><label>Observações *</label><textarea required {...f('observacoes')} /></div>
                 </div>
 
                 {erroCrud && <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 8 }}>{erroCrud}</p>}

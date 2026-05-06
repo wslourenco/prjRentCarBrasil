@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authMiddleware, requireProfiles } = require('../middleware/auth');
-const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
@@ -235,6 +234,50 @@ function parseLikertAnswers(avaliacaoLikert) {
     return respostas;
 }
 
+// Calcula os valores dinâmicos da Cláusula 4 com base no veículo e periodicidade
+function calcularValoresClausula4(veiculo, periodicidade, quantidadePeriodos, dataInicio) {
+    const valorDiaria = Number(veiculo?.valor_diario || 0);
+    const caucao = Number(veiculo?.franquia || 0);
+    const seguradora = veiculo?.seguradora || '';
+    const nrApolice = veiculo?.nr_apolice || '';
+    const qtd = Math.max(1, Number(quantidadePeriodos || 1));
+    const base = { caucao, seguradora, nrApolice };
+
+    if (!valorDiaria) return { valorDiaria: 0, ...base };
+
+    if (periodicidade === 'dia') {
+        return { valorDiaria, periodicidade: 'dia', diasPeriodo: qtd, valorPeriodo: Number((valorDiaria * qtd).toFixed(2)), descontoAplicado: false, ...base };
+    }
+
+    if (periodicidade === 'semana') {
+        return { valorDiaria, periodicidade: 'semana', diasPeriodo: 7, valorPeriodo: Number((valorDiaria * 7).toFixed(2)), descontoAplicado: false, ...base };
+    }
+
+    if (periodicidade === 'quinzenal') {
+        const bruto = valorDiaria * 15;
+        return { valorDiaria, periodicidade: 'quinzenal', diasPeriodo: 15, valorPeriodo: Number((bruto * 0.95).toFixed(2)), descontoAplicado: true, ...base };
+    }
+
+    if (periodicidade === 'mensal') {
+        let diasTotal = 0;
+        try {
+            const inicio = dataInicio ? new Date(`${dataInicio}T00:00:00`) : new Date();
+            for (let i = 0; i < qtd; i++) {
+                const ano = inicio.getFullYear();
+                const mes = inicio.getMonth() + i;
+                diasTotal += new Date(ano, mes + 1, 0).getDate();
+            }
+        } catch {
+            diasTotal = 30 * qtd;
+        }
+        const diasPeriodo = Math.round(diasTotal / qtd);
+        const bruto = valorDiaria * diasPeriodo;
+        return { valorDiaria, periodicidade: 'mensal', diasPeriodo, valorPeriodo: Number((bruto * 0.95).toFixed(2)), descontoAplicado: true, ...base };
+    }
+
+    return { valorDiaria, ...base };
+}
+
 function estimateWeeklyValue(veiculo) {
     const fipe = Number(veiculo?.valor_fipe || 0);
     if (fipe > 0) {
@@ -285,7 +328,7 @@ async function gerarContratoPdfBuffer(dados) {
         const doc = new PDFDocument({ margin: 42 });
         const chunks = [];
         const clausulasComplementares = readContractClauses();
-        const clausulas = buildContractClauses(clausulasComplementares);
+        const clausulas = buildContractClauses(clausulasComplementares, dados.valoresClausula4 || {});
 
         doc.on('data', chunk => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -355,49 +398,6 @@ async function gerarContratoPdfBuffer(dados) {
 
         doc.end();
     });
-}
-
-async function criarTransporter() {
-    try {
-        // Tenta buscar configurações do banco de dados primeiro
-        const [rows] = await pool.query(`
-            SELECT chave, valor FROM configuracoes 
-            WHERE chave LIKE 'smtp_%' OR chave = 'mail_from'
-        `);
-
-        let config = {};
-        rows.forEach(row => { config[row.chave] = row.valor; });
-
-        // Se não encontrou no banco, tenta variáveis de ambiente
-        const host = String(config.smtp_host || process.env.SMTP_HOST || '').trim();
-        const user = String(config.smtp_user || process.env.SMTP_USER || '').trim();
-        const pass = String(config.smtp_pass || process.env.SMTP_PASS || '').trim();
-        const port = Number(config.smtp_port || process.env.SMTP_PORT || 587);
-        const secure = String(config.smtp_secure || process.env.SMTP_SECURE || 'false').toLowerCase() === 'true' || port === 465;
-        const testMode = String(process.env.TEST_MODE || '').toLowerCase() === 'true';
-
-        if (!host || !user || !pass) return null;
-
-        // Em modo de teste, retorna transporter simulado
-        if (testMode) {
-            return {
-                sendMail: async (options) => {
-                    console.log(`[TEST MODE] Email simulado enviado para: ${options.to}`);
-                    console.log(`  Assunto: ${options.subject}`);
-                    console.log(`  Anexo: ${options.attachments?.[0]?.filename || 'nenhum'}`);
-                    return { messageId: `test-${Date.now()}@test.local` };
-                }
-            };
-        }
-
-        return nodemailer.createTransport({
-            host, port, secure,
-            auth: { user, pass },
-        });
-    } catch (err) {
-        console.error('Erro ao criar transporter:', err);
-        return null;
-    }
 }
 
 function getComprovanteExtensionByMime(mimeType) {
@@ -517,31 +517,67 @@ async function salvarComprovanteEncerramentoArquivo({ locacaoId, arquivo }) {
     };
 }
 
-async function enviarContratoPorEmail({ para, nomeLocatario, pdfBuffer, nomeArquivo }) {
-    const transporter = await criarTransporter();
-    if (!transporter) {
-        const err = new Error('SMTP nao configurado. Configure as credenciais SMTP em Configurações.');
-        err.code = 'SMTP_NOT_CONFIGURED';
-        throw err;
+async function enviarEmailAprovacaoLocacao(locacaoId) {
+    try {
+        const { enviarEmail } = require('../utils/mailer');
+        const [rows] = await pool.query(
+            `SELECT lc.data_inicio,
+                    CONCAT(v.marca, ' ', v.modelo) AS nome_veiculo, v.placa,
+                    lt.nome AS nome_locatario, lt.email AS email_locatario,
+                    ld.nome AS nome_locador, ld.telefone AS telefone_locador, ld.celular AS celular_locador,
+                    ld.endereco, ld.numero, ld.complemento, ld.bairro, ld.cidade, ld.estado, ld.cep
+             FROM locacoes lc
+             LEFT JOIN veiculos v ON lc.veiculo_id = v.id
+             LEFT JOIN locatarios lt ON lc.locatario_id = lt.id
+             LEFT JOIN locadores ld ON v.locador_id = ld.id
+             WHERE lc.id = ? LIMIT 1`,
+            [locacaoId]
+        );
+        if (!rows.length || !rows[0].email_locatario) return;
+        const d = rows[0];
+
+        const fmtData = v => v ? new Date(v).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+        const enderecoLocador = [d.endereco, d.numero, d.complemento, d.bairro, d.cidade && d.estado ? `${d.cidade} - ${d.estado}` : (d.cidade || d.estado), d.cep].filter(Boolean).join(', ') || 'Endereço não informado pelo locador.';
+        const contatoLocador = [d.telefone_locador, d.celular_locador].filter(Boolean).join(' / ') || '—';
+
+        await enviarEmail({
+            para: d.email_locatario,
+            assunto: `Sua locação foi aprovada — retire o veículo em ${fmtData(d.data_inicio)}`,
+            texto: `Olá, ${d.nome_locatario}!\n\nSua locação foi APROVADA.\nVeículo: ${d.nome_veiculo} — Placa: ${d.placa}\nData de Retirada: ${fmtData(d.data_inicio)}\n\nLocal: ${d.nome_locador}\n${enderecoLocador}\nContato: ${contatoLocador}\n\nAtenciosamente,\nEquipe RentCarBrasil`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#222">
+                  <div style="background:#1d4ed8;padding:24px 28px;border-radius:10px 10px 0 0"><h2 style="color:#fff;margin:0;font-size:20px">Locação Aprovada ✅</h2></div>
+                  <div style="background:#f8fafc;padding:28px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px">
+                    <p style="margin-top:0">Olá, <strong>${d.nome_locatario}</strong>!</p>
+                    <p>Sua solicitação foi <strong style="color:#16a34a">aprovada</strong>. Veja os detalhes:</p>
+                    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+                      <tr style="background:#e0e7ff"><td style="padding:10px 14px;font-weight:700">Veículo</td><td style="padding:10px 14px">${d.nome_veiculo} — Placa <strong>${d.placa}</strong></td></tr>
+                      <tr style="background:#fff"><td style="padding:10px 14px;font-weight:700">Data de Retirada</td><td style="padding:10px 14px"><strong style="font-size:16px;color:#1d4ed8">${fmtData(d.data_inicio)}</strong></td></tr>
+                    </table>
+                    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px 20px;margin:20px 0">
+                      <p style="margin:0 0 8px;font-weight:700;font-size:15px;color:#c2410c">📍 Local de Retirada</p>
+                      <p style="margin:0 0 4px"><strong>${d.nome_locador}</strong></p>
+                      <p style="margin:0 0 4px;color:#555">${enderecoLocador}</p>
+                      <p style="margin:0;color:#555">📞 ${contatoLocador}</p>
+                    </div>
+                    <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0"/>
+                    <p style="font-size:12px;color:#94a3b8;margin:0">Atenciosamente, Equipe RentCarBrasil</p>
+                  </div></div>`,
+        });
+        console.log(`[e-mail] Aprovação enviada para ${d.email_locatario} — locação #${locacaoId}`);
+    } catch (err) {
+        console.warn(`[e-mail] Falha ao enviar e-mail de aprovação para locação #${locacaoId}:`, err.message);
     }
+}
 
-    const from = process.env.MAIL_FROM || process.env.SMTP_USER;
-    const info = await transporter.sendMail({
-        from,
-        to: para,
-        subject: 'Contrato de locacao - assinatura digital gov.br',
-        text: `Ola ${nomeLocatario},\n\nSegue em anexo o contrato em PDF para assinatura digital.\n\nAcesse o portal oficial para assinatura com conta gov.br:\nhttps://assinador.iti.br\n\nAtenciosamente,\nEquipe RentCarBrasil`,
+async function enviarContratoPorEmail({ para, nomeLocatario, pdfBuffer, nomeArquivo }) {
+    const { enviarEmail } = require('../utils/mailer');
+    return enviarEmail({
+        para,
+        assunto: 'Contrato de locacao - assinatura digital gov.br',
+        texto: `Ola ${nomeLocatario},\n\nSegue em anexo o contrato em PDF para assinatura digital.\n\nAcesse o portal oficial para assinatura com conta gov.br:\nhttps://assinador.iti.br\n\nAtenciosamente,\nEquipe RentCarBrasil`,
         html: `<p>Ola ${nomeLocatario},</p><p>Segue em anexo o contrato em PDF para assinatura digital.</p><p>Acesse o portal oficial para assinatura com conta gov.br:<br/><a href="https://assinador.iti.br">https://assinador.iti.br</a></p><p>Atenciosamente,<br/>Equipe RentCarBrasil</p>`,
-        attachments: [
-            {
-                filename: nomeArquivo,
-                content: pdfBuffer,
-                contentType: 'application/pdf',
-            },
-        ],
+        anexoPdf: { nome: nomeArquivo, buffer: pdfBuffer },
     });
-
-    return info;
 }
 
 // GET /api/locacoes
@@ -587,6 +623,48 @@ router.get('/', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ erro: 'Erro ao buscar locações.' });
+    }
+});
+
+// GET /api/locacoes/:id/locatario — dados completos do locatário + documentos (acessível ao locador da viatura)
+router.get('/:id/locatario', async (req, res) => {
+    try {
+        // Verifica se o locador tem acesso a essa locação
+        let ownerSql = `SELECT lc.locatario_id, v.locador_id FROM locacoes lc LEFT JOIN veiculos v ON lc.veiculo_id = v.id WHERE lc.id = ?`;
+        const [ownerRows] = await pool.query(ownerSql, [req.params.id]);
+        if (ownerRows.length === 0) return res.status(404).json({ erro: 'Locação não encontrada.' });
+
+        const { locatario_id: locatarioId, locador_id: locadorId } = ownerRows[0];
+
+        if (req.usuario?.perfil === 'locador') {
+            const myLocadorId = await getLocadorIdForUser(req.usuario);
+            if (!myLocadorId || String(myLocadorId) !== String(locadorId)) {
+                return res.status(403).json({ erro: 'Acesso não autorizado.' });
+            }
+        } else if (req.usuario?.perfil === 'auxiliar') {
+            const myLocadorId = await getAuxiliarLocadorIdForUser(req.usuario);
+            if (!myLocadorId || String(myLocadorId) !== String(locadorId)) {
+                return res.status(403).json({ erro: 'Acesso não autorizado.' });
+            }
+        } else if (req.usuario?.perfil !== 'admin') {
+            return res.status(403).json({ erro: 'Acesso não autorizado.' });
+        }
+
+        // Busca todos os campos do locatário + documentos do usuário vinculado
+        const [rows] = await pool.query(
+            `SELECT lt.*,
+                    u.doc_rg, u.doc_cpf, u.doc_comprovante
+             FROM locatarios lt
+             LEFT JOIN usuarios u ON LOWER(TRIM(u.email)) = LOWER(TRIM(lt.email))
+             WHERE lt.id = ?
+             LIMIT 1`,
+            [locatarioId]
+        );
+        if (rows.length === 0) return res.status(404).json({ erro: 'Locatário não encontrado.' });
+        res.json(rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ erro: 'Erro ao buscar dados do locatário.' });
     }
 });
 
@@ -660,7 +738,7 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
         let statusValue = 'ativa';
 
         const [veiculoRows] = await conn.query(
-            'SELECT id, placa, marca, modelo, valor_fipe, valor_diario, km_atual FROM veiculos WHERE id = ? LIMIT 1',
+            'SELECT id, placa, marca, modelo, valor_fipe, valor_diario, km_atual, franquia, seguradora, nr_apolice FROM veiculos WHERE id = ? LIMIT 1',
             [veiculo_id]
         );
         if (veiculoRows.length === 0) {
@@ -808,10 +886,16 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
 
                 // Obter email do locador
                 const [locadorRows] = await pool.query(
-                    `SELECT id, nome, email FROM locadores WHERE id = ? LIMIT 1`,
+                    `SELECT id, nome, email, cidade, estado FROM locadores WHERE id = ? LIMIT 1`,
                     [veiculo.locador_id]
                 );
                 const locador = locadorRows[0] || {};
+
+                const valoresClausula4 = {
+                    ...calcularValoresClausula4(veiculo, periodicidade, quantidade_periodos, data_inicio),
+                    cidadeLocador: locador.cidade || '',
+                    estadoLocador: locador.estado || '',
+                };
 
                 const contratoPayload = {
                     locatario: {
@@ -842,6 +926,7 @@ router.post('/', requireProfiles('admin', 'locatario', 'auxiliar'), async (req, 
                         quantidadePeriodos: quantidade_periodos || '',
                         condicoes: condicoesValue,
                     },
+                    valoresClausula4,
                 };
 
                 const emailDestino = contratoPayload.locatario.email;
@@ -1079,6 +1164,9 @@ router.patch('/:id/aprovar', requireProfiles('admin', 'locador', 'auxiliar'), as
         );
 
         await conn.commit();
+
+        // Envia e-mail ao locatário em background (não bloqueia a resposta)
+        enviarEmailAprovacaoLocacao(locacao.id);
 
         const [atualizada] = await pool.query(
             `SELECT lc.*, CONCAT(v.marca,' ',v.modelo) AS nome_veiculo, v.placa,

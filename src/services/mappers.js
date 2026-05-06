@@ -79,6 +79,7 @@ export function locadorToApi(f) {
         complemento: f.complemento, bairro: f.bairro, cidade: f.cidade, estado: f.estado,
         banco: f.banco, agencia: f.agencia, conta: f.conta,
         tipo_conta: f.tipoConta, pix_chave: f.pixChave, observacoes: f.observacoes,
+        logo: f.logo || null,
     };
 }
 
@@ -100,6 +101,7 @@ export function locadorFromApi(r) {
         banco: r.banco || '', agencia: r.agencia || '', conta: r.conta || '',
         tipoConta: r.tipo_conta || 'corrente', pixChave: r.pix_chave || '',
         observacoes: r.observacoes || '',
+        logo: r.logo || null,
         // campo calculado para exibição
         nomeExibido: r.tipo === 'juridica' ? (r.razao_social || '') : (r.nome || ''),
     });
@@ -237,8 +239,11 @@ export function veiculoToApi(f) {
         data_compra: f.dataCompra || null, valor_compra: f.valorCompra || null,
         valor_fipe: f.valorFipe || null,
         seguradora: f.seguradora, nr_apolice: f.nrApolice, vencimento_seguro: f.vencimentoSeguro || null,
+        franquia: parseMoedaBrasil(f.franquia),
         data_licenciamento: f.dataLicenciamento || null, data_vistoria: f.dataVistoria || null,
         bloqueador: f.bloqueador, nr_bloqueador: f.nrBloqueador,
+        carroceria: f.carroceria || null,
+        blindado: f.blindado ? 1 : 0, nivel_blindagem: f.blindado ? (f.nivelBlindagem || null) : null,
         locador_id: f.locadorId || null, valor_diario: parseMoedaBrasil(f.valorDiario), foto: f.foto, observacoes: f.observacoes,
     };
 }
@@ -255,10 +260,13 @@ export function veiculoFromApi(r) {
         kmTrocaOleo: r.km_troca_oleo, kmTrocaCorreia: r.km_troca_correia, kmTrocaPneu: r.km_troca_pneu,
         dataCompra: r.data_compra, valorCompra: r.valor_compra, valorFipe: r.valor_fipe,
         seguradora: r.seguradora || '', nrApolice: r.nr_apolice || '',
-        vencimentoSeguro: r.vencimento_seguro,
+        vencimentoSeguro: r.vencimento_seguro, franquia: r.franquia ?? '',
         dataLicenciamento: r.data_licenciamento, dataVistoria: r.data_vistoria,
         bloqueador: r.bloqueador || '', nrBloqueador: r.nr_bloqueador || '',
+        carroceria: r.carroceria || '',
+        blindado: !!r.blindado, nivelBlindagem: r.nivel_blindagem || '',
         locadorId: r.locador_id, nomeLocador: r.nome_locador || '',
+        cidadeLocador: r.cidade_locador || '', estadoLocador: r.estado_locador || '',
         valorDiario: r.valor_diario ?? null,
         foto: r.foto || '', observacoes: r.observacoes || '',
     });
@@ -400,16 +408,19 @@ export function usuarioFromApi(r) {
                 tipo: r.locador_vinculado.tipo || 'fisica',
                 cpf: r.locador_vinculado.cpf || '',
                 cnpj: r.locador_vinculado.cnpj || '',
+                logo: r.locador_vinculado.logo || null,
             }
             : null,
         locadorProprio: r.locador_proprio
             ? {
                 id: r.locador_proprio.id || null,
                 nome: r.locador_proprio.nome || '',
+                razaoSocial: r.locador_proprio.razao_social || '',
                 email: r.locador_proprio.email || '',
                 tipo: r.locador_proprio.tipo || 'fisica',
                 cpf: r.locador_proprio.cpf || '',
                 cnpj: r.locador_proprio.cnpj || '',
+                logo: r.locador_proprio.logo || null,
             }
             : null,
         ativo: r.ativo ?? 1,
