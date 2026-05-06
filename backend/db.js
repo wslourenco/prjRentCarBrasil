@@ -18,11 +18,11 @@ function env(name, fallback = '') {
 }
 
 const pool = mysql.createPool({
-    host: env('DB_HOST', 'localhost'),
-    port: Number(env('DB_PORT', '3306')) || 3306,
-    user: env('DB_USER', 'root'),
-    password: env('DB_PASSWORD', ''),
-    database: env('DB_NAME', 'sislove'),
+    host:     env('DB_HOST')     || env('MYSQLHOST',     'localhost'),
+    port:     Number(env('DB_PORT') || env('MYSQLPORT', '3306')) || 3306,
+    user:     env('DB_USER')     || env('MYSQLUSER',     'root'),
+    password: env('DB_PASSWORD') || env('MYSQLPASSWORD', ''),
+    database: env('DB_NAME')     || env('MYSQLDATABASE') || env('MYSQL_DATABASE', 'sislove'),
     charset: 'utf8mb4',
     waitForConnections: true,
     connectionLimit: 10,
